@@ -1,4 +1,4 @@
-# agsh — Ruby realtime playground 設計ドキュメント
+# ruby-playground 設計ドキュメント
 
 ## これは何か
 
