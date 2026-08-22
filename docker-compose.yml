@@ -1,0 +1,22 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    command: sh -c "bin/rails db:prepare && bin/rails server -b 0.0.0.0"
+    volumes:
+      - .:/rails
+      - bundle_data:/usr/local/bundle
+    ports:
+      - "3000:3000"
+    environment:
+      RAILS_ENV: development
+      # Note: development uses Rails' default :async job adapter (in-process,
+      # not persisted). Solid Queue is only wired up in production
+      # (config/environments/production.rb) with its own queue database.
+      # See doc/adr/0003 for context.
+    tty: true
+    stdin_open: true
+
+volumes:
+  bundle_data:

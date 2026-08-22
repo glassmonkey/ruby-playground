@@ -55,6 +55,10 @@ tool呼び出しを含む詳細フロー (Step作成込み) はpost-MVP (論点E
 
 ## Consequences
 
-- ActionCable (Redis等) のインフラが必要になる
 - 複数タブ/端末での同時視聴、将来のStep単位進捗表示への拡張が自然に行える
 - 再接続時の現在状態再描画ロジックを実装する必要がある
+
+## Update (2026-08-22): Redis不要と判明
+
+`rails new` で実際にscaffoldした結果、Rails 8のデフォルト構成では ActionCable のアダプタは development で `async` (プロセス内完結)、production でも Redis やなく **Solid Cable** (SQLiteベースの `solid_cable` gem) やった。Context/Decision時点では「ActionCable (Redis等) のインフラが必要」と想定していたが、これは誤りだったため訂正する。Redisは導入しない。
+
