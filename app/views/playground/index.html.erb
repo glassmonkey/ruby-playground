@@ -1,7 +1,14 @@
 <h1>Ruby Playground (proof of concept)</h1>
 
-<textarea id="code" rows="10" cols="60" style="font-family: monospace;">puts "Hello, world!"
-(1..5).sum</textarea>
+<textarea id="code" rows="10" cols="60" style="font-family: monospace;">require 'rbconfig'
+[
+  "RUBY_VERSION: #{RUBY_VERSION}",
+  "RUBY_ENGINE: #{RUBY_ENGINE}",
+  "RUBY_PLATFORM: #{RUBY_PLATFORM}",
+  "RUBY_DESCRIPTION: #{RUBY_DESCRIPTION}",
+  "host_os: #{RbConfig::CONFIG['host_os']}",
+  "ENV size: #{ENV.size}",
+].join("\n")</textarea>
 
 <h2>Output</h2>
 <div id="output-area" style="display: flex; align-items: center; gap: 0.5em;">
