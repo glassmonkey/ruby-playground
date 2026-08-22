@@ -36,6 +36,17 @@
   @keyframes spin {
     to { transform: rotate(360deg); }
   }
+
+  #output.error {
+    background-color: #fdecea;
+    border-left: 4px solid #d32f2f;
+    color: #a1260d;
+    padding: 0.5em;
+  }
+
+  #output.error::before {
+    content: "⚠ ";
+  }
 </style>
 
 <script type="module" src="/ruby-wasm/ruby-playground.js"></script>

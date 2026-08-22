@@ -16,11 +16,13 @@ function runCode(code) {
   currentWorker.onmessage = (event) => {
     const { ok, result, error } = event.data;
     spinner.hidden = true;
+    output.classList.toggle("error", !ok);
     output.textContent = ok ? result : `Error: ${error}`;
   };
 
   currentWorker.onerror = (event) => {
     spinner.hidden = true;
+    output.classList.add("error");
     output.textContent = `Error: ${event.message}`;
   };
 
