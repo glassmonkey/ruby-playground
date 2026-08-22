@@ -129,6 +129,17 @@ body {
   word-break: break-word;
 }
 
+#output.error {
+  background-color: #fdecea;
+  border-left: 4px solid #d32f2f;
+  color: #a1260d;
+  padding: 0.5em;
+}
+
+#output.error::before {
+  content: "⚠ ";
+}
+
 .spinner {
   flex: none;
   display: inline-block;
