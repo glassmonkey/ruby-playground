@@ -1,39 +1,43 @@
-# agsh — agent hosting サービス設計ドキュメント
+# agsh — Ruby realtime playground 設計ドキュメント
 
 ## これは何か
 
-個人用の chat 型 agent hosting サービスを Rails で作る。ユーザー (自分) が agent (LLM + system prompt) を定義し、スマホを含め場所を問わず chat 形式で会話できる。
+Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行できるplaygroundを作り、実行したsnippetを共有・管理できるようにする。
+
+このプロジェクトは元々「個人用 chat型 agent hosting サービス」として設計を始めたが、[ADR-0008](adr/0008-pivot-to-ruby-playground.md) で方向転換した。ADR-0001〜0007はその時代の決定であり、Superseded (廃止) となっている。
 
 ## 概念の位置づけ
 
-agent hosting サービスは「アプリケーション実行基盤」(一般PaaS/FaaSの兄弟) であり、同時に「AI agent 製品カテゴリ」(agent framework/agent builder/MCP server hosting の兄弟) でもある。一般PaaSやFaaSとの違いは、実行単位が「1 run (非決定的・外部API課金を伴う)」であること。agent framework/SDKとの違いは、実行環境ごと引き受けること。
+- **Snippet**: ユーザーが書いたRubyコード片。保存され、後で再実行・共有・閲覧できる
+- **Playground Session**: コードを書いて即座に実行結果を見る、対話的な実行環境の1インスタンス
+- **Execution**: 1回のコード実行。結果がリアルタイムにストリーミングされる単位
+
+対話的実行環境 (irb, Jupyter/notebook系) や、コード共有サービス (GitHub Gist, Pastebin) の兄弟にあたる。分岐点は「ブラウザ内でのリアルタイム実行 + 実行可能なコードの共有」を両立している点。
 
 ## スコープ
 
-- **個人用**: multi-tenant SaaS ではない ([ADR-0002](adr/0002-personal-use-scope.md))
-- **設定駆動型**: 任意コード実行なし、model/system_prompt/tool構成のみを受け付ける ([ADR-0001](adr/0001-config-driven-execution.md))
-- **MVP**: tool呼び出し無しの純粋なテキスト会話 (chatGPTライク) ([ADR-0007](adr/0007-mvp-scope-text-only-chat.md))
+- **実行はクライアント側**: `ruby.wasm` でブラウザ内実行、サーバー側にサンドボックス基盤は持たない ([ADR-0009](adr/0009-client-side-wasm-execution.md))
+- **毎回まっさらな状態で自動実行**: Web Worker + 実行毎の再生成、コード変更のデバウンス自動実行 ([ADR-0010](adr/0010-fresh-state-auto-execution.md))
+- **即席共有はURLエンコード方式**: DBを介さない、`lz-string`でコードをURLに埋め込む ([ADR-0011](adr/0011-url-based-sharing.md))
+- **管理はRails+DB、個人利用**: 保存済みSnippetの閲覧はログイン不要、作成・編集・削除は所有者のみ ([ADR-0012](adr/0012-snippet-management-in-rails.md))
 
 ## 決定一覧 (ADR)
 
-- [0001](adr/0001-config-driven-execution.md) 設定駆動型のagent実行 (任意コード実行なし) — Accepted
-- [0002](adr/0002-personal-use-scope.md) 個人利用スコープ — Accepted
-- [0003](adr/0003-async-execution.md) 非同期実行の採用 (Solid Queue) — Accepted
-- [0004](adr/0004-conversation-turn-step-model.md) Conversation / Turn / Step データモデル — Accepted
-- [0005](adr/0005-turbo-streams-for-progress.md) Turbo Streams による進捗反映 — Accepted
-- [0006](adr/0006-agent-definition-schema.md) Agent定義スキーマ — Accepted
-- [0007](adr/0007-mvp-scope-text-only-chat.md) MVPスコープ (tool呼び出し無しの純粋chat) — Accepted
+- [0008](adr/0008-pivot-to-ruby-playground.md) プロジェクトの方向転換 (agent hosting → Ruby realtime playground) — Accepted
+- [0009](adr/0009-client-side-wasm-execution.md) コード実行はクライアント側 (ruby.wasm) で行う — Accepted
+- [0010](adr/0010-fresh-state-auto-execution.md) Web Worker内で毎回まっさらな状態から自動実行する — Accepted
+- [0011](adr/0011-url-based-sharing.md) 即席共有はURLエンコード方式、DBを介さない — Accepted
+- [0012](adr/0012-snippet-management-in-rails.md) Snippet管理はRailsで行う。閲覧はログイン不要、管理は所有者のみ — Accepted
 
-## 今後の論点 (post-MVP、未決定)
+### 過去の決定 (Superseded, agent hosting時代)
 
-- **論点D**: トークン節約のためのコンテキスト圧縮方式 (会話が伸びたときにどう圧縮してLLMに送るか)
-- **論点E**: 最初にサポートするtool範囲 (web検索のみか、MCP server接続を最初から開けるか)
-- **論点F**: モニタリングダッシュボードの構築方式 (自前 vs 外部監視ツール連携)
+- [0001](adr/0001-config-driven-execution.md)〜[0007](adr/0007-mvp-scope-text-only-chat.md) — [ADR-0008](adr/0008-pivot-to-ruby-playground.md)により廃止
 
-これらはMVP完成後、必要になった時点で `clarify-issue` の手順 (判断軸 → 選択肢評価 → 収束) で決定する。
+## 今後の論点 (未決定)
 
-## 用語
+- 即席共有 (ADR-0011のURL) と保存済みSnippet (ADR-0012のURL) のURL形態をどう整合させるか
+- 実装済みのCredentialモデル (Anthropic API key用、agent hosting時代の実装) の扱い — 削除するかどうかは別途判断する
 
-- **Conversation**: 会話全体の束
-- **Turn**: 1往復の実行単位 (ユーザー入力 → agentの応答生成)。旧称 Run/Job を検討したが命名の衝突・しっくりこなさから Turn に確定 ([ADR-0004](adr/0004-conversation-turn-step-model.md))
-- **Step**: Turn内の tool呼び出し1回分 (MVPでは未使用)
+## 参考実装
+
+- [glassmonkey/php-playground](https://github.com/glassmonkey/php-playground) ([php-play.dev](https://php-play.dev)) — 同じ作者による同種のPHP版。実行方式 (Web Worker + 毎回再生成 + 自動実行) と共有方式 (lz-string URL埋め込み) の実例として参照した

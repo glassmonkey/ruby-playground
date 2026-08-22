@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted (2026-08-22)
+Superseded by [ADR-0008](0008-pivot-to-ruby-playground.md) (2026-08-22)
 
 ## Context
 
