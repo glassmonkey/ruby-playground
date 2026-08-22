@@ -1,5 +1,6 @@
 const codeInput = document.getElementById("code");
 const output = document.getElementById("output");
+const spinner = document.getElementById("spinner");
 
 let currentWorker = null;
 let debounceTimer = null;
@@ -10,14 +11,16 @@ function runCode(code) {
   if (currentWorker) currentWorker.terminate();
 
   currentWorker = new Worker("/ruby-wasm/worker.js", { type: "module" });
-  output.textContent = "Running...";
+  spinner.hidden = false;
 
   currentWorker.onmessage = (event) => {
     const { ok, result, error } = event.data;
+    spinner.hidden = true;
     output.textContent = ok ? result : `Error: ${error}`;
   };
 
   currentWorker.onerror = (event) => {
+    spinner.hidden = true;
     output.textContent = `Error: ${event.message}`;
   };
 
