@@ -32,3 +32,9 @@
 
 # Ignore key files for decrypting credentials and more.
 /config/*.key
+
+# Ignore the ruby.wasm bundle build's dependencies and output (ADR-0014).
+# public/ruby-wasm/ is populated from frontend/dist/ via the build step.
+/frontend/node_modules
+/frontend/dist
+/public/ruby-wasm/*
