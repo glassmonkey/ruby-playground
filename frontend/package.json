@@ -8,7 +8,8 @@
   "dependencies": {
     "@bjorn3/browser_wasi_shim": "0.4.2",
     "@ruby/4.0-wasm-wasi": "2.10.1",
-    "@ruby/wasm-wasi": "2.10.1"
+    "@ruby/wasm-wasi": "2.10.1",
+    "lz-string": "^1.5.0"
   },
   "devDependencies": {
     "esbuild": "^0.24.0"
