@@ -7,6 +7,7 @@ await esbuild.build({
   entryPoints: {
     "ruby-playground": "src/index.js",
     "worker": "src/worker.js",
+    "completion-worker.spike": "src/completion-worker.spike.js",
   },
   bundle: true,
   format: "esm",

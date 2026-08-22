@@ -32,6 +32,7 @@ Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行�
 - [0012](adr/0012-snippet-management-in-rails.md) Snippet管理はRailsで行う。閲覧はログイン不要、管理は所有者のみ — Accepted
 - [0013](adr/0013-mvp-scope.md) MVPスコープ (エディタ+実行+URL即席共有のみ) — Accepted
 - [0014](adr/0014-wasm-bundle-build-and-hosting.md) ruby.wasmバンドルは別途ビルドし、Cloudflareでホスティングする — Accepted
+- [0015](adr/0015-completion-spike-result.md) ライブVM反射問い合わせによるコード補完は見送り、素の単語補完に倒す (issue #13 spike結果) — Accepted
 
 ### 過去の決定 (Superseded, agent hosting時代)
 
