@@ -20,6 +20,7 @@ Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行�
 - **毎回まっさらな状態で自動実行**: Web Worker + 実行毎の再生成、コード変更のデバウンス自動実行 ([ADR-0010](adr/0010-fresh-state-auto-execution.md))
 - **即席共有はURLエンコード方式**: DBを介さない、`lz-string`でコードをURLに埋め込む ([ADR-0011](adr/0011-url-based-sharing.md))
 - **管理はRails+DB、個人利用**: 保存済みSnippetの閲覧はログイン不要、作成・編集・削除は所有者のみ ([ADR-0012](adr/0012-snippet-management-in-rails.md))
+- **MVPはエディタ+実行+URL即席共有のみ**: Snippet管理・認証はpost-MVP ([ADR-0013](adr/0013-mvp-scope.md))
 
 ## 決定一覧 (ADR)
 
@@ -28,6 +29,7 @@ Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行�
 - [0010](adr/0010-fresh-state-auto-execution.md) Web Worker内で毎回まっさらな状態から自動実行する — Accepted
 - [0011](adr/0011-url-based-sharing.md) 即席共有はURLエンコード方式、DBを介さない — Accepted
 - [0012](adr/0012-snippet-management-in-rails.md) Snippet管理はRailsで行う。閲覧はログイン不要、管理は所有者のみ — Accepted
+- [0013](adr/0013-mvp-scope.md) MVPスコープ (エディタ+実行+URL即席共有のみ) — Accepted
 
 ### 過去の決定 (Superseded, agent hosting時代)
 
