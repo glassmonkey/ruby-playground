@@ -1,9 +1,21 @@
+import { decodeSharedCode, urlSearchWithCode } from "./url-sharing.js";
+
 const codeInput = document.getElementById("code");
 const output = document.getElementById("output");
 const spinner = document.getElementById("spinner");
 
 let currentWorker = null;
 let debounceTimer = null;
+
+// If the page was loaded with a shared `c` param, it overrides whatever's
+// in the textarea.
+const sharedCode = decodeSharedCode(location.search);
+if (sharedCode) codeInput.value = sharedCode;
+
+function updateUrlWithCode(code) {
+  // pushState only: we don't want a navigation/reload on every keystroke.
+  history.pushState(null, "", urlSearchWithCode(location.search, code));
+}
 
 function runCode(code) {
   // ADR-0010: terminate the previous worker (and its Ruby VM) entirely and
@@ -33,7 +45,10 @@ function runCode(code) {
 
 codeInput.addEventListener("input", () => {
   clearTimeout(debounceTimer);
-  debounceTimer = setTimeout(() => runCode(codeInput.value), 300);
+  debounceTimer = setTimeout(() => {
+    runCode(codeInput.value);
+    updateUrlWithCode(codeInput.value);
+  }, 300);
 });
 
 // Run once on load with whatever's already in the textarea.
