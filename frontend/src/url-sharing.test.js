@@ -1,0 +1,55 @@
+import { describe, expect, it } from "vitest";
+import { decodeSharedCode, urlSearchWithCode } from "./url-sharing.js";
+
+describe("urlSearchWithCode", () => {
+  it("encodes the code into a c param when there's no existing query", () => {
+    const sut = urlSearchWithCode;
+
+    const got = sut("", "puts 1");
+
+    expect(got.startsWith("?c=")).toBe(true);
+  });
+
+  it("preserves other existing query params", () => {
+    const sut = urlSearchWithCode;
+
+    const got = sut("?foo=bar", "puts 1");
+
+    const params = new URLSearchParams(got);
+    expect(params.get("foo")).toBe("bar");
+    expect(params.has("c")).toBe(true);
+  });
+});
+
+describe("decodeSharedCode", () => {
+  it("returns null when there is no c param", () => {
+    const sut = decodeSharedCode;
+
+    const got = sut("");
+
+    expect(got).toBeNull();
+  });
+
+  it("returns null for a c param that isn't valid lz-string data", () => {
+    const sut = decodeSharedCode;
+
+    const got = sut("?c=not-a-valid-lzstring-payload");
+
+    expect(got).toBeNull();
+  });
+});
+
+describe("urlSearchWithCode + decodeSharedCode round trip", () => {
+  it.each([
+    ["single line", "puts 1"],
+    ["multi-line with special chars", "puts 'hi'\n# comment: 日本語 & <script>"],
+    ["code containing an ampersand and equals sign", "a = 1 && b = 2"],
+  ])("recovers the original code for: %s", (_label, code) => {
+    const sut = decodeSharedCode;
+    const encoded = urlSearchWithCode("", code);
+
+    const got = sut(encoded);
+
+    expect(got).toBe(code);
+  });
+});

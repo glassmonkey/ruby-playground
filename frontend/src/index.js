@@ -1,7 +1,4 @@
-import {
-  compressToEncodedURIComponent,
-  decompressFromEncodedURIComponent,
-} from "lz-string";
+import { decodeSharedCode, urlSearchWithCode } from "./url-sharing.js";
 
 const codeInput = document.getElementById("code");
 const output = document.getElementById("output");
@@ -10,19 +7,14 @@ const spinner = document.getElementById("spinner");
 let currentWorker = null;
 let debounceTimer = null;
 
-// ADR-0011: instant sharing goes through the URL's `c` param (lz-string
-// compressed code), no DB involved. If the page was loaded with one,
-// it overrides whatever's in the textarea.
-const sharedCode = decompressFromEncodedURIComponent(
-  new URLSearchParams(location.search).get("c") ?? "",
-);
+// If the page was loaded with a shared `c` param, it overrides whatever's
+// in the textarea.
+const sharedCode = decodeSharedCode(location.search);
 if (sharedCode) codeInput.value = sharedCode;
 
 function updateUrlWithCode(code) {
-  const params = new URLSearchParams(location.search);
-  params.set("c", compressToEncodedURIComponent(code));
   // pushState only: we don't want a navigation/reload on every keystroke.
-  history.pushState(null, "", `?${params.toString()}`);
+  history.pushState(null, "", urlSearchWithCode(location.search, code));
 }
 
 function runCode(code) {
