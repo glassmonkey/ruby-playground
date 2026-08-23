@@ -28,11 +28,15 @@ function runCode(code) {
   currentWorker.onmessage = (event) => {
     const { ok, result, error } = event.data;
     spinner.hidden = true;
+    output.classList.toggle("error", !ok);
+    output.setAttribute("role", ok ? "status" : "alert");
     output.textContent = ok ? result : `Error: ${error}`;
   };
 
   currentWorker.onerror = (event) => {
     spinner.hidden = true;
+    output.classList.add("error");
+    output.setAttribute("role", "alert");
     output.textContent = `Error: ${event.message}`;
   };
 
