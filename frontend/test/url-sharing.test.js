@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { decodeSharedCode, urlSearchWithCode } from "./url-sharing.js";
+import { decodeSharedCode, urlSearchWithCode } from "../src/url-sharing.js";
 
 describe("urlSearchWithCode", () => {
   it("encodes the code into a c param when there's no existing query", () => {
