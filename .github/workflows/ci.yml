@@ -145,14 +145,13 @@ jobs:
 
       - name: Build ruby.wasm frontend bundle
         # ADR-0014: system tests exercise the real frontend JS in a browser,
-        # so the bundle Rails serves from public/ruby-wasm/ (gitignored,
-        # built on demand) needs to exist before Capybara visits any page.
+        # so the bundle Rails serves from public/ruby-wasm/ (gitignored)
+        # needs to exist before Capybara visits any page. `npm run build`
+        # populates it directly.
+        working-directory: frontend
         run: |
-          cd frontend
           npm ci
           npm run build
-          mkdir -p ../public/ruby-wasm
-          cp dist/* ../public/ruby-wasm/
 
       - name: Run System Tests
         env:

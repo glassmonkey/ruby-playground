@@ -1,5 +1,5 @@
 import * as esbuild from "esbuild";
-import { copyFileSync, mkdirSync } from "node:fs";
+import { cpSync, mkdirSync } from "node:fs";
 
 mkdirSync("dist", { recursive: true });
 
@@ -15,6 +15,10 @@ await esbuild.build({
   sourcemap: true,
 });
 
-copyFileSync("node_modules/@ruby/4.0-wasm-wasi/dist/ruby.wasm", "dist/ruby.wasm");
+cpSync("node_modules/@ruby/4.0-wasm-wasi/dist/ruby.wasm", "dist/ruby.wasm");
 
-console.log("Build complete: dist/ruby-playground.js + dist/worker.js + dist/ruby.wasm");
+// ADR-0014: local (and CI) dev serves the bundle straight from Rails'
+// public/, which is gitignored and expected to be populated by this build.
+cpSync("dist", "../public/ruby-wasm", { recursive: true });
+
+console.log("Build complete: dist/ + public/ruby-wasm/ (ruby-playground.js, worker.js, ruby.wasm)");
