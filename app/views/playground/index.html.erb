@@ -1,6 +1,13 @@
-<h1>Ruby Playground (proof of concept)</h1>
+<div class="playground">
+  <header class="playground__header">
+    <h1>Ruby Playground (proof of concept)</h1>
+    <p>Edit the Ruby code on the left and see the output update automatically.</p>
+  </header>
 
-<textarea id="code" rows="10" cols="60" style="font-family: monospace;">require 'rbconfig'
+  <div class="playground__panes">
+    <section class="playground__pane">
+      <h2>Code</h2>
+      <textarea id="code">require 'rbconfig'
 [
   "RUBY_VERSION: #{RUBY_VERSION}",
   "RUBY_ENGINE: #{RUBY_ENGINE}",
@@ -9,44 +16,16 @@
   "host_os: #{RbConfig::CONFIG['host_os']}",
   "ENV size: #{ENV.size}",
 ].join("\n")</textarea>
+    </section>
 
-<h2>Output</h2>
-<div id="output-area" style="display: flex; align-items: center; gap: 0.5em;">
-  <span id="spinner" class="spinner" hidden></span>
-  <pre id="output" role="status">Loading ruby.wasm...</pre>
+    <section class="playground__pane">
+      <h2>Output</h2>
+      <div class="playground__output-body">
+        <span id="spinner" class="spinner" hidden></span>
+        <pre id="output" role="status">Loading ruby.wasm...</pre>
+      </div>
+    </section>
+  </div>
 </div>
-
-<style>
-  .spinner {
-    display: inline-block;
-    width: 1em;
-    height: 1em;
-    border: 2px solid #ccc;
-    border-top-color: #333;
-    border-radius: 50%;
-    animation: spin 0.6s linear infinite;
-  }
-
-  /* [hidden] must win over the display set above, or hiding it via JS
-     (spinner.hidden = true) silently does nothing. */
-  .spinner[hidden] {
-    display: none;
-  }
-
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-
-  #output.error {
-    background-color: #fdecea;
-    border-left: 4px solid #d32f2f;
-    color: #a1260d;
-    padding: 0.5em;
-  }
-
-  #output.error::before {
-    content: "⚠ ";
-  }
-</style>
 
 <script type="module" src="/ruby-wasm/ruby-playground.js"></script>
