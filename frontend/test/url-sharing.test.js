@@ -7,21 +7,31 @@ describe("urlSearchWithCode", () => {
 
     const got = sut("", "puts 1");
 
-    expect(got.startsWith("?c=")).toBe(true);
+    expect(got).toMatch(/^\?c=/);
   });
 
-  it("preserves other existing query params", () => {
+  it("preserves other existing query params while still encoding c correctly", () => {
     const sut = urlSearchWithCode;
+    const code = "puts 1";
 
-    const got = sut("?foo=bar", "puts 1");
+    const got = sut("?foo=bar", code);
 
     const params = new URLSearchParams(got);
     expect(params.get("foo")).toBe("bar");
-    expect(params.has("c")).toBe(true);
+    expect(decodeSharedCode(got)).toBe(code);
   });
 });
 
 describe("decodeSharedCode", () => {
+  it("decodes a c param produced by urlSearchWithCode", () => {
+    const sut = decodeSharedCode;
+    const encoded = urlSearchWithCode("", "puts 1");
+
+    const got = sut(encoded);
+
+    expect(got).toBe("puts 1");
+  });
+
   it("returns null when there is no c param", () => {
     const sut = decodeSharedCode;
 
