@@ -228,6 +228,25 @@ body {
   font-size: 0.875rem;
 }
 
+/* Rails derives size="100" from the title's maxlength, which overflows the
+   header on anything but a very wide window. Let flex size it instead. */
+.save-form input[type="text"] {
+  flex: 1;
+  min-width: 0;
+  max-width: 22rem;
+}
+
+.snippet-form__field input,
+.snippet-form__field textarea {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
 .snippets,
 .snippet,
 .snippet-form-page {
