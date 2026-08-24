@@ -24,6 +24,19 @@
   </head>
 
   <body>
+    <nav class="app-nav">
+      <%= link_to "Ruby Playground", root_path, class: "app-nav__brand" %>
+      <div class="app-nav__links">
+        <% if authenticated? %>
+          <%= link_to "My snippets", snippets_path %>
+        <% else %>
+          <%= link_to "Sign in", new_session_path %>
+        <% end %>
+      </div>
+    </nav>
+
+    <%= render "layouts/flashes" %>
+
     <%= yield %>
   </body>
 </html>

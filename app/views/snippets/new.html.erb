@@ -1,0 +1,7 @@
+<% content_for :title, "New snippet" %>
+
+<div class="snippet-form-page">
+  <h1>New snippet</h1>
+  <%= render "form", snippet: @snippet %>
+  <%= link_to "Back to my snippets", snippets_path %>
+</div>

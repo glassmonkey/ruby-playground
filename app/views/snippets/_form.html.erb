@@ -1,0 +1,23 @@
+<%= form_with model: snippet, class: "snippet-form" do |form| %>
+  <% if snippet.errors.any? %>
+    <div class="snippet-form__errors" role="alert">
+      <ul>
+        <% snippet.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="snippet-form__field">
+    <%= form.label :title %>
+    <%= form.text_field :title, required: true, maxlength: Snippet::TITLE_MAX_LENGTH %>
+  </div>
+
+  <div class="snippet-form__field">
+    <%= form.label :code %>
+    <%= form.text_area :code, rows: 16, required: true, maxlength: Snippet::CODE_MAX_LENGTH %>
+  </div>
+
+  <%= form.submit %>
+<% end %>

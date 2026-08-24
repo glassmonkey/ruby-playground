@@ -1,0 +1,20 @@
+one_hello:
+  user: one
+  title: Hello from one
+  code: puts 'hello from one'
+
+one_fizzbuzz:
+  user: one
+  title: FizzBuzz
+  code: |-
+    (1..15).map do |n|
+      next "FizzBuzz" if (n % 15).zero?
+      next "Fizz" if (n % 3).zero?
+      next "Buzz" if (n % 5).zero?
+      n.to_s
+    end.join("\n")
+
+two_private_notes:
+  user: two
+  title: Notes belonging to two
+  code: puts 'hello from two'

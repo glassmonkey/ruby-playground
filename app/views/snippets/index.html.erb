@@ -1,0 +1,24 @@
+<% content_for :title, "My snippets" %>
+
+<div class="snippets">
+  <header class="snippets__header">
+    <h1>My snippets</h1>
+    <%= link_to "New snippet", new_snippet_path, class: "button" %>
+  </header>
+
+  <% if @snippets.any? %>
+    <ul class="snippets__list">
+      <% @snippets.each do |snippet| %>
+        <li class="snippets__item">
+          <%= link_to snippet.title, snippet %>
+          <span class="snippets__meta">updated <%= snippet.updated_at.to_fs(:short) %></span>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="snippets__empty">
+      No snippets yet. Write some Ruby in the
+      <%= link_to "playground", root_path %> and save it from there.
+    </p>
+  <% end %>
+</div>

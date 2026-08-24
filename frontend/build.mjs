@@ -7,6 +7,7 @@ await esbuild.build({
   entryPoints: {
     "ruby-playground": "src/index.js",
     "worker": "src/worker.js",
+    "snippet-open": "src/snippet-open.js",
     "completion-worker.spike": "src/completion-worker.spike.js",
   },
   bundle: true,
@@ -21,4 +22,4 @@ cpSync("node_modules/@ruby/4.0-wasm-wasi/dist/ruby.wasm", "dist/ruby.wasm");
 // public/, which is gitignored and expected to be populated by this build.
 cpSync("dist", "../public/ruby-wasm", { recursive: true });
 
-console.log("Build complete: dist/ + public/ruby-wasm/ (ruby-playground.js, worker.js, ruby.wasm)");
+console.log("Build complete: dist/ + public/ruby-wasm/ (ruby-playground.js, snippet-open.js, worker.js, ruby.wasm)");

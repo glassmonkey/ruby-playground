@@ -1,0 +1,24 @@
+<% content_for :title, @snippet.title %>
+
+<article class="snippet">
+  <header class="snippet__header">
+    <h1><%= @snippet.title %></h1>
+    <p class="snippet__meta">updated <%= @snippet.updated_at.to_fs(:short) %></p>
+  </header>
+
+  <%# snippet-open.js turns this into a playground URL carrying the lz-string
+      `c` param, so running a saved snippet goes through the one code-carrying
+      URL the app has (ADR-0011) rather than a second one. %>
+  <div class="snippet__actions">
+    <%= link_to "Open in playground", root_path, id: "open-in-playground", class: "button" %>
+    <% if owned_by_viewer?(@snippet) %>
+      <%= link_to "Edit", edit_snippet_path(@snippet), class: "button" %>
+      <%= button_to "Delete", @snippet, method: :delete, class: "button button--danger",
+            form: { data: { turbo_confirm: "Delete #{@snippet.title}?" } } %>
+    <% end %>
+  </div>
+
+  <pre class="snippet__code" id="snippet-code"><%= @snippet.code %></pre>
+</article>
+
+<script type="module" src="/ruby-wasm/snippet-open.js"></script>

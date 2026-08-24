@@ -2,6 +2,25 @@
   <header class="playground__header">
     <h1>Ruby Playground (proof of concept)</h1>
     <p>Edit the Ruby code on the left and see the output update automatically.</p>
+
+    <div class="playground__save">
+      <% if authenticated? %>
+        <%# The hidden code field is kept in sync with the editor by
+            ruby-playground.js: saving copies the code into a snippet record,
+            it does not turn the snippet into a second sharing URL. %>
+        <%= form_with model: Snippet.new, class: "save-form" do |form| %>
+          <%= form.hidden_field :code, id: "snippet-code-field" %>
+          <%= form.label :title, "Save as", class: "save-form__label" %>
+          <%= form.text_field :title, placeholder: "Snippet title", required: true,
+                maxlength: Snippet::TITLE_MAX_LENGTH %>
+          <%= form.submit "Save" %>
+        <% end %>
+      <% else %>
+        <p class="playground__save-hint">
+          <%= link_to "Sign in", new_session_path %> to save this code as a snippet.
+        </p>
+      <% end %>
+    </div>
   </header>
 
   <div class="playground__panes">
