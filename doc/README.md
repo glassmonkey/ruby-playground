@@ -22,6 +22,8 @@ Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行�
 - **管理はRails+DB、個人利用**: 保存済みSnippetの閲覧はログイン不要、作成・編集・削除は所有者のみ ([ADR-0012](adr/0012-snippet-management-in-rails.md))
 - **MVPはエディタ+実行+URL即席共有のみ**: Snippet管理・認証はpost-MVP ([ADR-0013](adr/0013-mvp-scope.md))
 - **wasmバンドルは別ビルド+Cloudflareホスティング**: Railsのimportmapには含めない、ローカルも同じ成果物をRailsが配信 ([ADR-0014](adr/0014-wasm-bundle-build-and-hosting.md))
+- **ローカル完成ラインはSnippet管理まで**: エディタ置き換え・コード補完・Cloudflare本番ホスティングは対象外 ([ADR-0016](adr/0016-local-completion-scope.md))
+- **レスポンシブ対応はスコープに含む**: mobile-first、UIに触る変更は狭い画面での挙動も対象 ([ADR-0017](adr/0017-responsive-in-scope.md))
 
 ## 決定一覧 (ADR)
 
@@ -33,6 +35,8 @@ Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行�
 - [0013](adr/0013-mvp-scope.md) MVPスコープ (エディタ+実行+URL即席共有のみ) — Accepted
 - [0014](adr/0014-wasm-bundle-build-and-hosting.md) ruby.wasmバンドルは別途ビルドし、Cloudflareでホスティングする — Accepted
 - [0015](adr/0015-completion-spike-result.md) ライブVM反射問い合わせによるコード補完は見送り、素の単語補完に倒す (issue #13 spike結果) — Accepted
+- [0016](adr/0016-local-completion-scope.md) ローカル完成ラインはSnippet管理 (ADR-0012) まで — Accepted
+- [0017](adr/0017-responsive-in-scope.md) レスポンシブ対応をスコープに含める — Accepted
 
 ### 過去の決定 (Superseded, agent hosting時代)
 
