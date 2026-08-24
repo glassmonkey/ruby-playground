@@ -24,6 +24,11 @@
   </head>
 
   <body>
+    <% if authenticated? %>
+      <header class="site-header">
+        <%= button_to "Logout", session_path, method: :delete, class: "site-header__logout" %>
+      </header>
+    <% end %>
     <%= yield %>
   </body>
 </html>
