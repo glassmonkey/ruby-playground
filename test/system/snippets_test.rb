@@ -9,7 +9,7 @@ class SnippetsTest < ApplicationSystemTestCase
     # Captured up front: reading the count after the delete races the request
     # still in flight, so the expectation itself would flap.
     titles_before = owner.snippets.pluck(:title)
-    sign_in_through_the_form(owner)
+    sign_in_as(owner)
     visit snippets_path
 
     click_on "New snippet"
@@ -32,7 +32,7 @@ class SnippetsTest < ApplicationSystemTestCase
 
   test "the snippet list shows the owner their own snippets and nobody else's" do
     owner = users(:one)
-    sign_in_through_the_form(owner)
+    sign_in_as(owner)
 
     visit snippets_path
 
@@ -48,7 +48,7 @@ class SnippetsTest < ApplicationSystemTestCase
   # that the JS copies the editor into the form's hidden field; that posting
   # that field creates the snippet is SnippetsControllerTest's job.
   test "the playground's save form carries the code the editor is showing" do
-    sign_in_through_the_form(users(:one))
+    sign_in_as(users(:one))
 
     visit root_path
 
@@ -56,7 +56,7 @@ class SnippetsTest < ApplicationSystemTestCase
   end
 
   test "the playground's save form posts to the snippet collection" do
-    sign_in_through_the_form(users(:one))
+    sign_in_as(users(:one))
 
     visit root_path
 
@@ -108,13 +108,21 @@ class SnippetsTest < ApplicationSystemTestCase
 
   private
 
-  def sign_in_through_the_form(user)
+  # Signs in by minting the session cookie rather than driving the form. The
+  # form itself is covered by SessionsControllerTest, and every extra
+  # synthesised click in this suite is another chance for a renderer still busy
+  # compiling ruby.wasm -- from any earlier test's playground visit -- to drop
+  # it on the floor.
+  def sign_in_as(user)
+    session = user.sessions.create!
+    jar = ActionDispatch::TestRequest.create.cookie_jar
+    jar.signed[:session_id] = session.id
+
+    # Selenium only accepts a cookie once the browser is on that domain, and
+    # the sign-in page is the cheapest one to be on (no wasm).
     visit new_session_path
-    fill_in "Enter your email address", with: user.email_address
-    fill_in "Enter your password", with: "password"
-    click_button "Sign in"
-    # click_button returns before the redirect lands, so without waiting on the
-    # signed-in nav the next visit can outrun the session cookie being set.
-    assert_link "My snippets"
+    page.driver.browser.manage.add_cookie(
+      name: "session_id", value: CGI.escape(jar[:session_id])
+    )
   end
 end
