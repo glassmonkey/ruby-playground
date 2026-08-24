@@ -41,14 +41,26 @@ class SnippetsTest < ApplicationSystemTestCase
     assert_selector ".snippets__item", count: owner.snippets.count
   end
 
-  test "saving from the playground captures whatever is in the editor" do
+  # Observed rather than clicked through. This page compiles ruby.wasm on load,
+  # and while it does the renderer drops synthesised clicks and keystrokes
+  # outright -- the click never even reaches the DOM, so driving Save from here
+  # is a coin toss no amount of waiting fixes. What only a browser can show is
+  # that the JS copies the editor into the form's hidden field; that posting
+  # that field creates the snippet is SnippetsControllerTest's job.
+  test "the playground's save form carries the code the editor is showing" do
     sign_in_through_the_form(users(:one))
 
     visit root_path
-    fill_in "Save as", with: "Captured from the playground"
-    click_on "Save"
 
-    assert_selector "#snippet-code", text: "RUBY_VERSION"
+    assert_selector "#snippet-code-field[value*='RbConfig']", visible: :all
+  end
+
+  test "the playground's save form posts to the snippet collection" do
+    sign_in_through_the_form(users(:one))
+
+    visit root_path
+
+    assert_selector "form.save-form[action='#{snippets_path}'][method='post']"
   end
 
   test "a signed-out visitor can read a saved snippet" do
