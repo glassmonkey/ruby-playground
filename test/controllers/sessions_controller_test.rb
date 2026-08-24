@@ -30,4 +30,10 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
     assert_empty cookies[:session_id]
   end
+
+  test "destroy without an active session redirects to new session instead of raising" do
+    delete session_path
+
+    assert_redirected_to new_session_path
+  end
 end

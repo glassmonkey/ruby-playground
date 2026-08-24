@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
+import { decodeSharedCode } from "../src/url-sharing.js";
 // Imported once, exactly like the browser does: a module script runs a single
 // time per document and the module then reacts to turbo:load for every page
 // Turbo renders. Re-importing per test would stack up one listener per import.
@@ -23,6 +24,21 @@ class MockWorker {
   }
 }
 MockWorker.instances = [];
+
+// startPlayground reads location.search for a shared `c` param and lets it
+// override the editor, so a pushState left behind by an earlier test would
+// silently rewrite the next test's starting code. One document, one location:
+// reset it for every test in the file.
+beforeEach(() => {
+  history.replaceState(null, "", "/");
+});
+
+// vi.spyOn does not restore itself, and spying twice on the same method hands
+// back the existing mock with its call history intact -- so a pushState count
+// from one describe would otherwise be read as a call by the next one.
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function setUpDom({ withSaveForm = false } = {}) {
   document.body.innerHTML = `
@@ -85,6 +101,95 @@ describe("error styling on Worker responses", () => {
     expect(output.classList.contains("error")).toBe(true);
     expect(output.getAttribute("role")).toBe("alert");
     expect(output.textContent).toBe("Error: script died");
+  });
+});
+
+describe("debounce and worker lifecycle on code input", () => {
+  beforeEach(() => {
+    MockWorker.instances = [];
+    vi.stubGlobal("Worker", MockWorker);
+    vi.useFakeTimers();
+    setUpDom();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  test("does not run the code before the 300ms debounce delay elapses", () => {
+    renderPage();
+    const codeInput = document.getElementById("code");
+
+    codeInput.value = "puts 2";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(299);
+
+    expect(MockWorker.instances).toHaveLength(1);
+  });
+
+  test("runs the code once the 300ms debounce delay elapses", () => {
+    renderPage();
+    const codeInput = document.getElementById("code");
+
+    codeInput.value = "puts 2";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(300);
+
+    expect(MockWorker.instances).toHaveLength(2);
+    expect(MockWorker.instances[1].lastMessage).toEqual({ code: "puts 2" });
+  });
+
+  test("collapses rapid successive inputs into a single run using the latest value", () => {
+    renderPage();
+    const codeInput = document.getElementById("code");
+
+    codeInput.value = "puts 1";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(100);
+    codeInput.value = "puts 2";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(100);
+    codeInput.value = "puts 3";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(300);
+
+    expect(MockWorker.instances).toHaveLength(2);
+    expect(MockWorker.instances[1].lastMessage).toEqual({ code: "puts 3" });
+  });
+
+  test("terminates the previous worker and starts a fresh one for every run", () => {
+    renderPage();
+    const codeInput = document.getElementById("code");
+    const initialWorker = MockWorker.instances[0];
+
+    codeInput.value = "puts 2";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(300);
+    const firstRunWorker = MockWorker.instances[1];
+
+    codeInput.value = "puts 3";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(300);
+    const secondRunWorker = MockWorker.instances[2];
+
+    expect(initialWorker.terminated).toBe(true);
+    expect(firstRunWorker.terminated).toBe(true);
+    expect(secondRunWorker.terminated).toBe(false);
+    expect(new Set([initialWorker, firstRunWorker, secondRunWorker]).size).toBe(3);
+  });
+
+  test("updates the browser URL via pushState without causing navigation", () => {
+    renderPage();
+    const codeInput = document.getElementById("code");
+    const pushStateSpy = vi.spyOn(history, "pushState");
+
+    codeInput.value = "puts 2";
+    codeInput.dispatchEvent(new Event("input"));
+    vi.advanceTimersByTime(300);
+
+    expect(pushStateSpy).toHaveBeenCalledTimes(1);
+    expect(decodeSharedCode(location.search)).toBe("puts 2");
   });
 });
 

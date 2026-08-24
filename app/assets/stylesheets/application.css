@@ -180,7 +180,25 @@ body {
 
 .app-nav__links {
   display: flex;
+  align-items: center;
   gap: 1rem;
+}
+
+/* Carried over from #28, where this button sat in its own .site-header bar. */
+.app-nav__logout {
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.app-nav__logout:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .flashes {

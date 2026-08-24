@@ -24,11 +24,14 @@
   </head>
 
   <body>
+    <%# One bar carries both: the snippet navigation added here and the logout
+        button from #28, which lived in its own header before this merge. %>
     <nav class="app-nav">
       <%= link_to "Ruby Playground", root_path, class: "app-nav__brand" %>
       <div class="app-nav__links">
         <% if authenticated? %>
           <%= link_to "My snippets", snippets_path %>
+          <%= button_to "Logout", session_path, method: :delete, class: "app-nav__logout" %>
         <% else %>
           <%= link_to "Sign in", new_session_path %>
         <% end %>
