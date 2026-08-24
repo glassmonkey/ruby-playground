@@ -37,6 +37,7 @@ Rubyのコード片 (snippet) をブラウザ上でリアルタイムに実行�
 - [0015](adr/0015-completion-spike-result.md) ライブVM反射問い合わせによるコード補完は見送り、素の単語補完に倒す (issue #13 spike結果) — Accepted
 - [0016](adr/0016-local-completion-scope.md) ローカル完成ラインはSnippet管理 (ADR-0012) まで — Accepted
 - [0017](adr/0017-responsive-in-scope.md) レスポンシブ対応をスコープに含める — Accepted
+- [0018](adr/0018-completion-capability-probe.md) コード補完の設計判断が依存する ruby.wasm 能力の先行調査結果 (issue #29 論点7 選択肢A) — Accepted
 
 ### 過去の決定 (Superseded, agent hosting時代)
 
