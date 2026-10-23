@@ -20,6 +20,7 @@
     "check": "npm run lint && npm run typecheck && npm run test:ci && npm run build"
   },
   "dependencies": {
+    "@bjorn3/browser_wasi_shim": "0.4.2",
     "@chakra-ui/react": "2.8.0",
     "@codesandbox/sandpack-react": "2.19.9",
     "@emotion/react": "11.14.0",
@@ -29,6 +30,7 @@
     "@ruby/wasm-wasi": "2.10.1",
     "framer-motion": "11.5.4",
     "lz-string": "1.5.0",
+    "monaco-editor": "0.57.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"
   },

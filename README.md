@@ -1,81 +1,94 @@
 # Ruby Playground
 
-Environment-first restart of Ruby Playground using the same frontend foundation as
-[php-playground](https://github.com/glassmonkey/php-playground): React 18,
-TypeScript, Vite 7 and Chakra UI 2. The previous Rails application is removed from
-this branch; its source remains available in Git history.
+A browser-based Ruby learning playground built on the React 18, TypeScript,
+Vite 7 and Chakra UI 2 foundation used by
+[php-playground](https://github.com/glassmonkey/php-playground).
+The former Rails app remains available in Git history.
 
-## Scope of this setup PR
+## Run locally
 
-- Reproducible Node/npm installation, lockfile, type checking, ESLint, Vitest and Playwright.
-- A responsive, editable setup preview with an explicitly disabled Run button.
-- Ruby 4.0 WASM dependencies pinned, alongside Monaco/Sandpack and lz-string for the next implementation.
-- Static build output in `public/`, source assets in `assets/`, development port `18888`.
-- Read-only CI verification. No automatic deployment, hosting, analytics, advertising or PHP-specific domain configuration.
-
-**Ruby execution does not work in this PR.** This is the environment setup checkpoint,
-not the finished playground. The editor is temporarily a textarea; Monaco/Sandpack
-integration is deferred along with WASM execution and URL sharing.
-
-## Requirements and startup
-
-Use Node **24.19.0** (see `.node-version`) and npm 11. No Ruby, Rails, database,
-Docker or application secrets are required.
+Use Node **24.19.0** and npm 11. No Ruby, Rails, database or Docker is required.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open http://127.0.0.1:18888 **on the machine running Vite**. When this project runs
-on an assistant's cloud machine, that URL belongs to the cloud machine, not your
-PC. This repository does not provision a public preview URL. If your npm cache
-location is not writable, set `npm_config_cache` to a writable directory before
-running npm.
+Open http://127.0.0.1:18888 on the **machine running Vite**. When running on an
+assistant's cloud machine, this is not the user's PC localhost. No public hosting
+or deployment is configured. The dev server binds loopback and uses a fixed port.
+If your npm cache is not writable, set `npm_config_cache` to a writable directory.
+
+## Features and limits
+
+- Local-bundled Monaco editor with Ruby highlighting; no editor CDN required.
+- Ruby 4.0 WASM with standard library, served as a local static asset (~32 MB).
+  The first run must download/compile it and can take longer.
+- Explicit Run, rerun and Stop. Every run creates and terminates a new Worker/VM;
+  global variables, constants and virtual files are not retained.
+- stdout, stderr and exceptions, including partial writes and empty output.
+  Expression return values are not printed unless the Ruby code prints them.
+- 20-second run/load timeout, 100 KB captured-output limit, 50,000-character code limit.
+- Compressed `c` / `v` / `f` URL sharing using lz-string (`v=4.0`,
+  `f=console|html`). Empty and Unicode source round-trip. Malformed or oversized
+  links fall back with a warning; decoding is bounded before expansion.
+- Shared links **never execute automatically**. Read code before pressing Run.
+- Console output and a sandboxed HTML iframe. HTML scripts, forms, external
+  resources and parent-page access are blocked; stderr stays outside the iframe.
+- No standard-input interaction, Rails, external gems, multi-file projects or
+  persistent snippets. Only Ruby 4.0 is offered in this iteration.
+
+A Worker is a responsiveness/isolation boundary, **not a security sandbox for
+hostile Ruby**. Ruby's JS bridge is disabled at the WASM import boundary, so Worker globals,
+network and storage APIs are not intentionally exposed to Ruby.
+Do not run untrusted code or input secrets. Shared URLs contain the complete
+source; anyone receiving the URL can read it. URLs may also appear in browser
+history or server access logs. There is no account/authenticated data in this app.
+The output cap limits captured output, not arbitrary Ruby memory allocations.
+
+## Verification
 
 ```sh
-npm run check             # lint, types, component tests, production build
-npx playwright install chromium  # once; Linux may need --with-deps
-npm run test:e2e          # builds and tests the production preview
-npm run build            # outputs public/
-npm run preview          # serves public/ on port 8888
+npm run check        # ESLint, TypeScript, unit/component/real-WASM tests, build
+npx playwright install chromium  # Linux may require --with-deps
+npm run test:e2e     # production build + Chromium tests
+npm audit
 ```
 
-`npm run dev` binds loopback only and fails instead of silently changing ports.
-For a deliberately exposed development environment, configure the environment's
-own secure port forwarding rather than assuming localhost is publicly reachable.
-Do not use the Vite development server as a production server.
+Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
+output, state reset and output caps. Unit/component tests cover worker settlement,
+cancel/timeout, URL validation and UI state. Three browser flows cover real Ruby
+execution/re-execution, URL sharing and sandboxed HTML, and cancel/recovery.
 
-## Next implementation checkpoint
-
-1. Replace the temporary textarea with the PHP playground's editor approach.
-2. Connect a Ruby WASM Worker, recreated per run; capture stdout/stderr and exceptions
-   (not just eval's return value), including empty output and run-state reset.
-3. Add execution timeout/cancellation and bounded output handling.
-4. Add compressed URL sharing (`c`/`v`/`f`) with invalid/oversized-input tests.
-5. Add console output and a sandboxed HTML preview without trusting generated HTML.
-6. Test the runtime, repeated/interrupted runs and selected browser flows before any hosting decision.
-
-The existing open PRs are not merged or closed by this setup. Merge this restart
-only after deciding how those old-architecture changes should be handled.
-
-## Attribution
-
-The Vite directory/port conventions and dependency baseline are adapted from
-`glassmonkey/php-playground` under Apache-2.0. Its license is retained in `LICENSE`;
-see `NOTICE` for the reference revision. Runtime packages retain their respective
-licenses. The previous Ruby repository did not contain a root license file.
-
-If browser downloads are unavailable but Chromium is already installed, the smoke
-test supports an explicit system-browser override:
+If browser downloads are unavailable but Chromium is installed:
 
 ```sh
 PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
 ```
 
-The default CI path continues to use Playwright's managed Chromium.
+CI installs managed Chromium. The assistant cloud process sandbox prevents local
+Chromium sockets; GitHub CI is the browser verification route in that environment.
 
-The PHP baseline's Vite/Vitest and TypeScript ESLint versions were updated for
-reported security fixes. DOMPurify is overridden to 3.4.17 because Monaco's pinned
-transitive version was affected by known advisories; revisit this override when
-Monaco updates its own dependency. The Ruby runtime remains at 2.10.1.
+`npm run build` outputs `public/`; `npm run preview` serves it on port 8888.
+Source static assets live in `assets/`. Neither command publishes anything.
+
+## Architecture / next decisions
+
+`src/runtime.ts` creates a Ruby VM and captures WASI writes. `src/workers/` owns
+the Worker lifecycle. `src/share.ts` bounds compressed URL decoding. `src/editor.tsx`
+loads Monaco locally; Sandpack remains an installed baseline dependency but does
+not execute/bundle user code. React holds the single-file editor state directly.
+
+Future hosting, Ruby version matrix, gem support and additional editing features
+are deliberately separate decisions. Existing old-architecture PRs are untouched.
+
+## Attribution and dependencies
+
+The Vite directory/port conventions and dependency baseline derive from
+`glassmonkey/php-playground` (Apache-2.0); see `LICENSE` and `NOTICE`.
+Ruby WASM redistribution notices are copied to `assets/licenses/` and included in
+the static build. Other packages retain their own licenses.
+
+Vite/Vitest and TypeScript ESLint use security-patched versions rather than the
+older PHP pins. DOMPurify is overridden to 3.4.17 while Monaco pins an affected
+version; revisit that override when Monaco updates its dependency.
