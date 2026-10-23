@@ -1,7 +1,26 @@
 import { expect, test, type Page } from "@playwright/test";
+test.beforeEach(async ({ page }) => {
+  page.on("pageerror", (error) =>
+    console.error("Browser page error:", error.message),
+  );
+  page.on("console", (message) => {
+    if (message.type() === "error")
+      console.error("Browser console:", message.text());
+  });
+});
+test.afterEach(async ({ page }, info) => {
+  if (info.status !== info.expectedStatus)
+    console.error(
+      "Failed page:",
+      await page
+        .locator("body")
+        .innerText({ timeout: 2000 })
+        .catch(() => "unavailable"),
+    );
+});
 async function edit(page: Page, code: string) {
   const editor = page.getByRole("textbox", { name: "Ruby source" });
-  await editor.click();
+  await editor.click({ timeout: 10_000 });
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.insertText(code);
 }
