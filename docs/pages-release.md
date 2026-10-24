@@ -1,89 +1,159 @@
 # GitHub Pages release runbook
 
-This repository change prepares a GitHub Pages artifact and a manually gated
-release workflow. It does not change repository settings, dispatch the workflow,
-or publish the site. The proposed, currently unpublished URL is
-<https://glassmonkey.github.io/ruby-playground/>. The formal public URL and
-delivery-cost limit remain owner decisions tracked by
-[GLA-89](https://linear.app/glassmonkey/issue/GLA-89).
+The release workflow is a manual `workflow_dispatch` on `main`. It builds an
+artifact by default and never deploys unless the `publish` input is checked.
+The `release_stage` input selects `preview` or `production`; the optional
+`source_sha` selects a full commit SHA reachable from `main`. Packaging runs
+from the workflow revision on `main`, while the app is built from the selected
+source SHA. The packaging logic stays in the workflow so an older rollback SHA
+does not need to contain newer helper files.
 
-## Gates before a production release
+The standard URL is <https://glassmonkey.github.io/ruby-playground/>. Preview
+is served at <https://glassmonkey.github.io/ruby-playground/staging/>. Preview
+artifacts put the app under `staging/`, add a persistent `noindex,nofollow`
+robots meta tag to its initial HTML, and put a noindex “preview is being
+prepared” page at the site root. The production artifact puts the app at the
+site root and does not add the preview robots tag. Both app entry points expose
+the selected source SHA and stage as HTML metadata. `release-info.json` records
+the source SHA, base path, stage, and each WASM file's published path, byte
+length, and SHA-256. The persistent preview tag uses
+`data-pages-preview-noindex`, separate from the app's `data-share-noindex`
+marker so shared-page behavior cannot remove the preview exclusion.
 
-Keep the site unpublished until all of these are recorded and accepted:
+The workflow deploys a Pages artifact for the whole site. The preview artifact
+therefore replaces the root production app with the prepared noindex entry. Use
+the preview sequence below only before the first production deployment. After
+production has been published once, do not dispatch or approve this same-site
+preview workflow until a separate preview site or a design that preserves the
+production root has been reviewed and authorized. This stop condition is
+independent of the stale-HTML/hashed-asset gate for production updates.
 
-- GLA-89 selects the formal host/URL and sets an acceptable WASM delivery-cost
-  limit. GitHub Pages is the implementation target for this PR, not a decision
-  about a custom domain or a cost ceiling.
-- GLA-90, GLA-91, and GLA-92 meet their acceptance criteria. GLA-93 may prepare
-  staging before those three finish, but production promotion waits for all
-  three and an explicit owner approval.
-- The owner confirms the Pages source is **GitHub Actions** and configures the
-  `github-pages` environment with required reviewers and a deployment branch
-  rule restricted to `main`. Do this in repository settings only after the
-  owner approves the release setup; this PR does not edit settings.
-- A reviewer verifies the selected source SHA, the built artifact, the release
-  checklist below, and the rollback target before approving deployment.
+## Build and inspect an artifact
 
-## Build and verify without publishing
+1. Use **Actions → Pages release → Run workflow** on the `main` branch.
+2. Choose `preview` first. Leave `source_sha` empty to use the workflow's
+   current `main` commit, or provide a full SHA reachable from `main` for a
+   baseline or rollback rebuild.
+3. Leave **Deploy the built artifact** unchecked. The workflow validates the
+   stage and SHA, runs `npm run check`, runs the existing E2E suite at both `/`
+   and the selected Pages base path, builds the app and uploads `public/` for
+   seven days.
+4. Save the Actions run URL and artifact locator with its source SHA. Inspect
+   `release-info.json`; confirm its `source_sha`, `base_path`, and `stage` match
+   the intended build. For preview, confirm the app is under `staging/`, the
+   root is only the prepared noindex entry, and `staging/index.html` contains
+   the preview noindex marker and matching `release-source` metadata.
 
-The pull request CI runs `npm ci`, `npm run check`, then the three Chromium E2E
-flows against both the root path and `/ruby-playground/`. It installs the
-repository-pinned Node version from `.node-version` and npm 11.17.0.
+An expired artifact can be rebuilt from the same SHA, but that is a new build:
+inspect the new artifact and obtain a fresh environment approval before
+deploying it. The workflow artifact is temporary evidence, not a durable
+release archive.
 
-After merge, open **Actions → Pages release → Run workflow** on `main`. Keep
-**Deploy the built artifact** unchecked to build, test, and upload the static
-artifact without deploying. The workflow verifies that `release_sha` is a full
-commit SHA reachable from `main`; leave it empty for the current `main` commit.
-The uploaded `public/` artifact contains `release-info.json` with the source
-SHA and `/ruby-playground/` base path. The workflow requests seven days of
-artifact retention; this is temporary storage, not a durable release archive.
-Save the Actions run URL and artifact locator alongside that SHA for review.
+## Release and rollback sequence
 
-## Release checklist
+The manager coordinates Pages settings, approvals, dispatches, and promotion.
+Before the first deployment, configure Pages to use **GitHub Actions** and
+restrict the `github-pages` environment to `main` with the required reviewer.
+This repository workflow does not change settings or start a deployment.
 
-Before checking the `publish` input:
+For the initial rollout before first production, keep the baseline and
+candidate source SHAs and run URLs:
 
-1. Confirm the default branch and workflow ref are `main`, and that the
-   `github-pages` environment's required reviewers and branch restriction are
-   active.
-2. Confirm GLA-89's URL/host and cost decision, GLA-90/91/92 acceptance, and the
-   owner's explicit production approval. Record unresolved items instead of
-   treating a successful build as release approval.
-3. Review the artifact's `release-info.json` and verify its source SHA matches
-   the reviewed commit. Preserve the Actions run and artifact locator.
-4. Only the authorized owner/reviewer checks **Deploy the built artifact**.
-   The deploy job only runs for this input on `main`, uses the `github-pages`
-   environment, and receives `pages: write` and `id-token: write`. PR CI has
-   neither permission.
-5. After an approved deployment, record the deployment URL and SHA. On the real
-   host, verify HTTPS, `/ruby-playground/`, JavaScript/Worker/WASM/Monaco
-   responses and MIME types, Ruby output/error/Stop/recovery, shared URL direct
-   load and reload without auto-run, long/Unicode share URLs, HTML output,
-   caching, and missing-path behavior. These host checks are not covered by
-   local preview or CI.
+1. Build and deploy the accepted baseline SHA as `preview`; run the deployed
+   smoke checks below against its exact URL and SHA.
+2. Build and deploy the release candidate as `preview`; repeat the smoke
+   checks.
+3. Deploy the baseline SHA to `preview` again and verify the preview's
+   `release-info.json` returns to that SHA. This is a preview rollback only.
+4. Build the same candidate SHA as `production`, inspect its artifact, then
+   obtain the production environment approval and deploy it. Verify the
+   standard URL and source SHA.
 
-## Rollback
+After step 4 succeeds, stop using the same-site preview steps above. Later
+production updates use the production path and the stale-HTML/hashed-asset gate
+below; preview dispatch/approval remains stopped until its serving design has
+been reviewed and authorized.
 
-Use the SHA of the last known-good deployment, recorded in its `release-info.json`
-and Actions run. On `main`, run **Pages release** with that full `release_sha` and
-leave `publish` unchecked first. If the previous Actions artifact has expired,
-rebuild from that same verified SHA, confirm the new artifact's
-`release-info.json`, and obtain a new environment approval before checking
-`publish`. Artifacts expire after seven days and are not guaranteed to remain
-available; the workflow does not promise permanent artifact storage. Rebuilding
-from the same source SHA with the locked dependencies restores the same source
-revision, but is a new build and approval. It does not merge or reset branches.
+The first production deployment has no previous production SHA to roll back
+to. Record that state explicitly. For later rollbacks, rebuild the last
+known-good production SHA as `production`, inspect the new artifact, and obtain
+a new environment approval. Do not treat a previous preview deployment as the
+production rollback target.
 
-After rollback, repeat the real-host smoke checks and record the resulting URL,
-workflow run, and SHA. Confirm the restored HTML points only to assets present
-in that artifact. GitHub Pages does not provide repository-controlled
-per-file cache headers through this workflow, so account for stale HTML and
-asset cache behavior during the smoke check. Do not delete or overwrite the
-last known-good run/artifact before confirming the rollback.
+Each deployment replaces the Pages artifact as a whole. The workflow does not
+retain old hashed JS, worker, or WASM assets in the new artifact. A browser
+holding stale HTML can therefore request an asset no longer present. GitHub
+Pages headers are not configured by this workflow, so it cannot guarantee a
+short HTML cache lifetime or per-file cache policy. Observe cache headers and
+stale-HTML behavior during host checks; do not claim old-asset retention.
 
-## Current unverified work
+Before every production update after the first, compare the currently deployed
+HTML asset references with the candidate artifact and check the stale-HTML
+window. If cached HTML can reference a missing hash and no mitigation is ready,
+stop the deployment until asset availability or a reviewed cache plan resolves
+it. The first production deployment has no previous production HTML or SHA,
+which is different from a later update that can strand old asset references.
 
-No repository Settings change, workflow dispatch, staging deployment, production
-deployment, real-host smoke test, or rollback trial has been performed as part
-of this PR. The corresponding GLA-89/90/91/92 decisions and checks remain open
-release gates.
+## Manual post-deployment checks
+
+The service owner is `glassmonkey`. Immediately after the first production
+deployment, the manager and publication operator run the live smoke once. On
+the next business day, hand off one more manual check to a person; do not
+schedule it automatically. Repeat the same check after later updates or when a
+bug is reported: standard URL and app startup, deployed `release-info.json`
+source SHA, worker/WASM load and Ruby run, shared-code restore, and observed
+HTTP 4xx/5xx responses. Review the Actions run and any available billing or
+usage warnings. Continuous access logs or traffic summaries are not assumed to
+be available from Pages; data that cannot be fetched remains unknown.
+
+Stop retries and further production dispatches if the app cannot start, the
+worker/WASM fails, the deployed SHA differs from the approved SHA, shared code
+is corrupted or exposed, or actual billing/usage warnings appear. Record the
+evidence against GLA-88/GLA-93 and return the decision to the service owner.
+Keep the known 20-second low-speed cold-start timeout distinct from startup,
+worker/WASM, permission, CI, and host failures. The first production release
+has no previous production SHA; for later releases, use only the recorded
+last-good production SHA for an approval-gated rollback.
+
+The next-business-day handoff has not been performed and is not automatically
+scheduled by this runbook.
+
+## Deployed host checks
+
+Run the new host config only after the manager provides the exact deployment
+URL, expected source SHA, and stage. It starts no local server and rejects
+missing or invalid values. For example:
+
+```sh
+PLAYWRIGHT_BASE_URL=https://glassmonkey.github.io/ruby-playground/staging/ \
+EXPECTED_SOURCE_SHA=<40-character-source-sha> \
+DEPLOYMENT_STAGE=preview \
+npx playwright test --config=playwright.deployed.config.ts
+```
+
+For production, use the standard URL and `DEPLOYMENT_STAGE=production`. The
+suite checks the selected host's release metadata, initial HTML robots state,
+canonical URL, unknown-path 404, and existing app flows (Ruby output/errors,
+stop/recovery, share URL direct-load/reload, HTML sandboxing, and safety/license
+links). The stage selects only the setup/security/deployed specs for preview,
+and setup/security/SEO/deployed specs for production; local slow-measurement UX
+specs do not run here. The deployed checks use one worker, explicitly run Ruby
+once to exercise worker/WASM requests, and wait for those responses before
+recording evidence. They record the response body buffer length separately
+from encoded response and header sizes reported by Playwright's browser
+request measurements; the body buffer may be decoded and is not treated as
+wire transfer size. API fetches have no Playwright request-size measurement
+and keep those fields unknown. Header values depend on GitHub Pages and
+intermediaries; this measurement does not imply that the workflow controls
+them.
+
+The deployed spec skips when `PLAYWRIGHT_BASE_URL` is absent during ordinary
+local E2E runs, so local CI never probes an unpublished host. The dedicated
+deployed config instead requires all three variables and enforces HTTPS. Save
+the test report, deployment URL, Actions run, stage, and expected/observed SHA
+with the release record. A passing preview check is not production evidence.
+
+These checks do not prove field-device behavior, field Core Web Vitals, search
+indexing, or every external network condition. No production or preview host
+check should be marked complete until it was run against the specified live
+deployment.
