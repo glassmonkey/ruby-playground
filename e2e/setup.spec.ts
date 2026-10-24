@@ -20,7 +20,8 @@ test.afterEach(async ({ page }, info) => {
 });
 async function edit(page: Page, code: string) {
   const editor = page.getByRole("textbox", { name: "Ruby source" });
-  await editor.click({ timeout: 10_000 });
+  await page.locator(".monaco-editor .view-lines").click({ timeout: 10_000 });
+  await expect(editor).toBeFocused();
   await page.keyboard.press("ControlOrMeta+A");
   await page.keyboard.insertText(code);
 }
