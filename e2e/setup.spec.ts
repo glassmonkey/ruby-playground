@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { expectDocumentToFitViewport } from "./layout";
 test.beforeEach(async ({ page }) => {
   page.on("pageerror", (error) =>
     console.error("Browser page error:", error.message),
@@ -77,27 +78,7 @@ test("real Ruby output, errors, empty runs and VM reset", async ({
     "SyntaxError",
   );
   await page.setViewportSize({ width: 390, height: 844 });
-  const layout = await page.evaluate(() => ({
-    viewportWidth: innerWidth,
-    scrollWidth: document.documentElement.scrollWidth,
-    overflowing: Array.from(document.querySelectorAll("body *"))
-      .map((element) => {
-        const rect = element.getBoundingClientRect();
-        return {
-          tag: element.tagName,
-          className:
-            typeof element.className === "string" ? element.className : "",
-          text: element.textContent?.slice(0, 50),
-          left: Math.round(rect.left),
-          right: Math.round(rect.right),
-          width: Math.round(rect.width),
-        };
-      })
-      .filter((element) => element.right > innerWidth + 1),
-  }));
-  expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(
-    layout.viewportWidth,
-  );
+  await expectDocumentToFitViewport(page, 390);
   const appBase = new URL(testInfo.project.use.baseURL as string).pathname;
   const appOrigin = new URL(testInfo.project.use.baseURL as string).origin;
   const httpRequests = requests.filter(({ url }) => {

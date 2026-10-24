@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { expectDocumentToFitViewport } from "./layout";
 
 async function edit(page: import("@playwright/test").Page, code: string) {
   const editor = page.getByRole("textbox", { name: "Ruby source" });
@@ -68,27 +69,7 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
 
   for (const width of [640, 390]) {
     await page.setViewportSize({ width, height: 900 });
-    const layout = await page.evaluate(() => ({
-      viewportWidth: window.innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-      overflowing: Array.from(document.querySelectorAll("body *"))
-        .map((element) => {
-          const rect = element.getBoundingClientRect();
-          return {
-            tag: element.tagName,
-            className:
-              typeof element.className === "string" ? element.className : "",
-            text: element.textContent?.slice(0, 50),
-            left: Math.round(rect.left),
-            right: Math.round(rect.right),
-            width: Math.round(rect.width),
-          };
-        })
-        .filter((element) => element.right > window.innerWidth + 1),
-    }));
-    expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(
-      layout.viewportWidth,
-    );
+    await expectDocumentToFitViewport(page, width);
   }
 
   expect(
