@@ -16,39 +16,129 @@ type ReleaseInfo = {
   wasm: WasmRecord[];
 };
 
-type MeasuredResponse = {
+type ResponseHeader = { name: string; value: string };
+type ResponseEvidence = {
+  source: "APIRequestContext" | "Chromium page response";
+  url: string;
+  status: number;
+  headers: ResponseHeader[];
+  bodyBufferBytes: number | null;
+  bodyBufferBytesNote: string;
+  encodedResponseBodyBytes: number | null;
+  responseHeadersBytes: number | null;
+  httpResponseBytes: number | null;
+  transferBytesNote: string;
+  browserDecodedBodyBytes: number | null;
+  browserDecodedBodyBytesNote: string;
+  securityHeaders: Record<string, { present: boolean; value: string | null }>;
+  contentType: string | null;
+  contentEncoding: string | null;
+  cacheControl: string | null;
+  contentLengthHeader: string | null;
+};
+
+function responseEvidence(
+  source: ResponseEvidence["source"],
+  url: string,
+  status: number,
+  headers: ResponseHeader[],
+  bodyBufferBytes: number | null,
+  bodyBufferBytesNote: string,
+  encodedResponseBodyBytes: number | null,
+  responseHeadersBytes: number | null,
+  transferBytesNote: string,
+  browserDecodedBodyBytes: number | null,
+  browserDecodedBodyBytesNote: string,
+) {
+  const byName = Object.fromEntries(headers.map(({ name, value }) => [name.toLowerCase(), value]));
+  const securityHeaderNames = [
+    "content-security-policy",
+    "referrer-policy",
+    "cross-origin-opener-policy",
+    "cross-origin-embedder-policy",
+  ];
+  const httpResponseBytes = encodedResponseBodyBytes === null || responseHeadersBytes === null
+    ? null
+    : encodedResponseBodyBytes + responseHeadersBytes;
+  return {
+    source,
+    url,
+    status,
+    headers,
+    contentType: byName["content-type"] ?? null,
+    contentEncoding: byName["content-encoding"] ?? null,
+    cacheControl: byName["cache-control"] ?? null,
+    contentLengthHeader: byName["content-length"] ?? null,
+    securityHeaders: Object.fromEntries(securityHeaderNames.map((name) => [
+      name,
+      { present: Object.hasOwn(byName, name), value: byName[name] ?? null },
+    ])),
+    bodyBufferBytes,
+    bodyBufferBytesNote,
+    encodedResponseBodyBytes,
+    responseHeadersBytes,
+    httpResponseBytes,
+    transferBytesNote,
+    browserDecodedBodyBytes,
+    browserDecodedBodyBytesNote,
+  };
+}
+
+function apiResponseEvidence(
+  response: {
+    url(): string;
+    status(): number;
+    headersArray(): ResponseHeader[];
+  },
+  bodyBufferBytes: number | null,
+  bodyBufferBytesNote: string,
+) {
+  return responseEvidence(
+    "APIRequestContext",
+    response.url(),
+    response.status(),
+    response.headersArray(),
+    bodyBufferBytes,
+    bodyBufferBytesNote,
+    null,
+    null,
+    "APIRequestContext does not expose encoded network response sizes; do not infer transfer size from its body buffer.",
+    null,
+    "No browser-decoded body measurement was made for this API response.",
+  );
+}
+
+async function browserResponseEvidence(response: {
   url(): string;
   status(): number;
-  headers(): Record<string, string>;
-  body(): Promise<Buffer>;
-  request?: () => {
+  allHeaders(): Promise<Record<string, string>>;
+  finished(): Promise<null | Error>;
+  request(): {
     sizes(): Promise<{
-      requestBodySize: number;
-      requestHeadersSize: number;
       responseBodySize: number;
       responseHeadersSize: number;
     }>;
   };
-};
-
-async function responseEvidence(response: MeasuredResponse) {
-  const headers = response.headers();
-  const body = await response.body();
-  const sizes = response.request ? await response.request().sizes() : null;
-  return {
-    url: response.url(),
-    status: response.status(),
-    contentType: headers["content-type"] ?? "absent",
-    contentEncoding: headers["content-encoding"] ?? "absent",
-    cacheControl: headers["cache-control"] ?? "absent",
-    contentLengthHeader: headers["content-length"] ?? null,
-    bodyBufferBytes: body.byteLength,
-    encodedResponseBodyBytes: sizes?.responseBodySize ?? null,
-    responseHeadersBytes: sizes?.responseHeadersSize ?? null,
-    httpResponseBytes: sizes
-      ? sizes.responseBodySize + sizes.responseHeadersSize
-      : null,
-  };
+}) {
+  const responseError = await response.finished();
+  expect(responseError, `HTTP response failed: ${response.url()}`).toBeNull();
+  const [headers, sizes] = await Promise.all([
+    response.allHeaders(),
+    response.request().sizes(),
+  ]);
+  return responseEvidence(
+    "Chromium page response",
+    response.url(),
+    response.status(),
+    Object.entries(headers).map(([name, value]) => ({ name, value })),
+    null,
+    "Browser Response.body() is intentionally not read; decoded browser body bytes are unknown.",
+    sizes.responseBodySize,
+    sizes.responseHeadersSize,
+    "Measured by Playwright Request.sizes() after response.finished().",
+    null,
+    "Not measured; no browser response body was read.",
+  );
 }
 
 test("published entry and WASM metadata match the requested release", async ({
@@ -84,9 +174,17 @@ test("published entry and WASM metadata match the requested release", async ({
   expect(release.stage).toBe(deploymentStage);
   expect(release.wasm.length).toBeGreaterThan(0);
 
-  const observed: Awaited<ReturnType<typeof responseEvidence>>[] = [
-    await responseEvidence(appResponse),
-    await responseEvidence(releaseResponse),
+  const observed: ReturnType<typeof responseEvidence>[] = [
+    apiResponseEvidence(
+      appResponse,
+      null,
+      "HTML was inspected as text; its API body-buffer length was not measured.",
+    ),
+    apiResponseEvidence(
+      releaseResponse,
+      null,
+      "Manifest was parsed as JSON; its API body-buffer length was not measured.",
+    ),
   ];
   for (const wasm of release.wasm) {
     const wasmResponse = await request.get(new URL(wasm.url, baseUrl!).toString());
@@ -95,7 +193,11 @@ test("published entry and WASM metadata match the requested release", async ({
     const bytes = await wasmResponse.body();
     expect(bytes.byteLength).toBe(wasm.bytes);
     expect(createHash("sha256").update(bytes).digest("hex")).toBe(wasm.sha256);
-    observed.push(await responseEvidence(wasmResponse));
+    observed.push(apiResponseEvidence(
+      wasmResponse,
+      bytes.byteLength,
+      "APIResponse body buffer used for exact manifest byte-count/SHA-256 verification; this is not encoded HTTP transfer size.",
+    ));
   }
 
   if (deploymentStage === "preview") {
@@ -104,34 +206,49 @@ test("published entry and WASM metadata match the requested release", async ({
     const rootHtml = await rootPreview.text();
     expect(rootHtml).toContain("data-pages-preview-noindex");
     expect(rootHtml).toContain("Preview is being prepared");
-    observed.push(await responseEvidence(rootPreview));
+    observed.push(apiResponseEvidence(
+      rootPreview,
+      null,
+      "Root preview HTML was inspected as text; its API body-buffer length was not measured.",
+    ));
   }
 
   const unknownPath = new URL("__pages_deployed_unknown_path__", baseUrl!).toString();
   const unknownResponse = await request.get(unknownPath);
   expect(unknownResponse.status()).toBe(404);
-  observed.push(await responseEvidence(unknownResponse));
+  observed.push(apiResponseEvidence(
+    unknownResponse,
+    null,
+    "404 body buffer was not measured.",
+  ));
 
-  const browserResponses: Promise<void>[] = [];
+  const browserResponseJobs: Promise<void>[] = [];
+  const browserResponseErrors: string[] = [];
   const browserResourceUrls: string[] = [];
   page.on("response", (response) => {
     if (/\.(?:js|wasm)(?:\?|$)/i.test(response.url()) || /worker/i.test(response.url())) {
-      browserResponses.push((async () => {
+      const job = (async () => {
         browserResourceUrls.push(response.url());
-        const contentType = response.headers()["content-type"] ?? "";
+        expect(response.status(), `HTTP status for ${response.url()}`).toBe(200);
+        const headers = await response.allHeaders();
+        const contentType = headers["content-type"] ?? "";
         if (/\.wasm(?:\?|$)/i.test(response.url())) {
           expect(contentType).toContain("application/wasm");
         } else {
           expect(contentType).toMatch(/javascript|ecmascript/i);
         }
-        observed.push(await responseEvidence(response));
-      })());
+        observed.push(await browserResponseEvidence(response));
+      })().catch((error: unknown) => {
+        browserResponseErrors.push(`${response.url()}: ${String(error)}`);
+      });
+      browserResponseJobs.push(job);
     }
   });
   const browserDocumentResponse = await page.goto(baseUrl!);
   await expect(page.getByRole("heading", { name: "Ruby Playground" })).toBeVisible();
   if (browserDocumentResponse) {
-    observed.push(await responseEvidence(browserDocumentResponse));
+    expect(browserDocumentResponse.status()).toBe(200);
+    observed.push(await browserResponseEvidence(browserDocumentResponse));
   }
   const editor = page.getByRole("textbox", { name: "Ruby source" });
   await page.locator(".monaco-editor .view-lines").click();
@@ -143,7 +260,11 @@ test("published entry and WASM metadata match the requested release", async ({
   await expect(page.getByTestId("preview-console")).toHaveText(
     "Pages deployed smoke\n",
   );
-  await Promise.all(browserResponses);
+  await page.waitForLoadState("networkidle");
+  const responseJobCountAtNetworkIdle = browserResponseJobs.length;
+  await Promise.all(browserResponseJobs);
+  expect(browserResponseJobs).toHaveLength(responseJobCountAtNetworkIdle);
+  expect(browserResponseErrors, "Browser response evidence collection errors").toEqual([]);
   expect(browserResourceUrls.some((url) => /\.js(?:\?|$)/i.test(url))).toBe(true);
   expect(browserResourceUrls.some((url) => /worker/i.test(url))).toBe(true);
   expect(browserResourceUrls.some((url) => /\.wasm(?:\?|$)/i.test(url))).toBe(true);
