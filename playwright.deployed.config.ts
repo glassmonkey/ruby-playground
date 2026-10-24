@@ -28,8 +28,12 @@ if (parsedBaseUrl.pathname !== expectedPath || parsedBaseUrl.search || parsedBas
 
 export default defineConfig({
   testDir: "./e2e",
+  testMatch: deploymentStage === "preview"
+    ? /(?:setup|security|deployed)\.spec\.ts$/
+    : /(?:setup|security|seo|deployed)\.spec\.ts$/,
   forbidOnly: true,
   retries: 0,
+  workers: 1,
   use: {
     baseURL: parsedBaseUrl.toString(),
     trace: "retain-on-failure",

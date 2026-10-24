@@ -16,7 +16,9 @@ prepared” page at the site root. The production artifact puts the app at the
 site root and does not add the preview robots tag. Both app entry points expose
 the selected source SHA and stage as HTML metadata. `release-info.json` records
 the source SHA, base path, stage, and each WASM file's published path, byte
-length, and SHA-256.
+length, and SHA-256. The persistent preview tag uses
+`data-pages-preview-noindex`, separate from the app's `data-share-noindex`
+marker so shared-page behavior cannot remove the preview exclusion.
 
 ## Build and inspect an artifact
 
@@ -71,6 +73,13 @@ Pages headers are not configured by this workflow, so it cannot guarantee a
 short HTML cache lifetime or per-file cache policy. Observe cache headers and
 stale-HTML behavior during host checks; do not claim old-asset retention.
 
+Before every production update after the first, compare the currently deployed
+HTML asset references with the candidate artifact and check the stale-HTML
+window. If cached HTML can reference a missing hash and no mitigation is ready,
+stop the deployment until asset availability or a reviewed cache plan resolves
+it. The first production deployment has no previous production HTML or SHA,
+which is different from a later update that can strand old asset references.
+
 ## Deployed host checks
 
 Run the new host config only after the manager provides the exact deployment
@@ -88,10 +97,17 @@ For production, use the standard URL and `DEPLOYMENT_STAGE=production`. The
 suite checks the selected host's release metadata, initial HTML robots state,
 canonical URL, unknown-path 404, and existing app flows (Ruby output/errors,
 stop/recovery, share URL direct-load/reload, HTML sandboxing, and safety/license
-links). It records observed content type, content encoding, cache headers, and
-transfer sizes for the HTML and JS/worker/WASM responses. Header values depend
-on GitHub Pages and intermediaries; this measurement does not imply that the
-workflow controls them.
+links). The stage selects only the setup/security/deployed specs for preview,
+and setup/security/SEO/deployed specs for production; local slow-measurement UX
+specs do not run here. The deployed checks use one worker, explicitly run Ruby
+once to exercise worker/WASM requests, and wait for those responses before
+recording evidence. They record the response body buffer length separately
+from encoded response and header sizes reported by Playwright's browser
+request measurements; the body buffer may be decoded and is not treated as
+wire transfer size. API fetches have no Playwright request-size measurement
+and keep those fields unknown. Header values depend on GitHub Pages and
+intermediaries; this measurement does not imply that the workflow controls
+them.
 
 The deployed spec skips when `PLAYWRIGHT_BASE_URL` is absent during ordinary
 local E2E runs, so local CI never probes an unpublished host. The dedicated

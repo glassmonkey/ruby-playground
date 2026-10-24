@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
@@ -21,25 +21,33 @@ type MeasuredResponse = {
   status(): number;
   headers(): Record<string, string>;
   body(): Promise<Buffer>;
-  request?: () => { sizes(): Promise<{ requestBodySize: number; responseBodySize: number }> };
+  request?: () => {
+    sizes(): Promise<{
+      requestBodySize: number;
+      requestHeadersSize: number;
+      responseBodySize: number;
+      responseHeadersSize: number;
+    }>;
+  };
 };
 
 async function responseEvidence(response: MeasuredResponse) {
   const headers = response.headers();
   const body = await response.body();
-  const sizes = response.request
-    ? await response.request().sizes()
-    : { requestBodySize: 0, responseBodySize: body.byteLength };
+  const sizes = response.request ? await response.request().sizes() : null;
   return {
     url: response.url(),
     status: response.status(),
     contentType: headers["content-type"] ?? "absent",
     contentEncoding: headers["content-encoding"] ?? "absent",
     cacheControl: headers["cache-control"] ?? "absent",
-    contentLength: headers["content-length"] ?? "absent",
-    bodyBytes: body.byteLength,
-    requestBytes: sizes.requestBodySize,
-    responseBytes: sizes.responseBodySize,
+    contentLengthHeader: headers["content-length"] ?? null,
+    bodyBufferBytes: body.byteLength,
+    encodedResponseBodyBytes: sizes?.responseBodySize ?? null,
+    responseHeadersBytes: sizes?.responseHeadersSize ?? null,
+    httpResponseBytes: sizes
+      ? sizes.responseBodySize + sizes.responseHeadersSize
+      : null,
   };
 }
 
@@ -58,12 +66,14 @@ test("published entry and WASM metadata match the requested release", async ({
   );
   expect(canonicalTag).toContain(`href="${standardUrl}"`);
 
-  const robotsTag = html.match(/<meta\s+name=["']robots["'][^>]*>/i)?.[0];
+  const robotsTags = html.match(/<meta\s+name=["']robots["'][^>]*>/gi) ?? [];
   if (deploymentStage === "preview") {
-    expect(robotsTag).toContain("noindex,nofollow");
-    expect(robotsTag).toContain("data-pages-preview-noindex");
+    const previewRobotsTag = robotsTags.find((tag) =>
+      tag.includes("data-pages-preview-noindex"),
+    );
+    expect(previewRobotsTag).toContain("noindex,nofollow");
   } else {
-    expect(robotsTag ?? "").not.toMatch(/noindex/i);
+    expect(robotsTags.join(" ")).not.toMatch(/noindex/i);
   }
 
   const releaseResponse = await request.get(new URL("release-info.json", baseUrl!).toString());
@@ -103,9 +113,11 @@ test("published entry and WASM metadata match the requested release", async ({
   observed.push(await responseEvidence(unknownResponse));
 
   const browserResponses: Promise<void>[] = [];
+  const browserResourceUrls: string[] = [];
   page.on("response", (response) => {
     if (/\.(?:js|wasm)(?:\?|$)/i.test(response.url()) || /worker/i.test(response.url())) {
       browserResponses.push((async () => {
+        browserResourceUrls.push(response.url());
         const contentType = response.headers()["content-type"] ?? "";
         if (/\.wasm(?:\?|$)/i.test(response.url())) {
           expect(contentType).toContain("application/wasm");
@@ -116,9 +128,25 @@ test("published entry and WASM metadata match the requested release", async ({
       })());
     }
   });
-  await page.goto(baseUrl!);
+  const browserDocumentResponse = await page.goto(baseUrl!);
   await expect(page.getByRole("heading", { name: "Ruby Playground" })).toBeVisible();
+  if (browserDocumentResponse) {
+    observed.push(await responseEvidence(browserDocumentResponse));
+  }
+  const editor = page.getByRole("textbox", { name: "Ruby source" });
+  await page.locator(".monaco-editor .view-lines").click();
+  await expect(editor).toBeFocused();
+  await page.keyboard.press("Control+A");
+  await page.keyboard.insertText('puts "Pages deployed smoke"');
+  await page.getByRole("button", { name: "実行", exact: true }).click();
+  await expect(page.getByRole("status")).toHaveText("完了", { timeout: 30_000 });
+  await expect(page.getByTestId("preview-console")).toHaveText(
+    "Pages deployed smoke\n",
+  );
   await Promise.all(browserResponses);
+  expect(browserResourceUrls.some((url) => /\.js(?:\?|$)/i.test(url))).toBe(true);
+  expect(browserResourceUrls.some((url) => /worker/i.test(url))).toBe(true);
+  expect(browserResourceUrls.some((url) => /\.wasm(?:\?|$)/i.test(url))).toBe(true);
 
   await testInfo.attach("deployed-http-observations.json", {
     body: Buffer.from(`${JSON.stringify({
@@ -135,7 +163,16 @@ test("long shared URL stays within the host limit and does not auto-run", async 
 }) => {
   await page.goto(baseUrl!);
   await expect(page.getByRole("heading", { name: "Ruby Playground" })).toBeVisible();
-  const source = `# ${randomBytes(5_500).toString("base64url")}`;
+  let state = 0x93c0ffee;
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+  let payload = "";
+  for (let index = 0; index < 3_000; index++) {
+    state ^= state << 13;
+    state ^= state >>> 17;
+    state ^= state << 5;
+    payload += alphabet[state & 63];
+  }
+  const source = `# ${payload}`;
   const editor = page.getByRole("textbox", { name: "Ruby source" });
   await page.locator(".monaco-editor .view-lines").click();
   await expect(editor).toBeFocused();
@@ -143,10 +180,18 @@ test("long shared URL stays within the host limit and does not auto-run", async 
   await page.keyboard.insertText(source);
   await page.getByRole("button", { name: "URL を共有" }).click();
   const sharedUrl = await page.getByRole("textbox", { name: "共有 URL" }).inputValue();
-  expect(Buffer.byteLength(sharedUrl, "utf8")).toBeLessThanOrEqual(8_000);
+  const sharedUrlBytes = Buffer.byteLength(sharedUrl, "utf8");
+  expect(sharedUrlBytes).toBeGreaterThan(4_000);
+  expect(sharedUrlBytes).toBeLessThanOrEqual(8_000);
 
   await page.goto(sharedUrl);
   await expect(page.getByRole("status")).toHaveText("実行待ち");
+  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+    source.slice(0, 80),
+  );
   await page.reload();
   await expect(page.getByRole("status")).toHaveText("実行待ち");
+  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+    source.slice(0, 80),
+  );
 });

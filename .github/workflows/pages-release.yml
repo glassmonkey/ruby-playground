@@ -147,7 +147,7 @@ jobs:
           html = html.replace(/<meta\s+name=["']release-source["'][^>]*>/gi, '');
           const releaseMeta = `<meta name="release-source" content="${sourceSha}"><meta name="release-stage" content="${stage}">`;
           if (stage === 'preview') {
-            html = html.replace(/<meta\s+name=["']robots["'][^>]*>/gi, '');
+            // Keep app-owned share-state metadata separate from this durable preview marker.
             html = html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}<meta name="robots" content="noindex,nofollow" data-pages-preview-noindex>${releaseMeta}`);
           } else {
             html = html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${releaseMeta}`);
@@ -172,12 +172,12 @@ jobs:
 
           console.log(JSON.stringify({ source_sha: sourceSha, stage, base_path: basePath, wasm: wasmFiles }, null, 2));
           NODE
-          echo "### GitHub Pages artifact" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Source commit: `${SOURCE_SHA}`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Stage: `${RELEASE_STAGE}`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Base path: `${BASE_PATH}`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Preview app path: `public/staging/` (preview only)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Artifact directory: `public/`" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '### GitHub Pages artifact' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Source commit: $SOURCE_SHA" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Stage: $RELEASE_STAGE" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' "- Base path: $BASE_PATH" >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '- Preview app path: public/staging/ (preview only)' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' '- Artifact directory: public/' >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v4
         with:
           path: public/
