@@ -1,0 +1,7 @@
+Ruby Playground environment restart
+
+Frontend configuration/dependency baseline adapted from glassmonkey/php-playground.
+Source: https://github.com/glassmonkey/php-playground
+Reference commit: f2edcb3b73f21cbd92143b6c6bff59c88d7d083e
+Apache License 2.0, preserved in LICENSE.
+Modified for an environment-only Ruby setup; application source is newly written.

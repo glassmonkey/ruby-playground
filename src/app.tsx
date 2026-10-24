@@ -7,6 +7,7 @@ import {
   Flex,
   Heading,
   Input,
+  Link,
   Select,
   SimpleGrid,
   Spinner,
@@ -107,7 +108,9 @@ export default function App() {
       <Box as="header" bg="white" borderBottomWidth="1px" py={5}>
         <Container maxW="7xl">
           <Flex align="center" gap={3} wrap="wrap">
-            <Heading size="lg">Ruby Playground</Heading>
+            <Heading as="h1" size="lg">
+              Ruby Playground
+            </Heading>
             <Badge colorScheme="red">Ruby 4.0 / WASM</Badge>
           </Flex>
           <Text mt={2} color="gray.600">
@@ -118,6 +121,8 @@ export default function App() {
       <Container as="main" maxW="7xl" py={6}>
         <Text mb={4} fontSize="sm" color="gray.600">
           共有コードは自動実行しません。内容を確認してから実行してください。秘密情報は入力しないでください。
+          低速回線では初回の Ruby
+          読み込みがタイムアウトすることがあります。通信環境を変えて再実行してください。
         </Text>
         {warning && (
           <Box role="alert" bg="orange.50" p={3} mb={4}>
@@ -177,8 +182,16 @@ export default function App() {
           </Box>
         )}
         <SimpleGrid columns={{ base: 1, md: 2 }} spacing={5}>
-          <Box bg="white" borderWidth="1px" rounded="lg" p={4} minW={0}>
-            <Heading as="h2" size="md" mb={4}>
+          <Box
+            as="section"
+            aria-labelledby="editor-heading"
+            bg="white"
+            borderWidth="1px"
+            rounded="lg"
+            p={4}
+            minW={0}
+          >
+            <Heading id="editor-heading" as="h2" size="md" mb={4}>
               エディター
             </Heading>
             <Suspense fallback={<Spinner aria-label="エディター読み込み中" />}>
@@ -191,8 +204,16 @@ export default function App() {
               />
             </Suspense>
           </Box>
-          <Box bg="white" borderWidth="1px" rounded="lg" p={4} minW={0}>
-            <Heading as="h2" size="md" mb={4}>
+          <Box
+            as="section"
+            aria-labelledby="output-heading"
+            bg="white"
+            borderWidth="1px"
+            rounded="lg"
+            p={4}
+            minW={0}
+          >
+            <Heading id="output-heading" as="h2" size="md" mb={4}>
               出力
             </Heading>
             {result.error && (
@@ -250,10 +271,28 @@ export default function App() {
             )}
           </Box>
         </SimpleGrid>
-        <Text as="footer" mt={5} fontSize="sm" color="gray.600">
-          毎回、新しい実行環境を使います。上限：20 秒・出力 100 KB・コード
-          50,000 文字。標準入力は利用できません。
-        </Text>
+        <Flex
+          as="footer"
+          mt={5}
+          pt={4}
+          borderTopWidth="1px"
+          align="center"
+          justify="space-between"
+          gap={4}
+          wrap="wrap"
+          fontSize="sm"
+          color="gray.600"
+        >
+          <Text>
+            毎回、新しい実行環境を使います。上限：20 秒・出力 100 KB・コード
+            50,000 文字。標準入力は利用できません。
+          </Text>
+          <Flex as="nav" aria-label="安全と情報" gap={4} wrap="wrap">
+            <Link href="./safety.html">安全な利用</Link>
+            <Link href="./privacy.html">プライバシー</Link>
+            <Link href="./licenses/">ライセンス</Link>
+          </Flex>
+        </Flex>
       </Container>
     </Box>
   );
