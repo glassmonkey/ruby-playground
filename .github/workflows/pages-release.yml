@@ -4,12 +4,20 @@ on:
   workflow_dispatch:
     inputs:
       publish:
-        description: Deploy the built artifact after release checks and environment approval
+        description: Deploy the reviewed artifact after environment approval
         required: true
         type: boolean
         default: false
-      release_sha:
-        description: Optional full commit SHA from main (use a prior release SHA to roll back)
+      release_stage:
+        description: Build the staging preview or the production site
+        required: true
+        type: choice
+        options:
+          - preview
+          - production
+        default: preview
+      source_sha:
+        description: Optional full commit SHA reachable from main (also used for rollback)
         required: false
         type: string
         default: ""
@@ -28,27 +36,48 @@ jobs:
     timeout-minutes: 30
     outputs:
       source_sha: ${{ steps.source.outputs.sha }}
+      release_stage: ${{ steps.release.outputs.stage }}
+      base_path: ${{ steps.release.outputs.base_path }}
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
-      - name: Select and verify source commit
+      - name: Select and verify release source
         id: source
         env:
-          REQUESTED_SHA: ${{ inputs.release_sha }}
+          REQUESTED_SHA: ${{ inputs.source_sha }}
+          RELEASE_STAGE: ${{ inputs.release_stage }}
         run: |
           set -euo pipefail
-          source_sha="${REQUESTED_SHA:-$GITHUB_SHA}"
-          if [[ ! "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
-            echo "release_sha must be a full 40-character commit SHA" >&2
+          if [[ "$RELEASE_STAGE" != "preview" && "$RELEASE_STAGE" != "production" ]]; then
+            echo "release_stage must be preview or production" >&2
             exit 1
           fi
+          source_sha="${REQUESTED_SHA:-$GITHUB_SHA}"
+          if [[ ! "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "source_sha must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          source_sha="${source_sha,,}"
           if ! git merge-base --is-ancestor "$source_sha" origin/main; then
-            echo "release_sha must be reachable from main" >&2
+            echo "source_sha must be reachable from main" >&2
             exit 1
           fi
           git checkout --detach "$source_sha"
           echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - name: Select release path
+        id: release
+        env:
+          RELEASE_STAGE: ${{ inputs.release_stage }}
+        run: |
+          set -euo pipefail
+          case "$RELEASE_STAGE" in
+            preview) base_path="/ruby-playground/staging/" ;;
+            production) base_path="/ruby-playground/" ;;
+            *) echo "Unsupported release_stage: $RELEASE_STAGE" >&2; exit 1 ;;
+          esac
+          echo "stage=$RELEASE_STAGE" >> "$GITHUB_OUTPUT"
+          echo "base_path=$base_path" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v6
         with:
           node-version-file: .node-version
@@ -58,22 +87,97 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - run: VITE_BASE_PATH=/ruby-playground/ npm run test:e2e
-      - name: Build Pages artifact
+      - name: Run E2E at the repository root
         env:
-          VITE_BASE_PATH: /ruby-playground/
+          VITE_BASE_PATH: /
+        run: npm run test:e2e
+      - name: Run E2E at the selected Pages path
+        env:
+          VITE_BASE_PATH: ${{ steps.release.outputs.base_path }}
+        run: npm run test:e2e
+      - name: Build and package Pages artifact
+        env:
+          VITE_BASE_PATH: ${{ steps.release.outputs.base_path }}
           SOURCE_SHA: ${{ steps.source.outputs.sha }}
+          RELEASE_STAGE: ${{ steps.release.outputs.stage }}
+          BASE_PATH: ${{ steps.release.outputs.base_path }}
         run: |
           set -euo pipefail
           npm run build
-          printf '{"source_sha":"%s","base_path":"/ruby-playground/"}\n' "$SOURCE_SHA" > public/release-info.json
-          {
-            echo "### GitHub Pages artifact"
-            echo "- Source commit: \`$SOURCE_SHA\`"
-            echo "- Vite base path: \`/ruby-playground/\`"
-            echo "- Artifact directory: \`public/\`"
-          } >> "$GITHUB_STEP_SUMMARY"
+          node --input-type=module <<'NODE'
+          import { createHash } from 'node:crypto';
+          import { readdir, readFile, rename, mkdir, writeFile } from 'node:fs/promises';
+          import path from 'node:path';
+
+          const publicDir = path.resolve('public');
+          const stage = process.env.RELEASE_STAGE;
+          const sourceSha = process.env.SOURCE_SHA;
+          const basePath = process.env.BASE_PATH;
+          const expectedBasePath = stage === 'preview'
+            ? '/ruby-playground/staging/'
+            : '/ruby-playground/';
+          if (basePath !== expectedBasePath) throw new Error(`Unexpected base path for ${stage}: ${basePath}`);
+
+          async function filesBelow(directory, prefix = '') {
+            const entries = await readdir(directory, { withFileTypes: true });
+            const files = [];
+            for (const entry of entries) {
+              const relative = path.posix.join(prefix, entry.name);
+              if (entry.isDirectory()) files.push(...await filesBelow(path.join(directory, entry.name), relative));
+              else if (entry.isFile()) files.push(relative);
+            }
+            return files;
+          }
+
+          const wasmFiles = [];
+          for (const relative of await filesBelow(publicDir)) {
+            if (!relative.endsWith('.wasm')) continue;
+            const bytes = await readFile(path.join(publicDir, relative));
+            wasmFiles.push({
+              url: `${basePath}${relative}`,
+              bytes: bytes.byteLength,
+              sha256: createHash('sha256').update(bytes).digest('hex'),
+            });
+          }
+          if (wasmFiles.length === 0) throw new Error('The built artifact contains no WASM files');
+
+          const indexPath = path.join(publicDir, 'index.html');
+          let html = await readFile(indexPath, 'utf8');
+          if (!/<head(?:\s[^>]*)?>/i.test(html)) throw new Error('Built index.html has no head element');
+          html = html.replace(/<meta\s+name=["']release-source["'][^>]*>/gi, '');
+          const releaseMeta = `<meta name="release-source" content="${sourceSha}"><meta name="release-stage" content="${stage}">`;
+          if (stage === 'preview') {
+            html = html.replace(/<meta\s+name=["']robots["'][^>]*>/gi, '');
+            html = html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}<meta name="robots" content="noindex,nofollow" data-pages-preview-noindex>${releaseMeta}`);
+          } else {
+            html = html.replace(/<head(?:\s[^>]*)?>/i, (head) => `${head}${releaseMeta}`);
+          }
+          await writeFile(indexPath, html);
+
+          const releaseInfo = {
+            source_sha: sourceSha,
+            base_path: basePath,
+            stage,
+            wasm: wasmFiles,
+          };
+          await writeFile(path.join(publicDir, 'release-info.json'), `${JSON.stringify(releaseInfo, null, 2)}\n`);
+
+          if (stage === 'preview') {
+            const appDir = `${publicDir}-app`;
+            await rename(publicDir, appDir);
+            await mkdir(publicDir);
+            await rename(appDir, path.join(publicDir, 'staging'));
+            await writeFile(path.join(publicDir, 'index.html'), `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow" data-pages-preview-noindex><meta name="viewport" content="width=device-width,initial-scale=1"><title>Preview is being prepared</title></head><body><main><h1>Preview is being prepared</h1><p>The preview is available under <a href="/ruby-playground/staging/">the staging path</a>.</p></main></body></html>\n`);
+          }
+
+          console.log(JSON.stringify({ source_sha: sourceSha, stage, base_path: basePath, wasm: wasmFiles }, null, 2));
+          NODE
+          echo "### GitHub Pages artifact" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Source commit: `${SOURCE_SHA}`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Stage: `${RELEASE_STAGE}`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Base path: `${BASE_PATH}`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Preview app path: `public/staging/` (preview only)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Artifact directory: `public/`" >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-pages-artifact@v4
         with:
           path: public/
