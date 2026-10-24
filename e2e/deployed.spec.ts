@@ -66,7 +66,7 @@ test("published entry and WASM metadata match the requested release", async ({
     expect(robotsTag ?? "").not.toMatch(/noindex/i);
   }
 
-  const releaseResponse = await request.get(new URL("release-info.json", baseUrl).toString());
+  const releaseResponse = await request.get(new URL("release-info.json", baseUrl!).toString());
   expect(releaseResponse.status()).toBe(200);
   const release = await releaseResponse.json() as ReleaseInfo;
   expect(release.source_sha).toBe(expectedSourceSha);
@@ -79,7 +79,7 @@ test("published entry and WASM metadata match the requested release", async ({
     await responseEvidence(releaseResponse),
   ];
   for (const wasm of release.wasm) {
-    const wasmResponse = await request.get(new URL(wasm.url, baseUrl).toString());
+    const wasmResponse = await request.get(new URL(wasm.url, baseUrl!).toString());
     expect(wasmResponse.status()).toBe(200);
     expect(wasmResponse.headers()["content-type"]).toContain("application/wasm");
     const bytes = await wasmResponse.body();
@@ -89,7 +89,7 @@ test("published entry and WASM metadata match the requested release", async ({
   }
 
   if (deploymentStage === "preview") {
-    const rootPreview = await request.get(new URL("/ruby-playground/", baseUrl).toString());
+    const rootPreview = await request.get(new URL("/ruby-playground/", baseUrl!).toString());
     expect(rootPreview.status()).toBe(200);
     const rootHtml = await rootPreview.text();
     expect(rootHtml).toContain("data-pages-preview-noindex");
@@ -97,7 +97,7 @@ test("published entry and WASM metadata match the requested release", async ({
     observed.push(await responseEvidence(rootPreview));
   }
 
-  const unknownPath = new URL("__pages_deployed_unknown_path__", baseUrl).toString();
+  const unknownPath = new URL("__pages_deployed_unknown_path__", baseUrl!).toString();
   const unknownResponse = await request.get(unknownPath);
   expect(unknownResponse.status()).toBe(404);
   observed.push(await responseEvidence(unknownResponse));
