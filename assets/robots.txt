@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://glassmonkey.github.io/ruby-playground/sitemap.xml

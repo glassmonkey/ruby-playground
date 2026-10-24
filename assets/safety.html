@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <title>安全な利用 | Ruby Playground</title>
+  </head>
+  <body>
+    <main>
+      <h1>安全な利用</h1>
+      <p>
+        Ruby Playground はコードをブラウザ内の Ruby WebAssembly
+        実行環境で動かします。 Ruby から JavaScript のホスト機能へアクセスする
+        bridge は無効です。
+      </p>
+      <p>
+        実行ごとに新しい Worker と VM を使い、実行は 20 秒、出力は合計 100
+        KB、コードは 50,000 文字までです。停止操作で Worker
+        を終了します。これらの制限は完全な CPU
+        やメモリー隔離を保証するものではありません。
+      </p>
+      <p>
+        共有 URL
+        にはコードが含まれます。秘密情報や個人情報を入力・共有しないでください。
+        コードを実行できても、URL の長さによって共有できない場合があります。
+        共有されたコードはページを開いただけでは実行されません。内容を確認してから実行してください。
+        低速回線では初回の Ruby
+        読み込みがタイムアウトすることがあります。通信環境を変えて再実行してください。
+      </p>
+      <p><a href="./">Ruby Playground に戻る</a></p>
+      <nav aria-label="関連情報">
+        <a href="./privacy.html">プライバシー</a>
+        <a href="./licenses/">ライセンス</a>
+      </nav>
+    </main>
+  </body>
+</html>
