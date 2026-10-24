@@ -3,11 +3,54 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Ruby Playground development foundation" />
+    <meta
+      name="description"
+      content='Ruby 4.0 のコードをブラウザで実行。puts "Hello, Ruby!" から試せます。標準入力、追加gem、永続保存には対応しません。'
+    />
+    <meta name="referrer" content="no-referrer" />
+    <link
+      rel="canonical"
+      href="https://glassmonkey.github.io/ruby-playground/"
+    />
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Ruby Playground" />
+    <meta
+      property="og:description"
+      content="Ruby 4.0 のコードをブラウザで実行。標準入力、追加gem、永続保存には対応しません。"
+    />
+    <meta
+      property="og:url"
+      content="https://glassmonkey.github.io/ruby-playground/"
+    />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="Ruby Playground" />
+    <meta
+      name="twitter:description"
+      content="Ruby 4.0 のコードをブラウザで実行。標準入力、追加gem、永続保存には対応しません。"
+    />
     <title>Ruby Playground</title>
+    <script type="module" src="./src/indexing.ts"></script>
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/index.tsx"></script>
+    <div id="root">
+      <main id="static-description">
+        <h1>ブラウザで Ruby を試す</h1>
+        <p>
+          Ruby Playground は Ruby 4.0 のコードをブラウザで書いて実行する
+          playground です。 たとえば
+          <code>puts "Hello, Ruby!"</code> を実行できます。
+        </p>
+        <p>
+          共有されたコードは自動実行されません。内容を確認してから実行してください。
+        </p>
+        <p>
+          実行には JavaScript と Ruby WebAssembly
+          を読み込みます。標準入力、追加gem、永続保存には対応しません。
+          1回の実行は20秒、出力は100 KB、コードは50,000文字までです。
+        </p>
+      </main>
+    </div>
+    <script type="module" src="./src/index.tsx"></script>
   </body>
 </html>

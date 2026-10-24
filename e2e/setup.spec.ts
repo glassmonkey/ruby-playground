@@ -22,7 +22,10 @@ async function edit(page: Page, code: string) {
   const editor = page.getByRole("textbox", { name: "Ruby source" });
   await page.locator(".monaco-editor .view-lines").click({ timeout: 10_000 });
   await expect(editor).toBeFocused();
-  await page.keyboard.press("Control+A");
+  const selectAll = await page.evaluate(() =>
+    navigator.userAgent.includes("Macintosh") ? "Meta+A" : "Control+A",
+  );
+  await page.keyboard.press(selectAll);
   await page.keyboard.insertText(code);
   await expect(page.locator(".monaco-editor .view-lines")).toContainText(
     code.split("\n")[0],
@@ -38,10 +41,9 @@ test("real Ruby output, errors, empty runs and VM reset", async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
-  const resourceUrls: string[] = [];
+  const requests: Array<{ url: string; type: string }> = [];
   page.on("request", (request) => {
-    if (["script", "worker", "fetch"].includes(request.resourceType()))
-      resourceUrls.push(request.url());
+    requests.push({ url: request.url(), type: request.resourceType() });
   });
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("./");
@@ -75,22 +77,56 @@ test("real Ruby output, errors, empty runs and VM reset", async ({
     "SyntaxError",
   );
   await page.setViewportSize({ width: 390, height: 844 });
+  const layout = await page.evaluate(() => ({
+    viewportWidth: innerWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    overflowing: Array.from(document.querySelectorAll("body *"))
+      .map((element) => {
+        const rect = element.getBoundingClientRect();
+        return {
+          tag: element.tagName,
+          className:
+            typeof element.className === "string" ? element.className : "",
+          text: element.textContent?.slice(0, 50),
+          left: Math.round(rect.left),
+          right: Math.round(rect.right),
+          width: Math.round(rect.width),
+        };
+      })
+      .filter((element) => element.right > innerWidth + 1),
+  }));
+  expect(layout.scrollWidth, JSON.stringify(layout)).toBeLessThanOrEqual(
+    layout.viewportWidth,
+  );
+  const appBase = new URL(testInfo.project.use.baseURL as string).pathname;
+  const appOrigin = new URL(testInfo.project.use.baseURL as string).origin;
+  const httpRequests = requests.filter(({ url }) => {
+    const protocol = new URL(url).protocol;
+    return protocol === "http:" || protocol === "https:";
+  });
+  const sameOriginRequests = httpRequests.filter(
+    ({ url }) => new URL(url).origin === appOrigin,
+  );
+  await testInfo.attach("browser-network-requests.json", {
+    body: JSON.stringify(
+      {
+        requests,
+        nonHttpUrls: requests
+          .filter(({ url }) => !/^https?:/i.test(url))
+          .map(({ url, type }) => ({ url, type })),
+      },
+      null,
+      2,
+    ),
+    contentType: "application/json",
+  });
+  expect(sameOriginRequests.length).toBeGreaterThan(0);
   expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= innerWidth,
+    sameOriginRequests.every(({ url }) =>
+      new URL(url).pathname.startsWith(appBase),
     ),
   ).toBe(true);
-  const appBase = new URL(testInfo.project.use.baseURL as string).pathname;
-  expect(resourceUrls.length).toBeGreaterThan(0);
-  const appOrigin = new URL(testInfo.project.use.baseURL as string).origin;
-  expect(
-    resourceUrls
-      .filter((url) => new URL(url).origin === appOrigin)
-      .every((url) => new URL(url).pathname.startsWith(appBase)),
-  ).toBe(true);
-  const appResources = resourceUrls.filter(
-    (url) => new URL(url).origin === appOrigin,
-  );
+  const appResources = sameOriginRequests.map(({ url }) => url);
   expect(
     appResources.some((url) =>
       /\/editor-[^/]+\.js$/.test(new URL(url).pathname),

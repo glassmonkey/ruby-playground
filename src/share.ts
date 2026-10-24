@@ -2,6 +2,7 @@ import { compressToEncodedURIComponent } from "lz-string";
 
 export const MAX_SOURCE_LENGTH = 50_000;
 export const MAX_COMPRESSED_LENGTH = 100_000;
+export const MAX_SHARE_URL_BYTES = 8_000;
 export type OutputFormat = "console" | "html";
 export type ShareState = {
   code: string;
@@ -159,5 +160,11 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   result.searchParams.set("c", compressed);
   result.searchParams.set("v", "4.0");
   result.searchParams.set("f", state.format);
-  return result.toString();
+  const shareUrl = result.toString();
+  if (new TextEncoder().encode(shareUrl).byteLength > MAX_SHARE_URL_BYTES) {
+    throw new Error(
+      "共有 URL が長すぎます。コードを短くしてから再度共有してください。",
+    );
+  }
+  return shareUrl;
 }

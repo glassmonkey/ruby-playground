@@ -21,6 +21,7 @@ export default function RubyEditor({
       onChange={(value) => onChange(value ?? "")}
       options={{
         ariaLabel: "Ruby source",
+        tabFocusMode: true,
         minimap: { enabled: false },
         automaticLayout: true,
         fontSize: 15,
