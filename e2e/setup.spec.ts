@@ -46,14 +46,20 @@ test("real Ruby output, errors, empty runs and VM reset", async ({ page }) => {
   await edit(page, 'puts defined?($answer).inspect; raise "boom"');
   await run(page);
   await expect(page.getByTestId("preview-console")).toHaveText("nil\n");
-  await expect(page.getByRole("alert")).toContainText("boom");
+  await expect(
+    page.getByRole("main").getByRole("alert"),
+  ).toContainText("boom");
   await edit(page, "1 + 2");
   await run(page);
   await expect(page.getByText("出力なし", { exact: true })).toBeVisible();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(
+    page.getByRole("main").getByRole("alert"),
+  ).toHaveCount(0);
   await edit(page, "def broken(");
   await run(page);
-  await expect(page.getByRole("alert")).toContainText("SyntaxError");
+  await expect(
+    page.getByRole("main").getByRole("alert"),
+  ).toContainText("SyntaxError");
   await page.setViewportSize({ width: 390, height: 844 });
   expect(
     await page.evaluate(
@@ -90,7 +96,9 @@ test("cancel an infinite run and successfully rerun", async ({ page }) => {
   await edit(page, "loop {}");
   await page.getByRole("button", { name: "実行", exact: true }).click();
   await page.getByRole("button", { name: "停止", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("停止");
+  await expect(
+    page.getByRole("main").getByRole("alert"),
+  ).toContainText("停止");
   await edit(page, 'puts "recovered"');
   await run(page);
   await expect(page.getByTestId("preview-console")).toHaveText("recovered\n");
