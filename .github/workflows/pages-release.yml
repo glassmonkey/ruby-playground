@@ -1,0 +1,96 @@
+name: Pages release
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Deploy the built artifact after release checks and environment approval
+        required: true
+        type: boolean
+        default: false
+      release_sha:
+        description: Optional full commit SHA from main (use a prior release SHA to roll back)
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      source_sha: ${{ steps.source.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Select and verify source commit
+        id: source
+        env:
+          REQUESTED_SHA: ${{ inputs.release_sha }}
+        run: |
+          set -euo pipefail
+          source_sha="${REQUESTED_SHA:-$GITHUB_SHA}"
+          if [[ ! "$source_sha" =~ ^[0-9a-fA-F]{40}$ ]]; then
+            echo "release_sha must be a full 40-character commit SHA" >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$source_sha" origin/main; then
+            echo "release_sha must be reachable from main" >&2
+            exit 1
+          fi
+          git checkout --detach "$source_sha"
+          echo "sha=$source_sha" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .node-version
+          cache: npm
+      - run: npm install --global npm@11.17.0
+      - run: node --version && npm --version
+      - run: npm ci
+      - run: npm run check
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: VITE_BASE_PATH=/ruby-playground/ npm run test:e2e
+      - name: Build Pages artifact
+        env:
+          VITE_BASE_PATH: /ruby-playground/
+          SOURCE_SHA: ${{ steps.source.outputs.sha }}
+        run: |
+          set -euo pipefail
+          npm run build
+          printf '{"source_sha":"%s","base_path":"/ruby-playground/"}\n' "$SOURCE_SHA" > public/release-info.json
+          {
+            echo "### GitHub Pages artifact"
+            echo "- Source commit: \`$SOURCE_SHA\`"
+            echo "- Vite base path: \`/ruby-playground/\`"
+            echo "- Artifact directory: \`public/\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: public/
+          retention-days: 7
+
+  deploy:
+    if: inputs.publish == true && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy approved Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4
