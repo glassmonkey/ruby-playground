@@ -20,6 +20,14 @@ length, and SHA-256. The persistent preview tag uses
 `data-pages-preview-noindex`, separate from the app's `data-share-noindex`
 marker so shared-page behavior cannot remove the preview exclusion.
 
+The workflow deploys a Pages artifact for the whole site. The preview artifact
+therefore replaces the root production app with the prepared noindex entry. Use
+the preview sequence below only before the first production deployment. After
+production has been published once, do not dispatch or approve this same-site
+preview workflow until a separate preview site or a design that preserves the
+production root has been reviewed and authorized. This stop condition is
+independent of the stale-HTML/hashed-asset gate for production updates.
+
 ## Build and inspect an artifact
 
 1. Use **Actions → Pages release → Run workflow** on the `main` branch.
@@ -48,7 +56,8 @@ Before the first deployment, configure Pages to use **GitHub Actions** and
 restrict the `github-pages` environment to `main` with the required reviewer.
 This repository workflow does not change settings or start a deployment.
 
-For a staged rollout, keep the baseline and candidate source SHAs and run URLs:
+For the initial rollout before first production, keep the baseline and
+candidate source SHAs and run URLs:
 
 1. Build and deploy the accepted baseline SHA as `preview`; run the deployed
    smoke checks below against its exact URL and SHA.
@@ -59,6 +68,11 @@ For a staged rollout, keep the baseline and candidate source SHAs and run URLs:
 4. Build the same candidate SHA as `production`, inspect its artifact, then
    obtain the production environment approval and deploy it. Verify the
    standard URL and source SHA.
+
+After step 4 succeeds, stop using the same-site preview steps above. Later
+production updates use the production path and the stale-HTML/hashed-asset gate
+below; preview dispatch/approval remains stopped until its serving design has
+been reviewed and authorized.
 
 The first production deployment has no previous production SHA to roll back
 to. Record that state explicitly. For later rollbacks, rebuild the last
@@ -79,6 +93,30 @@ window. If cached HTML can reference a missing hash and no mitigation is ready,
 stop the deployment until asset availability or a reviewed cache plan resolves
 it. The first production deployment has no previous production HTML or SHA,
 which is different from a later update that can strand old asset references.
+
+## Manual post-deployment checks
+
+The service owner is `glassmonkey`. Immediately after the first production
+deployment, the manager and publication operator run the live smoke once. On
+the next business day, hand off one more manual check to a person; do not
+schedule it automatically. Repeat the same check after later updates or when a
+bug is reported: standard URL and app startup, deployed `release-info.json`
+source SHA, worker/WASM load and Ruby run, shared-code restore, and observed
+HTTP 4xx/5xx responses. Review the Actions run and any available billing or
+usage warnings. Continuous access logs or traffic summaries are not assumed to
+be available from Pages; data that cannot be fetched remains unknown.
+
+Stop retries and further production dispatches if the app cannot start, the
+worker/WASM fails, the deployed SHA differs from the approved SHA, shared code
+is corrupted or exposed, or actual billing/usage warnings appear. Record the
+evidence against GLA-88/GLA-93 and return the decision to the service owner.
+Keep the known 20-second low-speed cold-start timeout distinct from startup,
+worker/WASM, permission, CI, and host failures. The first production release
+has no previous production SHA; for later releases, use only the recorded
+last-good production SHA for an approval-gated rollback.
+
+The next-business-day handoff has not been performed and is not automatically
+scheduled by this runbook.
 
 ## Deployed host checks
 
