@@ -7,7 +7,8 @@ The former Rails app remains available in Git history.
 
 ## Run locally
 
-Use Node **24.19.0** and npm 11. No Ruby, Rails, database or Docker is required.
+Use Node **24.19.0** and npm **11.17.0**. No Ruby, Rails, database or Docker
+is required.
 
 ```sh
 npm ci
@@ -15,8 +16,8 @@ npm run dev
 ```
 
 Open http://127.0.0.1:18888 on the **machine running Vite**. When running on an
-assistant's cloud machine, this is not the user's PC localhost. No public hosting
-or deployment is configured. The dev server binds loopback and uses a fixed port.
+assistant's cloud machine, this is not the user's PC localhost. The dev server
+binds loopback and uses a fixed port.
 If your npm cache is not writable, set `npm_config_cache` to a writable directory.
 
 ## Features and limits
@@ -51,14 +52,17 @@ The output cap limits captured output, not arbitrary Ruby memory allocations.
 ```sh
 npm run check        # ESLint, TypeScript, unit/component/real-WASM tests, build
 npx playwright install chromium  # Linux may require --with-deps
-npm run test:e2e     # production build + Chromium tests
+npm run test:e2e     # root-path production preview + Chromium tests
+VITE_BASE_PATH=/ruby-playground/ npm run test:e2e  # project-path preview
 npm audit
 ```
 
 Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
-cancel/timeout, URL validation and UI state. Three browser flows cover real Ruby
-execution/re-execution, URL sharing and sandboxed HTML, and cancel/recovery.
+cancel/timeout, URL validation and UI state. CI runs the three browser flows at
+both the root and project path: real Ruby execution/errors, shared URL direct
+load/reload without auto-run, sandboxed HTML, and cancel/recovery. The Ruby
+output flow saves a screenshot under `test-results/`.
 
 If browser downloads are unavailable but Chromium is installed:
 
@@ -70,7 +74,11 @@ CI installs managed Chromium. The assistant cloud process sandbox prevents local
 Chromium sockets; GitHub CI is the browser verification route in that environment.
 
 `npm run build` outputs `public/`; `npm run preview` serves it on port 8888.
-Source static assets live in `assets/`. Neither command publishes anything.
+Set `VITE_BASE_PATH=/ruby-playground/` to build for the GitHub Pages project
+path. Source static assets live in `assets/`. Build and preview do not publish
+anything. See [the Pages release runbook](docs/pages-release.md) for the
+approval gates and manual release procedure; this PR does not change repository
+Pages settings or publish the site.
 
 ## Architecture / next decisions
 

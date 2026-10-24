@@ -12,7 +12,10 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+      - run: npm install --global npm@11.17.0
+      - run: node --version && npm --version
       - run: npm ci
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: VITE_BASE_PATH=/ruby-playground/ npm run test:e2e
