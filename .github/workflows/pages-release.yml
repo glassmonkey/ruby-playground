@@ -272,7 +272,7 @@ jobs:
         run: node scripts/pages-assets.mjs verify "$RUNNER_TEMP/pages-evidence/baseline.json"
       - name: Deploy approved Pages artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
   deployed-smoke:
     if: inputs.publish == true && github.ref == 'refs/heads/main'
