@@ -294,6 +294,22 @@ PACKAGE INVENTORY
   License file(s): node_modules/@monaco-editor/react/LICENSE
   Locked source: https://registry.npmjs.org/@monaco-editor/react/-/react-4.6.0.tgz
   Lock integrity: sha512-RFkU9/i7cN2bsq/iTkurMWOEErmYcY6JiQI3Jn+WeR/FGISH8JbHERjpS9oRuSOPvDMJI0Z8nJeKkbOs9sBYQw==
+@ruby/3.3-wasm-wasi@2.10.1
+  Declared license: MIT
+  Installed package: node_modules/@ruby/3.3-wasm-wasi
+  License file(s): node_modules/@ruby/3.3-wasm-wasi/dist/LICENSE
+  Notice file(s): node_modules/@ruby/3.3-wasm-wasi/dist/NOTICE
+  Source note: LICENSE and NOTICE are byte-identical to the shared ruby-wasm-LICENSE and ruby-wasm-NOTICE included here.
+  Locked source: https://registry.npmjs.org/@ruby/3.3-wasm-wasi/-/3.3-wasm-wasi-2.10.1.tgz
+  Lock integrity: sha512-jxRcChiRN/Q6Q8hAKdno6lRzhUla1dgi4EME7P2s2NcgFKGNHyRhxs13g1GtHaG2Fz3VUAwvPdl1ue/J8HoBRQ==
+@ruby/3.4-wasm-wasi@2.10.1
+  Declared license: MIT
+  Installed package: node_modules/@ruby/3.4-wasm-wasi
+  License file(s): node_modules/@ruby/3.4-wasm-wasi/dist/LICENSE
+  Notice file(s): node_modules/@ruby/3.4-wasm-wasi/dist/NOTICE
+  Source note: LICENSE and NOTICE are byte-identical to the shared ruby-wasm-LICENSE and ruby-wasm-NOTICE included here.
+  Locked source: https://registry.npmjs.org/@ruby/3.4-wasm-wasi/-/3.4-wasm-wasi-2.10.1.tgz
+  Lock integrity: sha512-qrzIJ/7TGSpsZpFyLJb9OXO6TYAq18XoLd11We17Sr78hWpb5IGGFgMQ9A2Y8Ww5n0k8uKA/I8/P8MJdzlJX0Q==
 @ruby/4.0-wasm-wasi@2.10.1
   Declared license: MIT
   Installed package: node_modules/@ruby/4.0-wasm-wasi

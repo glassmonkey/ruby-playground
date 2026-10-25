@@ -1,16 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { expectDocumentToFitViewport } from "./layout";
-
-async function edit(page: import("@playwright/test").Page, code: string) {
-  const editor = page.getByRole("textbox", { name: "Ruby source" });
-  await page.locator(".monaco-editor .view-lines").click();
-  await expect(editor).toBeFocused();
-  await page.keyboard.press("Control+A");
-  await page.keyboard.insertText(code);
-  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    code.split("\n")[0],
-  );
-}
+import { editRuby as edit, expectRubyOutput } from "./editor";
 
 test("keyboard order, labelled work areas and narrow layouts remain usable", async ({
   page,
@@ -20,7 +10,7 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   await page.goto("./");
   await expect(page.locator(".monaco-editor .view-lines")).toBeVisible();
   await expect(page.getByRole("main")).toContainText(
-    "低速回線では初回の Ruby 読み込みがタイムアウトすることがあります。通信環境を変えて再実行してください。",
+    "低速回線では初回の Ruby 読み込みがタイムアウトすることがあります。通信環境を変え、コードを編集するかバージョンを変更してください。",
   );
   const editorReadyElapsedMs = Date.now() - navigationStartedAt;
   const navigationTiming = await page.evaluate(() => {
@@ -56,9 +46,10 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   ).toBeVisible();
 
   await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Ruby バージョン")).toBeFocused();
   await expect(
-    page.getByRole("button", { name: "実行", exact: true }),
-  ).toBeFocused();
+    page.getByRole("button", { name: /^(実行|再実行)$/ }),
+  ).toHaveCount(0);
 
   await page.locator(".monaco-editor .view-lines").click();
   await expect(
@@ -67,10 +58,22 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "安全な利用" })).toBeFocused();
 
-  for (const width of [640, 390]) {
+  for (const width of [640, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expectDocumentToFitViewport(page, width);
+    const selector = page.getByLabel("Ruby バージョン");
+    await expect(selector).toBeVisible();
+    const bounds = await selector.boundingBox();
+    expect(bounds).not.toBeNull();
+    expect(bounds!.x).toBeGreaterThanOrEqual(0);
+    expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(width);
+    await selector.selectOption("3.3");
+    await expect(selector).toHaveValue("3.3");
   }
+
+  await edit(page, 'puts "mobile #{RUBY_VERSION}"');
+  await expectRubyOutput(page, /^mobile 3\.3\.\d+\n$/);
+  await expectDocumentToFitViewport(page, 320);
 
   expect(
     await page.getByRole("link", { name: "安全な利用" }).getAttribute("href"),
@@ -147,6 +150,15 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
     await route.continue();
     continueEntryChunk();
   });
+  let firstRubyWorkerStartedAt: number | undefined;
+  page.on("worker", (worker) => {
+    if (
+      worker.url().includes("ruby-worker") &&
+      firstRubyWorkerStartedAt === undefined
+    ) {
+      firstRubyWorkerStartedAt = Date.now();
+    }
+  });
   const navigationStartedAt = Date.now();
   const navigation = page.goto("./", { waitUntil: "commit" });
   const staticHeading = page.locator("#static-description h1");
@@ -156,6 +168,10 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   const staticDescriptionVisibleMs = Date.now() - navigationStartedAt;
   expect(entryChunkHeld).toBe(true);
   await navigation;
+  // Observe completion concurrently: editor loading must not inflate run duration.
+  const coldRunFinishedAt = expect(page.getByRole("status"))
+    .toHaveText(/^(完了|エラー)$/, { timeout: 90_000 })
+    .then(() => Date.now());
   await entryChunkContinued;
   await page.waitForLoadState("load");
   await page.unroute(/\/index-[^/]+\.js$/);
@@ -164,23 +180,26 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   });
   const editorReadyMs = Date.now() - navigationStartedAt;
 
-  await edit(page, 'puts "cold"');
-  const coldRunStartedAt = Date.now();
-  await page.getByRole("button", { name: "実行", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText(/^(完了|エラー)$/, {
-    timeout: 26_000,
-  });
-  const coldRunElapsedMs = Date.now() - coldRunStartedAt;
+  // The initial sample now starts automatically, before the editor is ready.
+  await expect.poll(() => firstRubyWorkerStartedAt).toBeDefined();
+  const coldRunStartedAt = firstRubyWorkerStartedAt!;
+  const coldRunElapsedMs = (await coldRunFinishedAt) - coldRunStartedAt;
   const coldRunStatus = (await page.getByRole("status").innerText()).trim();
-  const coldRunError = await page
-    .getByRole("main")
-    .getByRole("alert")
-    .innerText()
-    .catch(() => "");
+  const coldRunError = (
+    await page.getByRole("main").getByRole("alert").allTextContents()
+  ).join("\n");
   const coldRunOutput = await page
     .getByTestId("preview-console")
     .innerText()
     .catch(() => "");
+
+  if (coldRunStatus === "完了") {
+    expect(coldRunOutput.trim()).toBe("Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3");
+    expect(coldRunError).toBe("");
+  } else {
+    expect(coldRunError).toContain("タイムアウト");
+    expect(coldRunOutput).toBe("");
+  }
 
   await cdp.send("Network.emulateNetworkConditions", {
     offline: false,
@@ -191,7 +210,6 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   });
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: false });
   await edit(page, "loop {}");
-  await page.getByRole("button", { name: "実行", exact: true }).click();
   await expect(page.getByRole("status")).toContainText("実行中", {
     timeout: 10_000,
   });
@@ -201,22 +219,14 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
   const stopElapsedMs = Date.now() - stopStartedAt;
 
-  await edit(page, 'puts "recovered"');
   const recoveryStartedAt = Date.now();
-  await page.getByRole("button", { name: "実行", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("完了", {
-    timeout: 30_000,
-  });
-  await expect(page.getByTestId("preview-console")).toHaveText("recovered\n");
+  await edit(page, 'puts "recovered"');
+  await expectRubyOutput(page, "recovered\n");
   const recoveryRunElapsedMs = Date.now() - recoveryStartedAt;
 
-  await edit(page, 'puts "warm"');
   const warmRunStartedAt = Date.now();
-  await page.getByRole("button", { name: "実行", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("完了", {
-    timeout: 10_000,
-  });
-  await expect(page.getByTestId("preview-console")).toHaveText("warm\n");
+  await edit(page, 'puts "warm"');
+  await expectRubyOutput(page, "warm\n");
   const warmRunElapsedMs = Date.now() - warmRunStartedAt;
 
   const measurements = {
@@ -228,6 +238,10 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
     staticDescriptionVisibleMs,
     entryChunkHeldForMs: 1500,
     editorReadyMs,
+    coldRunTrigger:
+      "initial automatic run; measured from actual Ruby Worker creation",
+    editedRunTiming:
+      "from starting the edit through verified output; includes 350 ms debounce",
     coldRunElapsedMs,
     coldRunStatus,
     coldRunError,

@@ -1,3 +1,8 @@
+import {
+  DEFAULT_RUBY_VERSION,
+  isRubyVersion,
+  type RubyVersion,
+} from "./versions";
 import { compressToEncodedURIComponent } from "lz-string";
 
 export const MAX_SOURCE_LENGTH = 50_000;
@@ -6,11 +11,11 @@ export const MAX_SHARE_URL_BYTES = 8_000;
 export type OutputFormat = "console" | "html";
 export type ShareState = {
   code: string;
-  version?: "4.0";
+  version?: RubyVersion;
   format: OutputFormat;
 };
 export type ParsedShareState = ShareState & {
-  version: "4.0";
+  version: RubyVersion;
   warning?: string;
 };
 
@@ -91,7 +96,7 @@ export function parseShareUrl(
 ): ParsedShareState {
   const state: ParsedShareState = {
     code: fallbackCode,
-    version: "4.0",
+    version: DEFAULT_RUBY_VERSION,
     format: "console",
   };
   let parsed: URL;
@@ -105,8 +110,9 @@ export function parseShareUrl(
   }
   const warnings: string[] = [];
   const version = parsed.searchParams.get("v");
-  if (version !== null && version !== "4.0") {
-    warnings.push("Only Ruby 4.0 is supported; using Ruby 4.0.");
+  if (isRubyVersion(version)) state.version = version;
+  else if (version !== null) {
+    warnings.push("Unsupported Ruby version; using Ruby 4.0.");
   }
   const format = parsed.searchParams.get("f");
   if (format === "html" || format === "console") state.format = format;
@@ -158,7 +164,9 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   }
   const result = new URL(url.toString());
   result.searchParams.set("c", compressed);
-  result.searchParams.set("v", "4.0");
+  const version = state.version ?? DEFAULT_RUBY_VERSION;
+  if (!isRubyVersion(version)) throw new Error("Unsupported Ruby version.");
+  result.searchParams.set("v", version);
   result.searchParams.set("f", state.format);
   const shareUrl = result.toString();
   if (new TextEncoder().encode(shareUrl).byteLength > MAX_SHARE_URL_BYTES) {

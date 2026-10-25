@@ -23,21 +23,28 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 ## Features and limits
 
 - Local-bundled Monaco editor with Ruby highlighting; no editor CDN required.
-- Ruby 4.0 WASM with standard library, served as a local static asset (~32 MB).
-  The first run must download/compile it and can take longer.
-- Explicit Run, rerun and Stop. Every run creates and terminates a new Worker/VM;
+- Select Ruby 4.0, 3.4 or 3.3. Pinned official ruby.wasm 2.10.1 builds contain
+  **Ruby 4.0.0 / 3.4.1 / 3.3.3**, verified by real `RUBY_VERSION` tests, not
+  the latest Ruby security patch releases. Each selected standard-library WASM
+  is served locally (~32 MB); only the selected runtime is downloaded.
+  See the security/release limitation below.
+- Live execution after 350 ms without edits, including initial/shared links and
+  version changes. There is no Run button; Stop stays available while running.
+  Edits/switches terminate old work immediately and ignore stale results.
+  Stop/timeout do not loop or retry; edit code, change version, or reset the sample
+  to resume. Every run creates and terminates a new Worker/VM;
   global variables, constants and virtual files are not retained.
 - stdout, stderr and exceptions, including partial writes and empty output.
   Expression return values are not printed unless the Ruby code prints them.
 - 20-second run/load timeout, 100 KB captured-output limit, 50,000-character code limit.
-- Compressed `c` / `v` / `f` URL sharing using lz-string (`v=4.0`,
+- Compressed `c` / `v` / `f` URL sharing using lz-string (`v=4.0|3.4|3.3`,
   `f=console|html`). Empty and Unicode source round-trip. Malformed or oversized
   links fall back with a warning; decoding is bounded before expansion.
-- Shared links **never execute automatically**. Read code before pressing Run.
+- Shared links **execute automatically**. Do not open untrusted shared links.
 - Console output and a sandboxed HTML iframe. HTML scripts, forms, external
   resources and parent-page access are blocked; stderr stays outside the iframe.
 - No standard-input interaction, Rails, external gems, multi-file projects or
-  persistent snippets. Only Ruby 4.0 is offered in this iteration.
+  persistent snippets. Ruby 3.2 and development/head builds are not offered.
 
 A Worker is a responsiveness/isolation boundary, **not a security sandbox for
 hostile Ruby**. Ruby's JS bridge is disabled at the WASM import boundary, so Worker globals,
@@ -59,9 +66,9 @@ npm audit
 
 Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
-cancel/timeout, URL validation and UI state. CI runs the three browser flows at
+cancel/timeout, URL validation and UI state. CI runs browser flows at
 both the root and project path: real Ruby execution/errors, shared URL direct
-load/reload without auto-run, sandboxed HTML, and cancel/recovery. The Ruby
+load/reload with auto-run and version preservation, sandboxed HTML, and cancel/recovery. The Ruby
 output flow saves a screenshot under `test-results/`.
 
 If browser downloads are unavailable but Chromium is installed:
@@ -87,7 +94,7 @@ the Worker lifecycle. `src/share.ts` bounds compressed URL decoding. `src/editor
 loads Monaco locally; Sandpack remains an installed baseline dependency but does
 not execute/bundle user code. React holds the single-file editor state directly.
 
-Future hosting, Ruby version matrix, gem support and additional editing features
+Future hosting, patched WASM builds, gem support and additional editing features
 are deliberately separate decisions. Existing old-architecture PRs are untouched.
 
 ## Attribution and dependencies
@@ -100,3 +107,24 @@ the static build. Other packages retain their own licenses.
 Vite/Vitest and TypeScript ESLint use security-patched versions rather than the
 older PHP pins. DOMPurify is overridden to 3.4.17 while Monaco pins an affected
 version; revisit that override when Monaco updates its dependency.
+
+## Runtime patch-level limitations
+
+As checked on 2026-10-25, npm's latest official `@ruby/{4.0,3.4,3.3}-wasm-wasi`
+packages are 2.10.1. The [official dated WASM release](https://github.com/ruby/ruby.wasm/releases/tag/2026-10-25-a)
+also lists Ruby 4.0.0, 3.4.1 and 3.3.3 source tarballs. These lag the
+[2026-10-23 security fixes](https://www.ruby-lang.org/en/news/2026/10/23/regexp-fixes-for-gitlab-cves/)
+in 4.0.9 / 3.4.12 / 3.3.13. The npm wrapper version is not a Ruby patch version.
+The selector and badge disclose exact bundled patches. The JS bridge remains
+blocked for every minor, but that is not a substitute for patched Ruby.
+
+The owner accepted browser-only execution with these disclosed patch levels.
+The blocked JS host bridge and fresh Worker/VM reduce exposure, but a Worker is
+not a guaranteed separate OS process or a hard memory budget. Ruby VM corruption,
+crashes and browser resource exhaustion remain possible. Native GitLab server
+RCE is not evidence of browser/host RCE in this configuration. Run timeout and
+source limits do not fix regexp compilation bugs. Shared links automatically
+execute; do not open untrusted links or enter secrets. Patched trusted builds
+remain recommended follow-up work, not a claim that current builds are patched.
+Production updates independently must pass the stale-HTML/hashed-asset gate in
+[the release runbook](docs/pages-release.md).

@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import { editRuby, expectRubyOutput } from "./editor";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
 const expectedSourceSha = process.env.EXPECTED_SOURCE_SHA;
@@ -145,6 +146,7 @@ test("published entry and WASM metadata match the requested release", async ({
   page,
   request,
 }, testInfo) => {
+  test.setTimeout(180_000);
   const appResponse = await request.get(baseUrl!);
   expect(appResponse.status()).toBe(200);
   expect(appResponse.headers()["content-type"]).toContain("text/html");
@@ -172,7 +174,8 @@ test("published entry and WASM metadata match the requested release", async ({
   expect(release.source_sha).toBe(expectedSourceSha);
   expect(release.base_path).toBe(new URL(baseUrl!).pathname);
   expect(release.stage).toBe(deploymentStage);
-  expect(release.wasm.length).toBeGreaterThan(0);
+  expect(release.wasm).toHaveLength(3);
+  expect(new Set(release.wasm.map(({ sha256 }) => sha256)).size).toBe(3);
 
   const observed: ReturnType<typeof responseEvidence>[] = [
     apiResponseEvidence(
@@ -250,16 +253,11 @@ test("published entry and WASM metadata match the requested release", async ({
     expect(browserDocumentResponse.status()).toBe(200);
     observed.push(await browserResponseEvidence(browserDocumentResponse));
   }
-  const editor = page.getByRole("textbox", { name: "Ruby source" });
-  await page.locator(".monaco-editor .view-lines").click();
-  await expect(editor).toBeFocused();
-  await page.keyboard.press("Control+A");
-  await page.keyboard.insertText('puts "Pages deployed smoke"');
-  await page.getByRole("button", { name: "実行", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText("完了", { timeout: 30_000 });
-  await expect(page.getByTestId("preview-console")).toHaveText(
-    "Pages deployed smoke\n",
-  );
+  // Finish the initial automatic run before collecting a second run's responses.
+  // Canceling its in-flight WASM fetch would make HTTP evidence intentionally incomplete.
+  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await editRuby(page, 'puts "Pages deployed smoke #{RUBY_VERSION}"');
+  await expectRubyOutput(page, /^Pages deployed smoke 4\.0\.\d+\n$/);
   await page.waitForLoadState("networkidle");
   const responseJobCountAtNetworkIdle = browserResponseJobs.length;
   await Promise.all(browserResponseJobs);
@@ -279,9 +277,10 @@ test("published entry and WASM metadata match the requested release", async ({
   });
 });
 
-test("long shared URL stays within the host limit and does not auto-run", async ({
+test("long shared URL stays within the host limit and automatically restores code and version", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await page.goto(baseUrl!);
   await expect(page.getByRole("heading", { name: "Ruby Playground" })).toBeVisible();
   let state = 0x93c0ffee;
@@ -293,12 +292,9 @@ test("long shared URL stays within the host limit and does not auto-run", async 
     state ^= state << 5;
     payload += alphabet[state & 63];
   }
-  const source = `# ${payload}`;
-  const editor = page.getByRole("textbox", { name: "Ruby source" });
-  await page.locator(".monaco-editor .view-lines").click();
-  await expect(editor).toBeFocused();
-  await page.keyboard.press("Control+A");
-  await page.keyboard.insertText(source);
+  const source = `# ${payload}\nputs "long shared #{RUBY_VERSION}"`;
+  await page.getByLabel("Ruby バージョン").selectOption("3.3");
+  await editRuby(page, source);
   await page.getByRole("button", { name: "URL を共有" }).click();
   const sharedUrl = await page.getByRole("textbox", { name: "共有 URL" }).inputValue();
   const sharedUrlBytes = Buffer.byteLength(sharedUrl, "utf8");
@@ -306,12 +302,14 @@ test("long shared URL stays within the host limit and does not auto-run", async 
   expect(sharedUrlBytes).toBeLessThanOrEqual(8_000);
 
   await page.goto(sharedUrl);
-  await expect(page.getByRole("status")).toHaveText("実行待ち");
+  await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.3");
+  await expectRubyOutput(page, /^long shared 3\.3\.\d+\n$/);
   await expect(page.locator(".monaco-editor .view-lines")).toContainText(
     source.slice(0, 80),
   );
   await page.reload();
-  await expect(page.getByRole("status")).toHaveText("実行待ち");
+  await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.3");
+  await expectRubyOutput(page, /^long shared 3\.3\.\d+\n$/);
   await expect(page.locator(".monaco-editor .view-lines")).toContainText(
     source.slice(0, 80),
   );

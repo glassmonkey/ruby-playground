@@ -1,4 +1,6 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+import { RUBY_PATCH_VERSIONS } from "../src/versions";
+import { editRuby as edit, expectRubyOutput } from "./editor";
 import { expectDocumentToFitViewport } from "./layout";
 test.beforeEach(async ({ page }) => {
   page.on("pageerror", (error) =>
@@ -19,28 +21,10 @@ test.afterEach(async ({ page }, info) => {
         .catch(() => "unavailable"),
     );
 });
-async function edit(page: Page, code: string) {
-  const editor = page.getByRole("textbox", { name: "Ruby source" });
-  await page.locator(".monaco-editor .view-lines").click({ timeout: 10_000 });
-  await expect(editor).toBeFocused();
-  const selectAll = await page.evaluate(() =>
-    navigator.userAgent.includes("Macintosh") ? "Meta+A" : "Control+A",
-  );
-  await page.keyboard.press(selectAll);
-  await page.keyboard.insertText(code);
-  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    code.split("\n")[0],
-  );
-}
-async function run(page: Page) {
-  await page.getByRole("button", { name: "実行", exact: true }).click();
-  await expect(page.getByRole("status")).toHaveText(/^(完了|エラー)$/, {
-    timeout: 30_000,
-  });
-}
-test("real Ruby output, errors, empty runs and VM reset", async ({
+test("initial and edited Ruby automatically execute with errors, empty output and fresh VMs", async ({
   page,
 }, testInfo) => {
+  test.setTimeout(90_000);
   const errors: string[] = [];
   const requests: Array<{ url: string; type: string }> = [];
   page.on("request", (request) => {
@@ -51,11 +35,12 @@ test("real Ruby output, errors, empty runs and VM reset", async ({
   await expect(
     page.getByRole("heading", { name: "Ruby Playground" }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: /^(実行|再実行)$/ }),
+  ).toHaveCount(0);
+  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
   await edit(page, 'puts "こんにちは"; warn "warning"; $answer = 42');
-  await run(page);
-  await expect(page.getByTestId("preview-console")).toHaveText(
-    "こんにちは\nwarning\n",
-  );
+  await expectRubyOutput(page, "こんにちは\nwarning\n");
   await page.screenshot({
     path: testInfo.outputPath(
       process.env.VITE_BASE_PATH
@@ -65,18 +50,26 @@ test("real Ruby output, errors, empty runs and VM reset", async ({
     fullPage: true,
   });
   await edit(page, 'puts defined?($answer).inspect; raise "boom"');
-  await run(page);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "boom",
+    {
+      timeout: 30_000,
+    },
+  );
+  await expect(page.getByRole("status")).toHaveText("エラー");
   await expect(page.getByTestId("preview-console")).toHaveText("nil\n");
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("boom");
   await edit(page, "1 + 2");
-  await run(page);
-  await expect(page.getByText("出力なし", { exact: true })).toBeVisible();
+  await expect(page.getByText("出力なし", { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByRole("status")).toHaveText("完了");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   await edit(page, "def broken(");
-  await run(page);
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "SyntaxError",
+    { timeout: 30_000 },
   );
+  await expect(page.getByRole("status")).toHaveText("エラー");
   await page.setViewportSize({ width: 390, height: 844 });
   await expectDocumentToFitViewport(page, 390);
   const appBase = new URL(testInfo.project.use.baseURL as string).pathname;
@@ -121,45 +114,131 @@ test("real Ruby output, errors, empty runs and VM reset", async ({
   ).toBe(true);
   expect(errors).toEqual([]);
 });
-test("share round trip requires explicit run and HTML remains sandboxed", async ({
+test("shared code, version and HTML output automatically restore on direct load and reload", async ({
   page,
 }) => {
+  test.setTimeout(90_000);
   await page.goto("./");
+  await page.getByLabel("Ruby バージョン").selectOption("3.4");
   await edit(
     page,
-    'puts %q{<h1>Hello HTML</h1><script>parent.document.title="unsafe"</script>}',
+    'puts "<h1>Hello HTML #{RUBY_VERSION}</h1>"; puts %q{<script>parent.document.title="unsafe"</script>}',
   );
   await page.getByLabel("出力形式").selectOption("html");
+  await expect(
+    page
+      .frameLocator("iframe")
+      .getByRole("heading", { name: /^Hello HTML 3\.4\./ }),
+  ).toBeVisible({ timeout: 30_000 });
   await page.getByRole("button", { name: "URL を共有" }).click();
   const url = await page
     .getByRole("textbox", { name: "共有 URL" })
     .inputValue();
-  await page.goto(url);
-  await expect(page.getByRole("status")).toHaveText("実行待ち");
-  await expect(page.getByLabel("出力形式")).toHaveValue("html");
-  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    "Hello HTML",
-  );
-  await page.reload();
-  await expect(page.getByRole("status")).toHaveText("実行待ち");
-  await expect(page.getByLabel("出力形式")).toHaveValue("html");
-  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    "Hello HTML",
-  );
-  await run(page);
-  await expect(
-    page.frameLocator("iframe").getByRole("heading", { name: "Hello HTML" }),
-  ).toBeVisible();
-  await expect(page.locator("iframe")).toHaveAttribute("sandbox", "");
-  await expect(page).toHaveTitle("Ruby Playground");
+  expect(new URL(url).searchParams.get("v")).toBe("3.4");
+  for (const navigate of [() => page.goto(url), () => page.reload()]) {
+    await navigate();
+    await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.4");
+    await expect(page.getByLabel("出力形式")).toHaveValue("html");
+    await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+      "Hello HTML",
+    );
+    await expect(
+      page
+        .frameLocator("iframe")
+        .getByRole("heading", { name: /^Hello HTML 3\.4\./ }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByRole("status")).toHaveText("完了");
+    await expect(page.locator("iframe")).toHaveAttribute("sandbox", "");
+    await expect(page).toHaveTitle("Ruby Playground");
+  }
 });
-test("cancel an infinite run and successfully rerun", async ({ page }) => {
+
+test("each selected minor version executes its own real Ruby VM", async ({
+  page,
+}) => {
+  test.setTimeout(100_000);
+  await page.goto("./");
+  await edit(page, "puts RUBY_VERSION");
+  const selector = page.getByLabel("Ruby バージョン");
+  expect(
+    await selector
+      .locator("option")
+      .evaluateAll((options) =>
+        options.map((option) => (option as HTMLOptionElement).value),
+      ),
+  ).toEqual(["4.0", "3.4", "3.3"]);
+  for (const version of ["4.0", "3.4", "3.3", "4.0"] as const) {
+    await selector.selectOption(version);
+    await expectRubyOutput(page, `${RUBY_PATCH_VERSIONS[version]}\n`);
+    await page.getByRole("button", { name: "URL を共有" }).click();
+    const sharedUrl = await page
+      .getByRole("textbox", { name: "共有 URL" })
+      .inputValue();
+    expect(new URL(sharedUrl).searchParams.get("v")).toBe(version);
+  }
+});
+
+test("rapid edits and version changes cancel stale runs and keep only the latest result", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.goto("./");
+  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  const oldWorkerStarted = page.waitForEvent("worker", {
+    predicate: (worker) => worker.url().includes("ruby-worker"),
+  });
+  await edit(page, 'puts "stale result"; loop {}');
+  const oldWorker = await oldWorkerStarted;
+  let oldWorkerClosed = false;
+  oldWorker.on("close", () => {
+    oldWorkerClosed = true;
+  });
+  await expect(page.getByRole("status")).toContainText("実行中");
+
+  await edit(page, 'raise "stale error"');
+  await page.getByLabel("Ruby バージョン").selectOption("3.4");
+  await edit(page, 'puts "latest #{RUBY_VERSION}"');
+  await page.getByLabel("Ruby バージョン").selectOption("3.3");
+  await expect.poll(() => oldWorkerClosed, { timeout: 5_000 }).toBe(true);
+  await expectRubyOutput(page, /^latest 3\.3\.\d+\n$/);
+  // Allow canceled promise handlers and any trailing debounce to settle.
+  await page.waitForTimeout(1_000);
+  await expectRubyOutput(page, /^latest 3\.3\.\d+\n$/);
+  await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.3");
+});
+
+test("stop an infinite automatic run without restarting until the source changes", async ({
+  page,
+}) => {
   await page.goto("./");
   await edit(page, "loop {}");
-  await page.getByRole("button", { name: "実行", exact: true }).click();
   await page.getByRole("button", { name: "停止", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
+  await page.waitForTimeout(700);
+  await expect(
+    page.getByRole("button", { name: "停止", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
   await edit(page, 'puts "recovered"');
-  await run(page);
-  await expect(page.getByTestId("preview-console")).toHaveText("recovered\n");
+  await expectRubyOutput(page, "recovered\n");
+});
+
+test("an infinite automatic run times out and the next edit recovers", async ({
+  page,
+}) => {
+  test.setTimeout(60_000);
+  await page.goto("./");
+  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await edit(page, "loop {}");
+  await expect(page.getByRole("status")).toContainText("実行中");
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "タイムアウト",
+    { timeout: 25_000 },
+  );
+  await expect(page.getByRole("status")).toHaveText("エラー");
+  await expect(
+    page.getByRole("button", { name: "停止", exact: true }),
+  ).toHaveCount(0);
+  await edit(page, 'puts "after timeout #{RUBY_VERSION}"');
+  await expectRubyOutput(page, /^after timeout 4\.0\.\d+\n$/);
 });

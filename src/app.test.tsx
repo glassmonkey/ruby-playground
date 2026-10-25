@@ -1,5 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import App, { INITIAL_CODE } from "./app";
 vi.mock("./editor", () => ({
@@ -36,16 +43,27 @@ const setup = () =>
     </ChakraProvider>,
   );
 describe("playground UI", () => {
-  it("does not auto-run shared or initial code and accepts empty edits", async () => {
+  it("automatically runs initial code and accepts empty edits without a Run button", async () => {
     setup();
     const editor = (await screen.findByRole("textbox", {
       name: "Ruby source",
     })) as HTMLTextAreaElement;
-    expect(start).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: /^(実行|再実行)$/ }),
+    ).toBeNull();
+    await waitFor(() =>
+      expect(start).toHaveBeenCalledWith(
+        INITIAL_CODE,
+        undefined,
+        undefined,
+        "4.0",
+      ),
+    );
     fireEvent.change(editor, { target: { value: "" } });
-    fireEvent.click(screen.getByRole("button", { name: "実行" }));
     await screen.findByText("出力なし");
-    expect(start).toHaveBeenCalledWith("");
+    await waitFor(() =>
+      expect(start).toHaveBeenCalledWith("", undefined, undefined, "4.0"),
+    );
   });
   it("resets repeatedly and preserves editable initial code", async () => {
     setup();
@@ -73,7 +91,7 @@ describe("playground UI", () => {
       ["ライセンス", "./licenses/"],
     ]);
   });
-  it("shares without executing and restores state on back navigation", async () => {
+  it("shares the current state and restores state on back navigation", async () => {
     setup();
     const editor = (await screen.findByRole("textbox", {
       name: "Ruby source",
@@ -87,7 +105,7 @@ describe("playground UI", () => {
         })) as HTMLInputElement
       ).value,
     ).toContain("c=");
-    expect(start).not.toHaveBeenCalled();
+
     window.history.replaceState(null, "", "/");
     fireEvent(window, new PopStateEvent("popstate"));
     expect(editor.value).toBe(INITIAL_CODE);
@@ -113,6 +131,47 @@ describe("playground UI", () => {
     );
     expect(editor.value).toBe(code);
     expect(screen.queryByRole("textbox", { name: "共有 URL" })).toBeNull();
-    expect(start).not.toHaveBeenCalled();
   });
+});
+
+it("debounces rapid edits, cancels active work, and ignores stale version results", async () => {
+  const completions: Array<
+    (result: { stdout: string; stderr: string; output: string }) => void
+  > = [];
+  const cancellations: ReturnType<typeof vi.fn>[] = [];
+  start.mockImplementation(() => {
+    const cancel = vi.fn();
+    cancellations.push(cancel);
+    return {
+      cancel,
+      promise: new Promise((resolve) => completions.push(resolve)),
+    };
+  });
+  setup();
+  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  fireEvent.change(editor, { target: { value: "puts :old" } });
+  fireEvent.change(editor, { target: { value: "puts :latest" } });
+  fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+    target: { value: "3.4" },
+  });
+  expect(cancellations[0]).toHaveBeenCalled();
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+  expect(start).toHaveBeenLastCalledWith(
+    "puts :latest",
+    undefined,
+    undefined,
+    "3.4",
+  );
+  await act(async () =>
+    completions[1]({ stdout: "new", stderr: "", output: "new" }),
+  );
+  await act(async () =>
+    completions[0]({ stdout: "stale", stderr: "", output: "stale" }),
+  );
+  expect(screen.getByTestId("preview-console").textContent).toBe("new");
+  start.mockImplementation(() => ({
+    promise: Promise.resolve({ stdout: "", stderr: "", output: "" }),
+    cancel: vi.fn(),
+  }));
 });

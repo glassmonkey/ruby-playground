@@ -1,3 +1,8 @@
+import {
+  DEFAULT_RUBY_VERSION,
+  isRubyVersion,
+  type RubyVersion,
+} from "../versions";
 import type { RunResult } from "../runtime";
 
 export const RUN_TIMEOUT_MS = 20_000;
@@ -10,6 +15,7 @@ export function startRubyRun(
       type: "module",
     }),
   timeoutMs = RUN_TIMEOUT_MS,
+  version: RubyVersion = DEFAULT_RUBY_VERSION,
 ): RunHandle {
   let cancel = () => {};
   const promise = new Promise<RunResult>((resolve) => {
@@ -26,6 +32,10 @@ export function startRubyRun(
     const fail = (error: string) =>
       finish({ stdout: "", stderr: "", output: "", error });
     cancel = () => fail("実行を停止しました。");
+    if (!isRubyVersion(version)) {
+      fail("Unsupported Ruby version.");
+      return;
+    }
     if (code.length > 50_000) {
       fail("コードは 50,000 文字以内にしてください。");
       return;
@@ -67,7 +77,7 @@ export function startRubyRun(
         () => fail("実行がタイムアウトしました（20 秒）。"),
         timeoutMs,
       );
-      worker.postMessage({ code });
+      worker.postMessage({ code, version });
     } catch (error) {
       fail(error instanceof Error ? error.message : String(error));
     }
