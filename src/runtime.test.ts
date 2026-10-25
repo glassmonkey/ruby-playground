@@ -2,6 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
+import { RUBY_PATCH_VERSIONS } from "./versions";
 import { executeRuby } from "./runtime";
 
 let module: WebAssembly.Module;
@@ -70,3 +71,23 @@ it("disables Ruby access to the JavaScript host", async () => {
     (await executeRuby(module, `require 'js'; JS.global`)).error,
   ).toContain("JavaScript bridge is disabled");
 });
+
+for (const version of ["4.0", "3.4", "3.3"] as const) {
+  it(`executes the actual pinned Ruby ${version} build with host bridge blocked`, async () => {
+    const require = createRequire(import.meta.url);
+    const compiled = await WebAssembly.compile(
+      await readFile(
+        require.resolve(`@ruby/${version}-wasm-wasi/dist/ruby+stdlib.wasm`),
+      ),
+    );
+    const result = await executeRuby(compiled, "puts RUBY_VERSION");
+    expect(result.output).toBe(`${RUBY_PATCH_VERSIONS[version]}\n`);
+    expect(result.error).toBeUndefined();
+    expect(result.output).toMatch(
+      new RegExp(`^${version.replace(".", "\\.")}\\.\\d+\\n$`),
+    );
+    expect(
+      (await executeRuby(compiled, `require 'js'; JS.global`)).error,
+    ).toContain("JavaScript bridge is disabled");
+  }, 30_000);
+}

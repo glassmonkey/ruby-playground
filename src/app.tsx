@@ -15,11 +15,17 @@ import {
 } from "@chakra-ui/react";
 import type { RunResult } from "./runtime";
 import { startRubyRun, type RunHandle } from "./workers/client";
+import {
+  RUBY_VERSIONS,
+  RUBY_PATCH_VERSIONS,
+  type RubyVersion,
+} from "./versions";
 import { buildShareUrl, parseShareUrl } from "./share";
 
 const RubyEditor = lazy(() => import("./editor"));
 export const INITIAL_CODE =
   'puts "Hello, Ruby!"\n3.times { |n| puts "Ruby #{n + 1}" }\n';
+export const LIVE_DELAY_MS = 350;
 const EMPTY_RESULT: RunResult = { stdout: "", stderr: "", output: "" };
 const previewDocument = (html: string) =>
   `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer">${html}`;
@@ -29,6 +35,8 @@ export default function App() {
     parseShareUrl(window.location.href, INITIAL_CODE),
   );
   const [code, setCode] = useState(initial.code);
+  const [version, setVersion] = useState(initial.version);
+  const [revision, setRevision] = useState(0);
   const [format, setFormat] = useState(initial.format);
   const [warning, setWarning] = useState(initial.warning ?? "");
   const [result, setResult] = useState<RunResult>(EMPTY_RESULT);
@@ -36,25 +44,45 @@ export default function App() {
   const [shareUrl, setShareUrl] = useState("");
   const run = useRef<RunHandle>();
   const generation = useRef(0);
+  const scheduled = useRef<ReturnType<typeof setTimeout>>();
   const stop = () => {
     generation.current++;
+    clearTimeout(scheduled.current);
     run.current?.cancel();
     run.current = undefined;
   };
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    const current = ++generation.current;
+    run.current?.cancel();
+    setResult(EMPTY_RESULT);
+    setStatus("idle");
+    scheduled.current = setTimeout(async () => {
+      setStatus("running");
+      const handle = startRubyRun(code, undefined, undefined, version);
+      run.current = handle;
+      const next = await handle.promise;
+      if (current !== generation.current) return;
+      run.current = undefined;
+      setResult(next);
+      setStatus("done");
+    }, LIVE_DELAY_MS);
+    return () => {
       generation.current++;
+      clearTimeout(scheduled.current);
       run.current?.cancel();
-    },
-    [],
-  );
+      run.current = undefined;
+    };
+  }, [code, version, revision]);
   useEffect(() => {
     const navigate = () => {
       generation.current++;
+      clearTimeout(scheduled.current);
       run.current?.cancel();
       run.current = undefined;
       const state = parseShareUrl(window.location.href, INITIAL_CODE);
       setCode(state.code);
+      setVersion(state.version);
+      setRevision((value) => value + 1);
       setFormat(state.format);
       setWarning(state.warning ?? "");
       setResult(EMPTY_RESULT);
@@ -64,22 +92,10 @@ export default function App() {
     window.addEventListener("popstate", navigate);
     return () => window.removeEventListener("popstate", navigate);
   }, []);
-  const execute = async () => {
-    stop();
-    const current = generation.current;
-    setResult(EMPTY_RESULT);
-    setStatus("running");
-    const handle = startRubyRun(code);
-    run.current = handle;
-    const next = await handle.promise;
-    if (current !== generation.current) return;
-    run.current = undefined;
-    setResult(next);
-    setStatus("done");
-  };
   const reset = () => {
     stop();
     setCode(INITIAL_CODE);
+    setRevision((value) => value + 1);
     setResult(EMPTY_RESULT);
     setStatus("idle");
     setShareUrl("");
@@ -88,7 +104,7 @@ export default function App() {
     try {
       const url = buildShareUrl(window.location.href, {
         code,
-        version: "4.0",
+        version,
         format,
       });
       window.history.pushState(null, "", url);
@@ -111,18 +127,21 @@ export default function App() {
             <Heading as="h1" size="lg">
               Ruby Playground
             </Heading>
-            <Badge colorScheme="red">Ruby 4.0 / WASM</Badge>
+            <Badge colorScheme="red">
+              Ruby {RUBY_PATCH_VERSIONS[version]} / WASM
+            </Badge>
           </Flex>
           <Text mt={2} color="gray.600">
-            書いて、実行して、確かめる。ブラウザで Ruby を試そう。
+            書くと、自動で結果が変わる。ブラウザで Ruby を試そう。
           </Text>
         </Container>
       </Box>
       <Container as="main" maxW="7xl" py={6}>
         <Text mb={4} fontSize="sm" color="gray.600">
-          共有コードは自動実行しません。内容を確認してから実行してください。秘密情報は入力しないでください。
+          編集・バージョン変更後に自動実行します。共有リンクも自動実行されます。信頼できないリンクを開かず、秘密情報は入力しないでください。
+          配布 WASM は最新のセキュリティ修正版ではありません。
           低速回線では初回の Ruby
-          読み込みがタイムアウトすることがあります。通信環境を変えて再実行してください。
+          読み込みがタイムアウトすることがあります。通信環境を変え、コードを編集するかバージョンを変更してください。
         </Text>
         {warning && (
           <Box role="alert" bg="orange.50" p={3} mb={4}>
@@ -130,9 +149,23 @@ export default function App() {
           </Box>
         )}
         <Flex gap={3} mb={4} wrap="wrap" align="center">
-          <Button colorScheme="red" onClick={() => void execute()}>
-            {status === "running" ? "再実行" : "実行"}
-          </Button>
+          <Select
+            aria-label="Ruby バージョン"
+            value={version}
+            width="auto"
+            onChange={(event) => {
+              if (event.target.value === version) return;
+              stop();
+              setVersion(event.target.value as RubyVersion);
+              setShareUrl("");
+            }}
+          >
+            {RUBY_VERSIONS.map((value) => (
+              <option key={value} value={value}>
+                Ruby {value} ({RUBY_PATCH_VERSIONS[value]})
+              </option>
+            ))}
+          </Select>
           {status === "running" && (
             <Button
               onClick={() => {
@@ -149,9 +182,10 @@ export default function App() {
           <Select
             aria-label="出力形式"
             value={format}
-            onChange={(event) =>
-              setFormat(event.target.value as "console" | "html")
-            }
+            onChange={(event) => {
+              setFormat(event.target.value as "console" | "html");
+              setShareUrl("");
+            }}
             width="auto"
           >
             <option value="console">Console</option>
@@ -198,6 +232,8 @@ export default function App() {
               <RubyEditor
                 code={code}
                 onChange={(next) => {
+                  if (next === code) return;
+                  stop();
                   setCode(next);
                   setShareUrl("");
                 }}
@@ -263,7 +299,7 @@ export default function App() {
             )}
             {status === "idle" && (
               <Text color="gray.500">
-                実行すると、ここに結果が表示されます。
+                編集後、自動でここに結果が表示されます。
               </Text>
             )}
             {status === "done" && !result.output && !result.error && (

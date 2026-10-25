@@ -84,7 +84,7 @@ describe("shared playground URLs", () => {
 
   it("normalizes unsupported version and format without losing valid code", () => {
     const parsed = parseShareUrl(
-      `${encodedUrl("puts 42")}&v=3.3&f=javascript`,
+      `${encodedUrl("puts 42")}&v=9.9&f=javascript`,
       fallback,
     );
     expect(parsed).toMatchObject({
@@ -182,3 +182,20 @@ describe("shared playground URLs", () => {
     expect(parseShareUrl(encodedUrl(code), fallback).code).toBe(code);
   });
 });
+
+it.each(["4.0", "3.4", "3.3"] as const)(
+  "preserves supported Ruby %s through a share URL",
+  (version) => {
+    const state = {
+      code: "puts RUBY_VERSION",
+      version,
+      format: "console" as const,
+    };
+    expect(
+      parseShareUrl(
+        buildShareUrl("https://example.com/ruby-playground/?x=1#output", state),
+        "",
+      ),
+    ).toEqual(state);
+  },
+);

@@ -137,7 +137,7 @@ canonical URL, unknown-path 404, and existing app flows (Ruby output/errors,
 stop/recovery, share URL direct-load/reload, HTML sandboxing, and safety/license
 links). The stage selects only the setup/security/deployed specs for preview,
 and setup/security/SEO/deployed specs for production; local slow-measurement UX
-specs do not run here. The deployed checks use one worker, explicitly run Ruby
+specs do not run here. The deployed checks use one worker, wait for initial live Ruby execution
 once to exercise worker/WASM requests, and wait for those responses before
 recording evidence. They record the response body buffer length separately
 from encoded response and header sizes reported by Playwright's browser
