@@ -28,7 +28,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
   the latest Ruby security patch releases. Each selected standard-library WASM
   is served locally (~32 MB); only the selected runtime is downloaded.
   See the security/release limitation below.
-- Live execution after 350 ms without edits, including the initial sample and
+- Live execution after 350 ms without edits, including initial/shared links and
   version changes. There is no Run button; Stop stays available while running.
   Edits/switches terminate old work immediately and ignore stale results.
   Stop/timeout do not loop or retry; edit code, change version, or reset the sample
@@ -40,10 +40,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 - Compressed `c` / `v` / `f` URL sharing using lz-string (`v=4.0|3.4|3.3`,
   `f=console|html`). Empty and Unicode source round-trip. Malformed or oversized
   links fall back with a warning; decoding is bounded before expansion.
-- Shared links **do not execute until explicitly trusted**. Imported source stays
-  paused even when edited or switched to another version. Trust enables live
-  execution for the current page state only; reload and history navigation
-  require trust again. Reset replaces imported code with the trusted sample.
+- Shared links **execute automatically**. Do not open untrusted shared links.
 - Console output and a sandboxed HTML iframe. HTML scripts, forms, external
   resources and parent-page access are blocked; stderr stays outside the iframe.
 - No standard-input interaction, Rails, external gems, multi-file projects or
@@ -71,7 +68,7 @@ Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
 cancel/timeout, URL validation and UI state. CI runs browser flows at
 both the root and project path: real Ruby execution/errors, shared URL direct
-load/reload with explicit trust and version preservation, sandboxed HTML, and cancel/recovery. The Ruby
+load/reload with auto-run and version preservation, sandboxed HTML, and cancel/recovery. The Ruby
 output flow saves a screenshot under `test-results/`.
 
 If browser downloads are unavailable but Chromium is installed:
@@ -111,7 +108,7 @@ Vite/Vitest and TypeScript ESLint use security-patched versions rather than the
 older PHP pins. DOMPurify is overridden to 3.4.17 while Monaco pins an affected
 version; revisit that override when Monaco updates its dependency.
 
-## Runtime patch-level risk and release assessment
+## Runtime patch-level limitations
 
 As checked on 2026-10-25, npm's latest official `@ruby/{4.0,3.4,3.3}-wasm-wasi`
 packages are 2.10.1. The [official dated WASM release](https://github.com/ruby/ruby.wasm/releases/tag/2026-10-25-a)
@@ -121,18 +118,13 @@ in 4.0.9 / 3.4.12 / 3.3.13. The npm wrapper version is not a Ruby patch version.
 The selector and badge disclose exact bundled patches. The JS bridge remains
 blocked for every minor, but that is not a substitute for patched Ruby.
 
-The initial draft recommended holding all release until patched builds exist.
-The release assessment instead prevents the newly introduced drive-by path:
-URL-imported code requires explicit trust before the first run, while ordinary
-editing remains live. Existing blocked JS host imports, fresh Worker/VM,
-empty in-memory WASI filesystem and HTML sandbox remain in force. Native GitLab
-server RCE is not demonstrated browser/host RCE in this configuration. Nevertheless,
-Ruby VM memory corruption, crashes and browser resource exhaustion remain possible;
-20-second timeout and source-size limits do not fix regexp compilation bugs.
-Do not trust unfamiliar shared code or enter secrets.
-
-Patched official builds, or a reviewed reproducible source build with exact patch
-and provenance verification, remain recommended follow-up work. The first-import
-trust gate must stay until that release assessment is revisited. Production updates
-also must pass the independent stale-HTML/hashed-asset release gate documented in
+The owner accepted browser-only execution with these disclosed patch levels.
+The blocked JS host bridge and fresh Worker/VM reduce exposure, but a Worker is
+not a guaranteed separate OS process or a hard memory budget. Ruby VM corruption,
+crashes and browser resource exhaustion remain possible. Native GitLab server
+RCE is not evidence of browser/host RCE in this configuration. Run timeout and
+source limits do not fix regexp compilation bugs. Shared links automatically
+execute; do not open untrusted links or enter secrets. Patched trusted builds
+remain recommended follow-up work, not a claim that current builds are patched.
+Production updates independently must pass the stale-HTML/hashed-asset gate in
 [the release runbook](docs/pages-release.md).
