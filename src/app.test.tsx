@@ -175,3 +175,47 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
     cancel: vi.fn(),
   }));
 });
+
+it("requires explicit trust for imported code, edits and versions, and re-gates navigation", async () => {
+  window.history.replaceState(null, "", "/?c=broken&v=3.3");
+  setup();
+  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  fireEvent.change(editor, { target: { value: "puts :trusted" } });
+  fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+    target: { value: "3.4" },
+  });
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  });
+  expect(start).not.toHaveBeenCalled();
+  expect(screen.getByRole("status").textContent).toBe("共有コードの確認待ち");
+  fireEvent.click(
+    screen.getByRole("button", { name: "共有コードを信頼して有効にする" }),
+  );
+  await waitFor(() =>
+    expect(start).toHaveBeenCalledWith(
+      "puts :trusted",
+      undefined,
+      undefined,
+      "3.4",
+    ),
+  );
+  start.mockClear();
+  fireEvent(window, new PopStateEvent("popstate"));
+  await act(async () => {
+    await new Promise((resolve) => setTimeout(resolve, 450));
+  });
+  expect(start).not.toHaveBeenCalled();
+  expect(
+    screen.getByRole("button", { name: "共有コードを信頼して有効にする" }),
+  ).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "サンプルに戻す" }));
+  await waitFor(() =>
+    expect(start).toHaveBeenCalledWith(
+      INITIAL_CODE,
+      undefined,
+      undefined,
+      "3.3",
+    ),
+  );
+});

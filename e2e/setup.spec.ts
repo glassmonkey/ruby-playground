@@ -2,6 +2,11 @@ import { expect, test } from "@playwright/test";
 import { RUBY_PATCH_VERSIONS } from "../src/versions";
 import { editRuby as edit, expectRubyOutput } from "./editor";
 import { expectDocumentToFitViewport } from "./layout";
+import {
+  expectSharedCodePending,
+  observeRubyWorkers,
+  SHARED_CODE_CONSENT,
+} from "./shared-code";
 test.beforeEach(async ({ page }) => {
   page.on("pageerror", (error) =>
     console.error("Browser page error:", error.message),
@@ -114,7 +119,7 @@ test("initial and edited Ruby automatically execute with errors, empty output an
   ).toBe(true);
   expect(errors).toEqual([]);
 });
-test("shared code, version and HTML output automatically restore on direct load and reload", async ({
+test("shared code and version restore while HTML execution waits for consent on direct load and reload", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -135,13 +140,17 @@ test("shared code, version and HTML output automatically restore on direct load 
     .getByRole("textbox", { name: "共有 URL" })
     .inputValue();
   expect(new URL(url).searchParams.get("v")).toBe("3.4");
+  const rubyWorkers = observeRubyWorkers(page);
   for (const navigate of [() => page.goto(url), () => page.reload()]) {
+    const previousWorkerCount = rubyWorkers.length;
     await navigate();
     await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.4");
     await expect(page.getByLabel("出力形式")).toHaveValue("html");
     await expect(page.locator(".monaco-editor .view-lines")).toContainText(
       "Hello HTML",
     );
+    await expectSharedCodePending(page, rubyWorkers, previousWorkerCount);
+    await page.getByRole("button", { name: SHARED_CODE_CONSENT }).click();
     await expect(
       page
         .frameLocator("iframe")
@@ -150,6 +159,9 @@ test("shared code, version and HTML output automatically restore on direct load 
     await expect(page.getByRole("status")).toHaveText("完了");
     await expect(page.locator("iframe")).toHaveAttribute("sandbox", "");
     await expect(page).toHaveTitle("Ruby Playground");
+    await expect(
+      page.getByRole("button", { name: SHARED_CODE_CONSENT }),
+    ).toHaveCount(0);
   }
 });
 

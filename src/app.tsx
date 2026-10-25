@@ -34,6 +34,9 @@ export default function App() {
   const [initial] = useState(() =>
     parseShareUrl(window.location.href, INITIAL_CODE),
   );
+  const [trusted, setTrusted] = useState(
+    () => !new URL(window.location.href).searchParams.has("c"),
+  );
   const [code, setCode] = useState(initial.code);
   const [version, setVersion] = useState(initial.version);
   const [revision, setRevision] = useState(0);
@@ -56,6 +59,7 @@ export default function App() {
     run.current?.cancel();
     setResult(EMPTY_RESULT);
     setStatus("idle");
+    if (!trusted) return;
     scheduled.current = setTimeout(async () => {
       setStatus("running");
       const handle = startRubyRun(code, undefined, undefined, version);
@@ -72,7 +76,7 @@ export default function App() {
       run.current?.cancel();
       run.current = undefined;
     };
-  }, [code, version, revision]);
+  }, [code, version, revision, trusted]);
   useEffect(() => {
     const navigate = () => {
       generation.current++;
@@ -80,6 +84,7 @@ export default function App() {
       run.current?.cancel();
       run.current = undefined;
       const state = parseShareUrl(window.location.href, INITIAL_CODE);
+      setTrusted(!new URL(window.location.href).searchParams.has("c"));
       setCode(state.code);
       setVersion(state.version);
       setRevision((value) => value + 1);
@@ -94,6 +99,7 @@ export default function App() {
   }, []);
   const reset = () => {
     stop();
+    setTrusted(true);
     setCode(INITIAL_CODE);
     setRevision((value) => value + 1);
     setResult(EMPTY_RESULT);
@@ -138,7 +144,7 @@ export default function App() {
       </Box>
       <Container as="main" maxW="7xl" py={6}>
         <Text mb={4} fontSize="sm" color="gray.600">
-          編集・バージョン変更後に自動実行します。共有リンクも自動実行されます。信頼できないリンクを開かず、秘密情報は入力しないでください。
+          編集・バージョン変更後に自動実行します。共有コードは内容と提供元を確認して有効にしてください。秘密情報は入力しないでください。
           配布 WASM は最新のセキュリティ修正版ではありません。
           低速回線では初回の Ruby
           読み込みがタイムアウトすることがあります。通信環境を変え、コードを編集するかバージョンを変更してください。
@@ -146,6 +152,17 @@ export default function App() {
         {warning && (
           <Box role="alert" bg="orange.50" p={3} mb={4}>
             {warning}
+          </Box>
+        )}
+        {!trusted && (
+          <Box bg="orange.50" p={3} mb={4}>
+            <Text mb={2}>
+              共有コードはまだ実行していません。配布 WASM は古い Ruby
+              を含み、信頼できないコードは実行環境の破損やブラウザのリソース消費を起こす可能性があります。内容と提供元を確認してください。
+            </Text>
+            <Button onClick={() => setTrusted(true)}>
+              共有コードを信頼して有効にする
+            </Button>
           </Box>
         )}
         <Flex gap={3} mb={4} wrap="wrap" align="center">
@@ -192,13 +209,15 @@ export default function App() {
             <option value="html">HTML</option>
           </Select>
           <Text role="status" fontSize="sm">
-            {status === "running"
-              ? "実行中…（初回は Ruby を読み込みます）"
-              : status === "done"
-                ? result.error
-                  ? "エラー"
-                  : "完了"
-                : "実行待ち"}
+            {!trusted
+              ? "共有コードの確認待ち"
+              : status === "running"
+                ? "実行中…（初回は Ruby を読み込みます）"
+                : status === "done"
+                  ? result.error
+                    ? "エラー"
+                    : "完了"
+                  : "実行待ち"}
           </Text>
         </Flex>
         {shareUrl && (
@@ -297,7 +316,7 @@ export default function App() {
                 />
               </>
             )}
-            {status === "idle" && (
+            {status === "idle" && trusted && (
               <Text color="gray.500">
                 編集後、自動でここに結果が表示されます。
               </Text>

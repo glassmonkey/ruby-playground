@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { editRuby, expectRubyOutput } from "./editor";
+import {
+  expectSharedCodePending,
+  observeRubyWorkers,
+  SHARED_CODE_CONSENT,
+} from "./shared-code";
 
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL;
 const expectedSourceSha = process.env.EXPECTED_SOURCE_SHA;
@@ -277,7 +282,7 @@ test("published entry and WASM metadata match the requested release", async ({
   });
 });
 
-test("long shared URL stays within the host limit and automatically restores code and version", async ({
+test("long shared URL stays within the host limit and restores code and version without running before consent", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -301,16 +306,20 @@ test("long shared URL stays within the host limit and automatically restores cod
   expect(sharedUrlBytes).toBeGreaterThan(4_000);
   expect(sharedUrlBytes).toBeLessThanOrEqual(8_000);
 
-  await page.goto(sharedUrl);
-  await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.3");
   await expectRubyOutput(page, /^long shared 3\.3\.\d+\n$/);
-  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    source.slice(0, 80),
-  );
-  await page.reload();
-  await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.3");
-  await expectRubyOutput(page, /^long shared 3\.3\.\d+\n$/);
-  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    source.slice(0, 80),
-  );
+  const rubyWorkers = observeRubyWorkers(page);
+  for (const navigate of [() => page.goto(sharedUrl), () => page.reload()]) {
+    const previousWorkerCount = rubyWorkers.length;
+    await navigate();
+    await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.3");
+    await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+      source.slice(0, 80),
+    );
+    await expectSharedCodePending(page, rubyWorkers, previousWorkerCount);
+    await page.getByRole("button", { name: SHARED_CODE_CONSENT }).click();
+    await expectRubyOutput(page, /^long shared 3\.3\.\d+\n$/);
+    await expect(
+      page.getByRole("button", { name: SHARED_CODE_CONSENT }),
+    ).toHaveCount(0);
+  }
 });
