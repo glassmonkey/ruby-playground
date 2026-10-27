@@ -73,6 +73,6 @@ intact. If the complete URL exceeds the limit, sharing is refused with an alert
 and the code remains in the editor. A runnable program may still be too long to
 share.
 
-Footer targets are relative to the current project base path so they work at
-both `/` and `/ruby-playground/`. The security lane supplies the linked static
-pages; the integration E2E must confirm they resolve from both previews.
+Footer targets are relative to the current base path, so they resolve from the
+site root. The security lane supplies the linked static pages; the integration
+E2E must confirm they resolve from the preview.

@@ -22,7 +22,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   );
   expect(staticCode).toBe('puts "Hello, Ruby!"');
   expect(html).toMatch(
-    /<link\s+rel="canonical"\s+href="https:\/\/glassmonkey\.github\.io\/ruby-playground\/"\s*\/>/,
+    /<link\s+rel="canonical"\s+href="https:\/\/ruby-play\.dev\/"\s*\/>/,
   );
   await expect(page).toHaveTitle("Ruby Playground");
   await expect(page.locator("h1")).toHaveCount(1);
