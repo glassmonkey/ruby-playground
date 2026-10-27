@@ -42,11 +42,7 @@ test("initial and edited Ruby automatically execute with errors, empty output an
   await edit(page, 'puts "こんにちは"; warn "warning"; $answer = 42');
   await expectRubyOutput(page, "こんにちは\nwarning\n");
   await page.screenshot({
-    path: testInfo.outputPath(
-      process.env.VITE_BASE_PATH
-        ? "ruby-output-pages.png"
-        : "ruby-output-root.png",
-    ),
+    path: testInfo.outputPath("ruby-output.png"),
     fullPage: true,
   });
   await edit(page, 'puts defined?($answer).inspect; raise "boom"');

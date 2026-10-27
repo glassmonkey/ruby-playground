@@ -3,6 +3,7 @@
 A browser-based Ruby learning playground built on the React 18, TypeScript,
 Vite 7 and Chakra UI 2 foundation used by
 [php-playground](https://github.com/glassmonkey/php-playground).
+It is published at <https://ruby-play.dev/>.
 The former Rails app remains available in Git history.
 
 ## Run locally
@@ -59,15 +60,14 @@ The output cap limits captured output, not arbitrary Ruby memory allocations.
 ```sh
 npm run check        # ESLint, TypeScript, unit/component/real-WASM tests, build
 npx playwright install chromium  # Linux may require --with-deps
-npm run test:e2e     # root-path production preview + Chromium tests
-VITE_BASE_PATH=/ruby-playground/ npm run test:e2e  # project-path preview
+npm run test:e2e     # production preview + Chromium tests
 npm audit
 ```
 
 Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
-cancel/timeout, URL validation and UI state. CI runs browser flows at
-both the root and project path: real Ruby execution/errors, shared URL direct
+cancel/timeout, URL validation and UI state. CI runs browser flows:
+real Ruby execution/errors, shared URL direct
 load/reload with auto-run and version preservation, sandboxed HTML, and cancel/recovery. The Ruby
 output flow saves a screenshot under `test-results/`.
 
@@ -81,11 +81,9 @@ CI installs managed Chromium. The assistant cloud process sandbox prevents local
 Chromium sockets; GitHub CI is the browser verification route in that environment.
 
 `npm run build` outputs `public/`; `npm run preview` serves it on port 8888.
-Set `VITE_BASE_PATH=/ruby-playground/` to build for the GitHub Pages project
-path. Source static assets live in `assets/`. Build and preview do not publish
-anything. See [the Pages release runbook](docs/pages-release.md) for the
-approval gates and manual release procedure; this PR does not change repository
-Pages settings or publish the site.
+Source static assets live in `assets/`. Build and preview do not publish
+anything. Pushes to `main` publish the site to GitHub Pages; see
+[the Pages deployment notes](docs/pages-release.md).
 
 ## Architecture / next decisions
 
@@ -94,8 +92,8 @@ the Worker lifecycle. `src/share.ts` bounds compressed URL decoding. `src/editor
 loads Monaco locally; Sandpack remains an installed baseline dependency but does
 not execute/bundle user code. React holds the single-file editor state directly.
 
-Future hosting, patched WASM builds, gem support and additional editing features
-are deliberately separate decisions. Existing old-architecture PRs are untouched.
+Patched WASM builds, gem support and additional editing features are
+deliberately separate decisions. Existing old-architecture PRs are untouched.
 
 ## Attribution and dependencies
 
@@ -126,5 +124,3 @@ RCE is not evidence of browser/host RCE in this configuration. Run timeout and
 source limits do not fix regexp compilation bugs. Shared links automatically
 execute; do not open untrusted links or enter secrets. Patched trusted builds
 remain recommended follow-up work, not a claim that current builds are patched.
-Production updates independently must pass the stale-HTML/hashed-asset gate in
-[the release runbook](docs/pages-release.md).
