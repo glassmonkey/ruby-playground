@@ -35,7 +35,9 @@ The workflow does not change these settings.
     `185.199.111.153`
   - AAAA: `2606:50c0:8000::153`, `2606:50c0:8001::153`,
     `2606:50c0:8002::153`, `2606:50c0:8003::153`
-  - There is no `www` record, and `www.ruby-play.dev` is not served.
+  - CNAME for `www`: `glassmonkey.github.io`. GitHub Pages redirects
+    `www.ruby-play.dev` to `https://ruby-play.dev/`, and the certificate
+    covers both names.
 
 With the custom domain set, GitHub Pages redirects
 `https://glassmonkey.github.io/ruby-playground/` to `https://ruby-play.dev/`
