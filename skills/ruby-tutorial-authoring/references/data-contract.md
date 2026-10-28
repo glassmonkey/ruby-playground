@@ -10,6 +10,7 @@ Read `src/tutorial-content.ts` for the current TypeScript contract and resolver,
 | `goal` | A concrete outcome the lesson enables; also used as page description |
 | `paragraphs` | Ordered explanation paragraphs, stored as plain text |
 | `code`, `output` | Runnable Ruby starter and its observed standard output; current fixtures omit the final newline |
+| `experimentCode`, `experimentOutput` | Runnable code after the task’s suggested edit and its observed output; the Try this change button loads this code without running it |
 | `task`, `answer` | A specific experiment and feedback explaining its result |
 | `pitfall` | A likely misconception and its correction |
 | `refs` | Official reference identifiers resolved by the generator; inspect its mapping and version overrides before adding an identifier |
@@ -17,7 +18,7 @@ Read `src/tutorial-content.ts` for the current TypeScript contract and resolver,
 | `remaining` | Author-only notes; never render these as learner content |
 | `variants` | Overrides keyed by supported version ID |
 
-Variants are shallow overrides of all fields except `slug`. Arrays replace the entire field. `available: false` excludes a lesson from that version's path. A shared lesson must work on every version that inherits it. Keep the code, output, explanation and task mutually consistent after each override. Never infer support just because no override exists.
+Variants are shallow overrides of all fields except `slug`. Arrays replace the entire field. `available: false` excludes a lesson from that version's path. A shared lesson must work on every version that inherits it. Override experimentCode too when a variant changes starter syntax; a newer shared experiment must not leak into an older version. Keep the code, output, experimentCode, experimentOutput, explanation and task mutually consistent after each override. Never infer support just because no override exists.
 
 Use plain text and real newlines in code; do not store HTML, CSS, sidebar labels, completion state or rendered navigation. The renderer owns layout and escaping. Browser storage owns learner progress. The version catalog owns version labels and the internal default stable version; the UI displays concrete version numbers.
 

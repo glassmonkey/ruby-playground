@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { startRubyRun, type RunHandle } from "./workers/client";
 import type { RunResult } from "./runtime";
 import { buildShareUrl } from "./share";
@@ -6,9 +7,13 @@ import { RUBY_PATCH_VERSIONS, type RubyVersion } from "./versions";
 
 export default function TutorialPlayground({
   initialCode,
+  experimentCode,
+  experimentTarget,
   version,
 }: {
   initialCode: string;
+  experimentCode: string;
+  experimentTarget: HTMLElement | null;
   version: RubyVersion;
 }) {
   const [code, setCode] = useState(initialCode);
@@ -16,6 +21,8 @@ export default function TutorialPlayground({
   const [status, setStatus] = useState("Ready to run");
   const [running, setRunning] = useState(false);
   const active = useRef<RunHandle>();
+  const editor = useRef<HTMLTextAreaElement>(null);
+  const [beforeExperiment, setBeforeExperiment] = useState<string>();
   const generation = useRef(0);
 
   function cancel() {
@@ -62,6 +69,34 @@ export default function TutorialPlayground({
 
   return (
     <div className="embedded-playground">
+      {experimentTarget &&
+        createPortal(
+          <button
+            type="button"
+            className="button"
+            onClick={() => {
+              cancel();
+              if (beforeExperiment !== undefined) {
+                setCode(beforeExperiment);
+                setBeforeExperiment(undefined);
+                setStatus("Change undone — run to see the output");
+              } else {
+                setBeforeExperiment(code);
+                setCode(experimentCode);
+                setStatus("Change applied — edit or run the code");
+              }
+              setResult(undefined);
+              editor.current?.focus({ preventScroll: true });
+              editor.current?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }}
+          >
+            {beforeExperiment !== undefined ? "Undo change" : "Try this change"}
+          </button>,
+          experimentTarget,
+        )}
       <div className="editor-heading">
         <label htmlFor="lesson-code">Ruby code</label>
         <span className="note">
@@ -71,6 +106,7 @@ export default function TutorialPlayground({
       </div>
       <textarea
         id="lesson-code"
+        ref={editor}
         spellCheck={false}
         autoCapitalize="off"
         autoCorrect="off"
@@ -108,6 +144,7 @@ export default function TutorialPlayground({
           onClick={() => {
             cancel();
             setCode(initialCode);
+            setBeforeExperiment(undefined);
             setResult(undefined);
             setStatus("Ready to run");
           }}

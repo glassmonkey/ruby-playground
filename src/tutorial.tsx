@@ -12,7 +12,12 @@ const lesson = resolveLesson(container?.dataset.lesson ?? "", version ?? "");
 if (container && lesson && isRubyVersion(version)) {
   createRoot(container).render(
     <React.StrictMode>
-      <TutorialPlayground initialCode={lesson.code} version={version} />
+      <TutorialPlayground
+        initialCode={lesson.code}
+        experimentCode={lesson.experimentCode}
+        experimentTarget={document.getElementById("experiment-action")}
+        version={version}
+      />
     </React.StrictMode>,
   );
 }

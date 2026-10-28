@@ -12,6 +12,10 @@
   "task": "Change Alert#label so the output begins with \"ALERT: \", while keeping the message and level. Which call lets the subclass keep the superclass label?",
   "answer": "Add \"ALERT: \" before super in Alert#label, for example \"ALERT: #{super} (#{@level})\". The output becomes ALERT: Message: Check the door (urgent). Here, super continues lookup to Message#label, the next matching implementation, so Alert can add text without copying that method.",
   "pitfall": "Defining Alert#label overrides the inherited label for Alert objects. If the override never calls super, the Message label is not included.",
-  "refs": ["Modules and Classes"],
-  "remaining": "Multiple inheritance is not supported by classes; module mix-ins are a separate mechanism."
+  "refs": [
+    "Modules and Classes"
+  ],
+  "remaining": "Multiple inheritance is not supported by classes; module mix-ins are a separate mechanism.",
+  "experimentCode": "class Message\n  def initialize(text)\n    @text = text\n  end\n\n  def label\n    \"Message: #{@text}\"\n  end\nend\n\nclass Alert < Message\n  def initialize(text, level)\n    super(text)\n    @level = level\n  end\n\n  def label\n    \"ALERT: #{super} (#{@level})\"\n  end\nend\n\nputs Alert.new(\"Check the door\", \"urgent\").label",
+  "experimentOutput": "ALERT: Message: Check the door (urgent)"
 }

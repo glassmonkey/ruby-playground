@@ -9,6 +9,8 @@ export type LessonContent = {
   paragraphs: string[];
   code: string;
   output: string;
+  experimentCode: string;
+  experimentOutput: string;
   task: string;
   answer: string;
   pitfall: string;

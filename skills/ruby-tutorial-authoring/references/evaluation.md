@@ -9,6 +9,7 @@ Use this rubric for an explicit review or after creating/updating lessons. Evalu
 - Resolve and inspect each supported version separately, including overridden code, rather than assuming the shared starter represents every variant. If runtime checks are unavailable, do not conclude version compatibility from a base-lesson inspection.
 - Run each lesson's exact code through the bundled WASM runtime for every claimed course version. Record actual `RUBY_VERSION` and output; compare output line by line with the authored expected output.
 - Open the real page at its versioned route. Confirm its visible version, course content, starter code and selected runtime agree. Check the header selector, navigation, aliases and unavailable lessons against the current implementation.
+- Use Try this change to load the authored experiment without automatic execution; verify its output, further editing, Undo change and Reset example. Check version overrides for both starter and experiment code.
 - Use the on-page editor to run the starter example and perform the lesson task. Check that the task is meaningful, the feedback matches the observed behavior, and the full Playground handoff preserves edited code and version.
 - Check learner-facing text and the shared theme behavior. The page should not display an author completeness checklist, coverage matrix, remaining-topic inventory or explanation of the author's methodology. Theme selection should agree with the main Playground and survive lesson/version navigation without clearing edits.
 

@@ -76,6 +76,22 @@ for (const version of tutorialVersions) {
       await expect(page.getByTestId("lesson-output")).toHaveText(
         lesson.output + "\n",
       );
+      await page
+        .getByRole("button", { name: "Try this change", exact: true })
+        .click();
+      await expect(
+        page.getByRole("textbox", { name: "Ruby code" }),
+      ).toHaveValue(lesson.experimentCode);
+      await expect(page.getByRole("status")).toHaveText(
+        "Change applied — edit or run the code",
+      );
+      await page.getByRole("button", { name: "Run code", exact: true }).click();
+      await expect(page.getByRole("status")).toHaveText("Complete", {
+        timeout: 25000,
+      });
+      await expect(page.getByTestId("lesson-output")).toHaveText(
+        lesson.experimentOutput + "\n",
+      );
       const navigation = page.getByRole("navigation", {
         name: "Lesson navigation",
       });
@@ -143,9 +159,7 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
   await expect(staticPage.getByRole("heading", { level: 1 })).toHaveText(
     "Your first Ruby program",
   );
-  await staticPage
-    .getByText("Answer", { exact: true })
-    .click();
+  await staticPage.getByText("Answer", { exact: true }).click();
   await expect(staticPage.locator(".practice-answer p")).toBeVisible();
   await noScript.close();
   await page.goto("/examples/");
@@ -381,4 +395,34 @@ test("mobile course menu reveals the current lesson and navigates", async ({
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("experiment change can be edited, undone and reset without automatic execution", async ({
+  page,
+}) => {
+  await page.goto("/tutorial/4.0/output/");
+  const editor = page.getByRole("textbox", { name: "Ruby code" });
+  await editor.fill('puts "my draft"');
+  await page
+    .getByRole("button", { name: "Try this change", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toHaveText(
+    "Change applied — edit or run the code",
+  );
+  await expect(page.getByTestId("lesson-output")).toHaveText(
+    "Run the code to see what happens.",
+  );
+  await editor.fill('puts "my experiment"');
+  await page.getByRole("button", { name: "Undo change", exact: true }).click();
+  await expect(editor).toHaveValue('puts "my draft"');
+  await page
+    .getByRole("button", { name: "Try this change", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Reset example", exact: true })
+    .click();
+  await expect(editor).toHaveValue(lessons[0].code);
+  await expect(
+    page.getByRole("button", { name: "Try this change", exact: true }),
+  ).toBeVisible();
 });
