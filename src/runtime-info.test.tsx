@@ -31,7 +31,9 @@ it.each([
       </ChakraProvider>,
     );
     // Assert
-    const region = screen.getByRole("region", { name: "Ruby の実行環境" });
+    const region = screen.getByRole("region", {
+      name: "Ruby runtime environment",
+    });
     expect({
       title: screen.getByRole("heading", { level: 2 }).textContent,
       busy: region.getAttribute("aria-busy"),
@@ -62,7 +64,7 @@ it("stops indicating loading when the VM could not provide metadata", () => {
   // Assert
   expect({
     busy: screen
-      .getByRole("region", { name: "Ruby の実行環境" })
+      .getByRole("region", { name: "Ruby runtime environment" })
       .getAttribute("aria-busy"),
     title: screen.getByRole("heading", { level: 2 }).textContent,
   }).toEqual({ busy: "false", title: "Ruby —" });

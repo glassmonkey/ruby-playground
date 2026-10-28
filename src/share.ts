@@ -161,7 +161,7 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   const shareUrl = result.toString();
   if (new TextEncoder().encode(shareUrl).byteLength > MAX_SHARE_URL_BYTES) {
     throw new Error(
-      "URL に保存できません。コードが長すぎるため、短くしてください。",
+      "The code is too long to save in the URL. Please shorten it.",
     );
   }
   return shareUrl;

@@ -13,9 +13,9 @@ test("static safety, privacy and license pages resolve without third-party scrip
   });
   await page.goto("./");
   const routes = [
-    ["./safety.html", "安全な利用"],
-    ["./privacy.html", "プライバシー"],
-    ["./licenses/", "ライセンス"],
+    ["./safety.html", "Security"],
+    ["./privacy.html", "Privacy Policy"],
+    ["./licenses/", "Licenses"],
   ] as const;
 
   for (const [route, heading] of routes) {
@@ -45,10 +45,10 @@ test("static safety, privacy and license pages resolve without third-party scrip
     expect(await response.text()).toContain(requiredText);
   }
   await expect(
-    page.getByRole("link", { name: "配布JavaScript依存のライセンス" }),
+    page.getByRole("link", { name: "JavaScript dependency notices" }),
   ).toBeVisible();
   await page
-    .getByRole("link", { name: "配布JavaScript依存のライセンス" })
+    .getByRole("link", { name: "JavaScript dependency notices" })
     .click();
   await expect(page.locator("body")).toContainText("monaco-editor@0.57.0");
 
