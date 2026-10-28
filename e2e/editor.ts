@@ -1,22 +1,13 @@
 import { expect, type Page } from "@playwright/test";
 
 export const INITIAL_OUTPUT = [
-  "                     Hello",
-  "                     Ruby!",
-  "                  Hello Hello",
-  "                  Ruby! Ruby!",
-  "               Hello       Hello",
-  "               Ruby!       Ruby!",
-  "            Hello Hello Hello Hello",
-  "            Ruby! Ruby! Ruby! Ruby!",
-  "         Hello                   Hello",
-  "         Ruby!                   Ruby!",
-  "      Hello Hello             Hello Hello",
-  "      Ruby! Ruby!             Ruby! Ruby!",
-  "   Hello       Hello       Hello       Hello",
-  "   Ruby!       Ruby!       Ruby!       Ruby!",
-  "Hello Hello Hello Hello Hello Hello Hello Hello",
-  "Ruby! Ruby! Ruby! Ruby! Ruby! Ruby! Ruby! Ruby!",
+  "                                ruby",
+  "                                ruby",
+  "rubyruby        ruby    ruby    rubyruby        ruby    ruby",
+  "ruby    ruby    ruby    ruby    ruby    ruby    ruby    ruby",
+  "ruby            ruby    ruby    ruby    ruby        rubyruby",
+  "ruby            ruby    ruby    ruby    ruby            ruby",
+  "ruby                rubyruby    rubyruby        rubyruby",
 ].join("\n");
 
 /** Edit through Monaco's accessible input, just as a keyboard user would. */

@@ -20,10 +20,10 @@ test("runtime information stays separate from initial and edited console output"
     "Ruby 4.0.0",
   );
   await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    "def fractal(rows, depth)",
+    "letters = [",
   );
   await expect(page.locator(".monaco-editor .view-lines")).toContainText(
-    "puts fractal(%w[Hello Ruby!], 3)",
+    "letters.transpose.each do |row|",
   );
   await page.screenshot({
     path: testInfo.outputPath("initial-light.png"),
