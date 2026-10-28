@@ -1,7 +1,7 @@
 {
   "slug": "inheritance",
   "title": "Reuse and extend behavior with inheritance",
-  "chapter": "Modules and Classes",
+  "chapter": "Creating Objects",
   "goal": "Create a subclass that reuses a superclass method and adds its own behavior with super.",
   "paragraphs": [
     "A subclass is defined with < followed by its superclass name. It can use the superclass methods and define its own methods. A method with the same name overrides the inherited method for instances of the subclass.",

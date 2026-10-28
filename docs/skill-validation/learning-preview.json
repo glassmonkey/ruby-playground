@@ -1,0 +1,22 @@
+{
+  "preview": "http://127.0.0.1:18890",
+  "chapters": [
+    "Running Ruby",
+    "Basic Data",
+    "Decisions and Loops",
+    "Working with Collections",
+    "Methods and Blocks",
+    "Using Collections",
+    "Creating Objects",
+    "Handling Errors",
+    "Expressive Ruby",
+    "Supplementary Topics"
+  ],
+  "lessonCount": 23,
+  "entryRun": true,
+  "versionedExperimentRuns": [
+    "4.0",
+    "3.2"
+  ],
+  "mobileOverflow": false
+}

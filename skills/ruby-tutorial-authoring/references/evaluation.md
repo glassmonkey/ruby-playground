@@ -32,13 +32,13 @@ Distinguish observed failures from evidence gaps. A failed runtime or route chec
 
 After blockers, assess these dimensions and recommend only improvements that materially help the learner:
 
-- **Goal and sequence:** The lesson teaches one usable outcome, names needed concepts before relying on them, and follows naturally from prerequisites.
+- **Goal and sequence:** The lesson teaches one usable outcome, names needed concepts before relying on them, and follows naturally from prerequisites. Review against `learning-sequence.md`: collection transformations follow blocks, operator definitions follow classes, and formatting rules are introduced in context rather than made the entry point. Check Experiment prerequisites too.
 - **Explanation:** The prose explains what the learner needs to understand to predict the example. It avoids incidental API catalogs and unsupported generalizations.
-- **Experiment:** The starter is short enough to inspect, runs in the inline editor on demand, and makes a behavior visible. The task asks for a purposeful edit or prediction.
+- **Experiment:** Example teaches the representative basic form; experiments apply that concept with meaningful variations rather than unrelated snippets. Code runs in the inline editor on demand and makes behavior visible. The task asks for a purposeful edit or prediction.
 - **Feedback:** The answer explains why the result occurs and addresses the task. The pitfall identifies a plausible learner error and gives a correction.
 - **Version fit:** Shared content is valid for all versions that inherit it. Variants replace complete fields where required, especially paragraph arrays. Development-specific behavior is labeled clearly.
-- **Learner-facing focus:** Keep only material that helps the learner understand and practice the lesson. Remove author-side coverage accounting, exhaustive/complete claims, “what remains” lists and authoring-process commentary from the page.
-- **Course experience:** The lesson works within the sidebar/progress and cohesive flow of the existing tutorial UI. Keep version selection, runtime and starter content aligned; preserve edits when switching theme. Do not request UI redesign in a content-only review unless the observed UI defect blocks the lesson.
+- **Learner-facing focus:** Keep only material that helps the learner understand and practice the lesson. Remove author-side coverage accounting, exhaustive/complete claims, “what remains” lists, expected-result/answer disclosures, progress controls and authoring-process commentary from the page.
+- **Course experience:** The lesson works within the sidebar and cohesive flow of the existing tutorial UI. Keep version selection, runtime and starter content aligned; preserve edits when switching theme. Do not request UI redesign in a content-only review unless the observed UI defect blocks the lesson.
 
 ## Report format
 

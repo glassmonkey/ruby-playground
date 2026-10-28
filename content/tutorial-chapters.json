@@ -1,16 +1,12 @@
 [
-  "Code Layout",
-  "Literals",
-  "Assignment",
-  "Control Expressions",
-  "Pattern matching",
-  "Methods",
-  "Calling Methods",
-  "Modules and Classes",
-  "Exceptions",
-  "Precedence",
-  "Refinements",
-  "Miscellaneous",
-  "Comments",
-  "Operators"
+  "Running Ruby",
+  "Basic Data",
+  "Decisions and Loops",
+  "Working with Collections",
+  "Methods and Blocks",
+  "Using Collections",
+  "Creating Objects",
+  "Handling Errors",
+  "Expressive Ruby",
+  "Supplementary Topics"
 ]

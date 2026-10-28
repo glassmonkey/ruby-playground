@@ -28,6 +28,13 @@ if (
   tutorialSlugs.some((slug) => !/^[a-z0-9-]+$/.test(slug))
 )
   throw new Error("Tutorial slugs must be unique URL-safe identifiers.");
+for (const retired of supplements) {
+  if (
+    tutorialSlugs.includes(retired.slug) ||
+    !tutorialSlugs.includes(retired.redirectTo)
+  )
+    throw new Error(`Invalid tutorial successor for ${retired.slug}`);
+}
 for (const version of tutorialVersions) {
   if (!RUBY_VERSIONS.includes(version.id))
     throw new Error(`No bundled runtime for tutorial ${version.id}`);
@@ -143,7 +150,7 @@ for (const version of tutorialVersions) {
       );
     const i = lessons.findIndex((item) => item.slug === slug);
     const share = `/?c=${encodeURIComponent(lz.compressToEncodedURIComponent(lesson.code))}&v=${version.id}#editor-heading`;
-    const sidebar = `<aside class="course-sidebar"><details open><summary>Course contents</summary><div class="course-progress"><p data-progress-summary>0 of ${lessons.length} completed</p><progress data-progress-bar max="${lessons.length}" value="0" aria-label="Course progress"></progress></div><nav aria-label="Course contents">${chapters
+    const sidebar = `<aside class="course-sidebar"><details open><summary>Course contents</summary><nav aria-label="Course contents">${chapters
       .map(
         (chapter) =>
           `<section class="sidebar-chapter"><h3>${escape(chapter)}</h3>${lessons
@@ -157,10 +164,11 @@ for (const version of tutorialVersions) {
       .join("")}</nav></details></aside>`;
     const body = `<div class="lesson-layout">${sidebar}<article><p class="eyebrow">Lesson ${i + 1} of ${lessons.length} · ${escape(version.label)}</p><h1>${escape(lesson.title)}</h1><p class="lead">${escape(lesson.goal)}</p>${version.channel === "development" ? '<p class="version-note">Development course: behavior may change with future runtime updates.</p>' : ""}${lesson.versionNote ? `<p class="version-note">${escape(lesson.versionNote)}</p>` : ""}<div class="lesson-workspace"><div class="lesson-explanation">
 <section aria-labelledby="learn"><h2 id="learn">Learn</h2>${lesson.paragraphs.map((text) => `<p>${escape(text)}</p>`).join("")}</section>
-<section aria-labelledby="practice"><h2 id="practice">Experiment</h2><ol class="experiments">${lesson.experiments.map((experiment) => `<li data-experiment="${escape(experiment.id)}"><h3>${escape(experiment.title)}</h3><p>${escape(experiment.task)}</p></li>`).join("")}</ol><details class="practice-answer"><summary>Answers</summary>${lesson.experiments.map((experiment) => `<h3>${escape(experiment.title)}</h3><p>${escape(experiment.answer)}</p>`).join("")}</details></section>
-<section aria-labelledby="references"><h2 id="references">Explore the official manual</h2><ul>${lesson.refs.map((ref) => `<li><a href="${source(ref, version)}">Official ${escape(version.label)} documentation: ${escape(referenceLabel(ref, version))}</a></li>`).join("")}${slug === "blocks" ? '<li><a href="https://docs.ruby-lang.org/en/3.4/NEWS_md.html">Ruby 3.4 release notes: introduction of the it block parameter</a></li>' : ""}</ul></section></div>
+<section aria-labelledby="example"><h2 id="example">Example</h2><div id="sample-example" data-sample-control></div><pre class="example-code"><code>${escape(lesson.code)}</code></pre></section>
+<section aria-labelledby="practice"><h2 id="practice">Experiment</h2><ul class="experiments">${lesson.experiments.map((experiment) => `<li data-experiment="${escape(experiment.id)}"><div id="sample-experiment:${escape(experiment.id)}" data-sample-control><h3>${escape(experiment.title)}</h3></div><p>${escape(experiment.task)}</p></li>`).join("")}</ul></section>
+<section aria-labelledby="references"><h2 id="references">Explore the official manual</h2><ul>${lesson.refs.map((ref) => `<li><a href="${source(ref, version)}">Official ${escape(version.label)} documentation: ${escape(referenceLabel(ref, version))}</a></li>`).join("")}${slug === "enumerable" ? '<li><a href="https://docs.ruby-lang.org/en/3.4/NEWS_md.html">Ruby 3.4 release notes: introduction of the it block parameter</a></li>' : ""}</ul></section></div>
 <div class="lesson-editor"><div id="tutorial-runner" data-lesson="${slug}" data-version="${version.id}"><pre><code>${escape(lesson.code)}</code></pre><a class="button" href="${escape(share)}" target="_blank" rel="noopener noreferrer">Continue in full Playground ↗</a><p class="note">Enable JavaScript to edit and run code here, or use the full playground.</p></div></div></div>
-<div class="lesson-completion"><button class="button" data-complete-lesson hidden>Mark complete</button><span class="note">Progress is saved in this browser.</span></div><nav class="lesson-navigation" aria-label="Lesson navigation">${i ? `<div><span>Previous</span>${link(lessons[i - 1], version)}</div>` : `<div><a href="${coursePath(version)}">All lessons</a></div>`}<div><span>${i + 1 < lessons.length ? "Next lesson" : "Keep exploring"}</span>${i + 1 < lessons.length ? link(lessons[i + 1], version) : `<a href="${coursePath(version)}">Back to your learning path</a>`}</div></nav></article></div>`;
+<nav class="lesson-navigation" aria-label="Lesson navigation">${i ? `<div><span>Previous</span>${link(lessons[i - 1], version)}</div>` : `<div><a href="${coursePath(version)}">All lessons</a></div>`}<div><span>${i + 1 < lessons.length ? "Next lesson" : "Keep exploring"}</span>${i + 1 < lessons.length ? link(lessons[i + 1], version) : `<a href="${coursePath(version)}">Back to your learning path</a>`}</div></nav></article></div>`;
     write(
       `tutorial/${version.id}/${slug}/index.html`,
       page(
@@ -172,7 +180,7 @@ for (const version of tutorialVersions) {
     );
     sitemap.push(url);
   }
-  const body = `<div class="course-home"><p class="eyebrow">${escape(versionLabel(version))} · Learn in your browser</p><h1>Ruby Tutorial</h1><p class="lead">Learn Ruby, one experiment at a time.</p><p>Write your first program, change it, and see what happens. Follow the lessons at your own pace — no installation needed.</p>${lessons.length ? `<a class="button" data-resume-course href="${lessonPath(version.id, lessons[0].slug)}">Start learning Ruby</a>` : ""}<div class="course-progress"><p data-progress-summary>0 of ${lessons.length} completed</p><progress data-progress-bar max="${lessons.length}" value="0" aria-label="Course progress"></progress></div><h2>Your learning path</h2><nav aria-label="Course contents">${chapters
+  const body = `<div class="course-home"><p class="eyebrow">${escape(versionLabel(version))} · Learn in your browser</p><h1>Ruby Tutorial</h1><p class="lead">Learn Ruby, one experiment at a time.</p><p>Write your first program, change it, and see what happens. Follow the lessons at your own pace — no installation needed.</p>${lessons.length ? `<a class="button" href="${lessonPath(version.id, lessons[0].slug)}">Start learning Ruby</a>` : ""}<h2>Your learning path</h2><nav aria-label="Course contents">${chapters
     .map(
       (chapter) =>
         `<section class="course-chapter"><h3>${escape(chapter)}</h3><div class="lesson-cards">${lessons
@@ -187,7 +195,7 @@ for (const version of tutorialVersions) {
   for (const retired of supplements) {
     redirect(
       `tutorial/${version.id}/${retired.slug}/index.html`,
-      lessonPath(version.id, lessons[0].slug),
+      lessonPath(version.id, retired.redirectTo),
     );
   }
   const html = page(
@@ -212,10 +220,7 @@ for (const slug of tutorialSlugs) {
   );
 }
 for (const retired of supplements) {
-  const destination = lessonPath(
-    latestTutorialVersion,
-    lessonsForVersion(latestTutorialVersion)[0].slug,
-  );
+  const destination = lessonPath(latestTutorialVersion, retired.redirectTo);
   redirect(`tutorial/${retired.slug}/index.html`, destination);
   redirect(`tutorial/latest/${retired.slug}/index.html`, destination);
 }

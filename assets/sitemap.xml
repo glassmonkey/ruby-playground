@@ -1,89 +1,124 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://ruby-play.dev/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/variables/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/operators/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/strings/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/booleans/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/symbols/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/loops/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/collections/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/hashes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/ranges/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/blocks/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/enumerable/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/classes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/inheritance/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/modules/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/exceptions/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/pattern-matching/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/callables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/special-forms/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/code-layout/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/comments/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/variables/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/operators/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/strings/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/booleans/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/symbols/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/loops/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/collections/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/hashes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/ranges/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/blocks/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/enumerable/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/classes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/inheritance/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/modules/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/exceptions/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/pattern-matching/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/callables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/special-forms/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/code-layout/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/comments/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/variables/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/operators/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/strings/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/booleans/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/symbols/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/loops/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/collections/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/hashes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/ranges/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/blocks/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/enumerable/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/classes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/inheritance/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/modules/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/exceptions/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/pattern-matching/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/callables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/special-forms/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/code-layout/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/comments/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/variables/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/operators/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/strings/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/booleans/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/symbols/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/loops/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/collections/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/hashes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/ranges/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/blocks/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/enumerable/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/classes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/inheritance/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/modules/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/exceptions/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/pattern-matching/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/callables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/special-forms/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/code-layout/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/comments/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/variables/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/operators/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/strings/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/booleans/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/symbols/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/loops/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/collections/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/hashes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/ranges/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/blocks/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/enumerable/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/classes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/inheritance/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/modules/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/exceptions/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/pattern-matching/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/callables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/special-forms/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/code-layout/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/comments/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/</loc></url>
 </urlset>

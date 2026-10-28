@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { LessonExperiment } from "./tutorial-content";
 import { startRubyRun, type RunHandle } from "./workers/client";
 import type { RunResult } from "./runtime";
@@ -18,9 +19,9 @@ export default function TutorialPlayground({
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const samples = [
     { id: "example", label: "Example", code: initialCode },
-    ...experiments.map((item, index) => ({
+    ...experiments.map((item) => ({
       id: `experiment:${item.id}`,
-      label: `Experiment ${index + 1}`,
+      label: item.title,
       code: item.code,
     })),
   ];
@@ -81,31 +82,35 @@ export default function TutorialPlayground({
 
   return (
     <div className="embedded-playground">
-      <fieldset className="sample-picker">
-        <legend className="visually-hidden">Code sample</legend>
-        {samples.map((sample) => (
-          <label key={sample.id}>
-            <input
-              type="radio"
-              name="code-sample"
-              value={sample.id}
-              checked={selectedSample === sample.id}
-              onChange={() => {
-                cancel();
-                setSelectedSample(sample.id);
-                setResult(undefined);
-                setStatus("Ready to run");
-              }}
-            />
-            <span>{sample.label}</span>
-          </label>
-        ))}
-      </fieldset>
+      {samples.map((sample) => {
+        const target = document.getElementById(`sample-${sample.id}`);
+        return target
+          ? createPortal(
+              <button
+                type="button"
+                className="sample-choice"
+                aria-pressed={selectedSample === sample.id}
+                onClick={() => {
+                  if (selectedSample === sample.id) return;
+                  cancel();
+                  setSelectedSample(sample.id);
+                  setResult(undefined);
+                  setStatus("Ready to run");
+                }}
+              >
+                {sample.id === "example" ? "Example" : `Try ${sample.label}`}
+              </button>,
+              target,
+              sample.id,
+            )
+          : null;
+      })}
       <div className="editor-heading">
         <label htmlFor="lesson-code">Ruby code</label>
         <span className="note">
           Ruby {RUBY_PATCH_VERSIONS[version]}
-          {version === "4.1" ? " · development" : ""}
+          {version === "4.1" ? " · development" : ""} ·{" "}
+          {samples.find((sample) => sample.id === selectedSample)?.label}
         </span>
       </div>
       <textarea

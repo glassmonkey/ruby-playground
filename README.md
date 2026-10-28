@@ -158,15 +158,14 @@ remain recommended follow-up work, not a claim that current builds are patched.
 
 ## Ruby tutorial
 
-The Ruby tutorial presents a guided lesson sequence with a chapter sidebar and
-visible course progress. Each lesson combines a short explanation, an editable
-Ruby example, an explicit Run control, and three selectable experiments with
-feedback. Expected output stays in the data for validation; learners see actual
+The Ruby tutorial presents a guided lesson sequence with a chapter sidebar. Each lesson combines a short explanation, an editable
+Ruby example, an explicit Run control, and two or three selectable experiments. Example demonstrates the basic form;
+Experiment applies or varies it. Sample choices sit beside their explanations. Expected output stays in the data for validation; learners see actual
 output by running code. Example and each experiment retain independent edits
 while switching samples. Lesson text and starter code remain readable without JavaScript.
 
-The chapter catalog and lesson order are shared across all Ruby versions. Official
-Syntax documentation informs the content; the course is not labeled as conforming
+The chapter catalog and lesson order are shared across all Ruby versions. The course follows an original learning sequence; official
+Ruby documentation supports technical explanations. It is not labeled as conforming
 to a particular release. The header version selector keeps the current lesson and
 changes its explanation, samples, references and bundled runtime as needed. It shows concrete Ruby version numbers; the Ruby 4.1 development
 course is labeled separately. `/tutorial/` resolves to the internal default

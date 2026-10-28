@@ -4,12 +4,14 @@ import { resolveLesson } from "./tutorial-content";
 import { isRubyVersion } from "./versions";
 import TutorialPlayground from "./tutorial-playground";
 import TutorialHeader from "./tutorial-header";
-import { initializeTutorialProgress } from "./tutorial-progress";
 
 const container = document.getElementById("tutorial-runner");
 const version = container?.dataset.version;
 const lesson = resolveLesson(container?.dataset.lesson ?? "", version ?? "");
 if (container && lesson && isRubyVersion(version)) {
+  document
+    .querySelectorAll("[data-sample-control]")
+    .forEach((element) => element.replaceChildren());
   createRoot(container).render(
     <React.StrictMode>
       <TutorialPlayground
@@ -33,4 +35,7 @@ if (header?.dataset.version) {
   );
 }
 
-initializeTutorialProgress();
+const sidebar = document.querySelector<HTMLDetailsElement>(
+  ".course-sidebar details",
+);
+if (sidebar && matchMedia("(max-width: 760px)").matches) sidebar.open = false;

@@ -62,11 +62,6 @@ await page.goto("http://127.0.0.1:18930/tutorial/4.0/inheritance/");
 await expect(
   page.locator('.course-sidebar [aria-current="page"]'),
 ).toHaveAttribute("href", "/tutorial/4.0/inheritance/");
-await page.getByRole("button", { name: "Mark complete", exact: true }).click();
-await page.reload();
-await expect(
-  page.getByRole("button", { name: "Mark incomplete", exact: true }),
-).toBeVisible();
 await page.evaluate(() => scrollTo(0, 0));
 await page.screenshot({
   path: "/tmp/ruby-skill-inheritance-desktop.png",
@@ -91,7 +86,7 @@ await expect(staticPage.getByRole("heading", { level: 1 })).toHaveText(
 writeFileSync(
   "browser-evidence.json",
   JSON.stringify(
-    { results, progress: "pass", mobile: "pass", withoutJavaScript: "pass" },
+    { results, mobile: "pass", withoutJavaScript: "pass" },
     null,
     2,
   ),
