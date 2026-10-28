@@ -141,7 +141,7 @@ test("shared code and version automatically restore on direct load and reload", 
       '<h1>Hello HTML 3.4.1</h1>\n<script>parent.document.title="unsafe"</script>\n',
     );
     await expect(page.locator("iframe")).toHaveCount(0);
-    await expect(page).toHaveTitle("Ruby Playground");
+    await expect(page).toHaveTitle("Ruby Playground – Run Ruby Online in Your Browser");
   }
 });
 
