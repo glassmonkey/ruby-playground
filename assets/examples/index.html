@@ -1,0 +1,194 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Ruby Code Examples – Try Them in Ruby Playground</title>
+    <meta
+      name="description"
+      content="Try Ruby examples for puts, arrays, hashes, blocks and pattern matching. Read expected output, edit the code and run it in Ruby Playground."
+    />
+    <link rel="canonical" href="https://ruby-play.dev/examples/" />
+    <link rel="icon" href="/favicon.svg" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 0;
+        border-top: 4px solid #b91c1c;
+        background: #fffaf7;
+        color: #292524;
+        line-height: 1.7;
+      }
+      main {
+        max-width: 850px;
+        margin: auto;
+        padding: 24px;
+      }
+      a {
+        color: #a31924;
+      }
+      section {
+        margin: 32px 0;
+        padding: 24px;
+        border: 1px solid #ded5cf;
+        border-radius: 12px;
+      }
+      pre {
+        overflow: auto;
+        padding: 16px;
+        background: #f1eae5;
+        border-radius: 6px;
+      }
+      h1,
+      h2,
+      h3 {
+        line-height: 1.3;
+      }
+      @media (prefers-color-scheme: dark) {
+        body {
+          background: #211d1b;
+          color: #f5efeb;
+        }
+        a {
+          color: #ff929b;
+        }
+        pre {
+          background: #302925;
+        }
+        section {
+          border-color: #544741;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <nav aria-label="Main"><a href="/">Ruby Playground</a></nav>
+      <h1>Ruby code examples you can run online</h1>
+      <p>
+        Explore five small Ruby programs with expected output. Open an example
+        in Ruby Playground to edit it, run it automatically and compare Ruby
+        versions. These examples use Ruby 4.0; Hash formatting can differ
+        between versions.
+      </p>
+      <nav aria-label="Examples">
+        <p><a href="#hello-world">Print values with puts and p</a></p>
+        <p>
+          <a href="#array-map">Transform arrays with map, select and reduce</a>
+        </p>
+        <p><a href="#hash">Read and transform a Hash</a></p>
+        <p><a href="#blocks">Use blocks, Procs and lambdas</a></p>
+        <p><a href="#pattern-matching">Match a Hash with a Ruby pattern</a></p>
+      </nav>
+      <section id="hello-world">
+        <h2>Print values with puts and p</h2>
+        <p>
+          puts prints a readable message; p shows the representation of an
+          array.
+        </p>
+        <pre><code>puts &quot;Hello, Ruby!&quot;
+p [1, 2, 3]</code></pre>
+        <h3>Expected output</h3>
+        <pre>
+Hello, Ruby!
+[1, 2, 3]</pre>
+        <p>Change the message and add another element to the array.</p>
+        <a
+          href="/?c=A4VwLgzgBARAEgUwDZIPYBooCUQCMCeAhDAFDBQDaAjJgEyYDMAukA&amp;v=4.0"
+          >Try print values with puts and p in Ruby Playground</a
+        >
+      </section>
+      <section id="array-map">
+        <h2>Transform arrays with map, select and reduce</h2>
+        <p>
+          map transforms each element, select keeps matching elements, and
+          reduce combines them.
+        </p>
+        <pre><code>numbers = [1, 2, 3, 4]
+p numbers.map { |n| n * 2 }
+p numbers.select { |n| n.even? }
+p numbers.reduce(0) { |sum, n| sum + n }</code></pre>
+        <h3>Expected output</h3>
+        <pre>
+[2, 4, 6, 8]
+[2, 4]
+10</pre>
+        <p>Replace even? with odd? and compare the selected values.</p>
+        <a
+          href="/?c=HYVwtgRgpgTgzgAgLwINoEYA0CBM2DM2ALALoBQADgqJLHAHRgCGVA3ggD7AfUIBUuBAF9K1cNHj04UADZQAxgBcE7Lj2D0oANyjAA-MNE0JDGFAAmIeVAAUABgCUKznHDZuCV2AQBqXkKA&amp;v=4.0"
+          >Try transform arrays with map, select and reduce in Ruby
+          Playground</a
+        >
+      </section>
+      <section id="hash">
+        <h2>Read and transform a Hash</h2>
+        <p>
+          fetch reads a value by key. transform_values builds a new hash with
+          changed values.
+        </p>
+        <pre><code>scores = { ruby: 10, python: 8 }
+p scores.fetch(:ruby)
+p scores.transform_values { |score| score * 2 }</code></pre>
+        <h3>Expected output</h3>
+        <pre>
+10
+{ruby: 20, python: 16}</pre>
+        <p>Try fetching a missing key with a default: scores.fetch(:go, 0).</p>
+        <a
+          href="/?c=M4Yw9gTgpsAEC8sDesIFcBGBPAXLAjAAwA0sADlgC4AWYAdngBywC%2BAUGbKJDAHQBmUSiGoAKHOmwBKDl3DRgvShACGdYP0gBbAPoA3FQBs0MZLAA%2B3aObk9YAKlgAmVkA&amp;v=4.0"
+          >Try read and transform a hash in Ruby Playground</a
+        >
+      </section>
+      <section id="blocks">
+        <h2>Use blocks, Procs and lambdas</h2>
+        <p>
+          A block supplies behavior to a method. A Proc or lambda stores
+          callable behavior in a variable.
+        </p>
+        <pre><code>3.times { |i| puts i }
+double = Proc.new { |n| n * 2 }
+triple = -&gt;(n) { n * 3 }
+p double.call(4)
+p triple.call(4)</code></pre>
+        <h3>Expected output</h3>
+        <pre>
+0
+1
+2
+8
+12</pre>
+        <p>Change the arguments passed to call and predict the results.</p>
+        <a
+          href="/?c=MwOgLglgtgpgzgAgN4ID4VQgDgVzIiBAXwCgATAexwCMAbGBAXgQAUAnCgYxADsYB3ZGh6YeCAFQIATMRJg2ELPSYIAtAD4AFDwCUQsZOCysCSjXohOAQ1q1NAFh0kT8xReu2HOoA&amp;v=4.0"
+          >Try use blocks, procs and lambdas in Ruby Playground</a
+        >
+      </section>
+      <section id="pattern-matching">
+        <h2>Match a Hash with a Ruby pattern</h2>
+        <p>
+          Pattern matching checks the shape of a value and binds matching parts
+          to local variables.
+        </p>
+        <pre><code>user = { name: &quot;Ruby&quot;, role: &quot;admin&quot; }
+case user
+in { name:, role: &quot;admin&quot; }
+  puts &quot;Welcome, #{name}&quot;
+else
+  puts &quot;Guest&quot;
+end</code></pre>
+        <h3>Expected output</h3>
+        <pre>Welcome, Ruby</pre>
+        <p>Change the role to member to try the else branch.</p>
+        <a
+          href="/?c=K4ZwpgTgBAvFDeUB2BDAtmAXFARAJWACMBPHAGiggHsAbLXFAEzQEskcoBfAKAGMVwUUJG5sEydFgrU62HE1bsu3KFAAOwAC4hcAdTA1eVDBQDE8VBk45uB8CvVadOAOLAwITTbBJGQA&amp;v=4.0"
+          >Try match a hash with a ruby pattern in Ruby Playground</a
+        >
+      </section>
+      <p>
+        Shared links contain the source and run automatically when opened. Keep
+        private information out of your code.
+      </p>
+      <p><a href="/">Return to the online Ruby editor</a></p>
+    </main>
+  </body>
+</html>

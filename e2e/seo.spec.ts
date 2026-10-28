@@ -12,7 +12,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   expect(html.match(/<h1\b/g)).toHaveLength(1);
   expect(html).toContain('property="og:title" content="Ruby Playground"');
   expect(html).toContain('name="twitter:card" content="summary"');
-  expect(html).toContain("Try small programs and share them with a URL.");
+  expect(html).toContain("No installation or account required.");
   const staticCode = await page.evaluate(
     (source) =>
       new DOMParser()
@@ -24,7 +24,9 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   expect(html).toMatch(
     /<link\s+rel="canonical"\s+href="https:\/\/ruby-play\.dev\/"\s*\/>/,
   );
-  await expect(page).toHaveTitle("Ruby Playground");
+  await expect(page).toHaveTitle(
+    "Ruby Playground – Run Ruby Online in Your Browser",
+  );
   await expect(page.locator("h1")).toHaveCount(1);
   await expect(page.locator("#root h1")).toHaveText("Ruby Playground");
   const socialMetadata = await page
@@ -43,4 +45,39 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   );
   await page.goto("./");
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+});
+
+test("examples open runnable code with the documented output", async ({
+  page,
+}) => {
+  await page.goto("/examples/");
+  const examples = await page.locator("main section").evaluateAll((sections) =>
+    sections.map((section) => ({
+      url: section.querySelector("a")!.getAttribute("href")!,
+      output: section.querySelectorAll("pre")[1].textContent!.trim(),
+    })),
+  );
+  expect(examples).toHaveLength(5);
+  for (const example of examples) {
+    await page.goto(example.url);
+    await expect(page.getByRole("status")).toHaveText("Complete", {
+      timeout: 60000,
+    });
+    await expect(
+      page.getByRole("region", { name: "Output", exact: true }),
+    ).toContainText(example.output);
+  }
+  await page.goto("/");
+  await expect(
+    page.getByRole("heading", { name: "Ruby Playground FAQ" }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "test-results/seo-desktop.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({
+    path: "test-results/seo-mobile.png",
+    fullPage: true,
+  });
 });

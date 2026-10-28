@@ -262,6 +262,8 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   await page.keyboard.press("Tab");
   await expect(page.getByRole("region", { name: "Output" })).toBeFocused();
   await page.keyboard.press("Tab");
+  await expect(page.getByRole("link", { name: "Ruby code examples" })).toBeFocused();
+  await page.keyboard.press("Tab");
   await expect(
     page.getByRole("link", { name: "issue on GitHub" }),
   ).toBeFocused();
