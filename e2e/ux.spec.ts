@@ -1,8 +1,120 @@
+import LZString from "lz-string";
 import { expect, test } from "@playwright/test";
 import { expectDocumentToFitViewport } from "./layout";
-import { editRuby as edit, expectRubyOutput } from "./editor";
+import {
+  editRuby as edit,
+  expectRubyOutput,
+  expectInitialRuby,
+  INITIAL_OUTPUT,
+} from "./editor";
 
-test("theme and preview controls preserve edits across layouts and reloads", async ({
+test("runtime information stays separate from initial and edited console output", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("./");
+  await expectInitialRuby(page);
+  const info = page.getByRole("region", { name: "Ruby の実行環境" });
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 4.0.0",
+  );
+  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+    "def fractal(rows, depth)",
+  );
+  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+    "puts fractal(%w[Hello Ruby!], 3)",
+  );
+  await page.screenshot({
+    path: testInfo.outputPath("initial-light.png"),
+    fullPage: true,
+  });
+  await page.getByText("UI Theme:", { exact: true }).click();
+  await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("initial-dark.png"),
+    fullPage: true,
+  });
+  await page.getByText("UI Theme:", { exact: true }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectDocumentToFitViewport(page, 390);
+  const consoleOutput = page.getByTestId("preview-console");
+  await expect
+    .poll(() =>
+      consoleOutput.evaluate((element) => ({
+        whitespace: getComputedStyle(element).whiteSpace,
+        scrolls: element.scrollWidth > element.clientWidth,
+      })),
+    )
+    .toEqual({ whitespace: "pre", scrolls: true });
+  await consoleOutput.hover();
+  await page.mouse.wheel(300, 0);
+  await expect
+    .poll(() => consoleOutput.evaluate((element) => element.scrollLeft))
+    .toBeGreaterThan(0);
+  await consoleOutput.evaluate((element) => {
+    element.scrollLeft = 0;
+  });
+  await page.screenshot({
+    path: testInfo.outputPath("initial-mobile.png"),
+    fullPage: true,
+  });
+  await page.getByLabel("Ruby バージョン").selectOption("3.3");
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.3.3",
+  );
+  await page.reload();
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.3.3",
+  );
+  await edit(page, "puts RUBY_DESCRIPTION # plain text");
+  await expectRubyOutput(page, /^ruby 3\.3\.3 .*\[wasm32-wasi\]\n$/);
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.3.3",
+  );
+  await expect(
+    page
+      .getByRole("region", { name: "出力" })
+      .getByRole("region", { name: "Ruby の実行環境" }),
+  ).toHaveCount(0);
+  await edit(page, 'puts "ruby 9.9.9 (2000-01-01 revision deadbeef) [spoof]"');
+  await expectRubyOutput(
+    page,
+    "ruby 9.9.9 (2000-01-01 revision deadbeef) [spoof]\n",
+  );
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.3.3",
+  );
+  await edit(page, 'raise "test error"');
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "test error",
+  );
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.3.3",
+  );
+});
+
+test("environment info arrives even when a shared script never finishes", async ({
+  page,
+}) => {
+  await page.goto(
+    `./?v=3.4&c=${encodeURIComponent(LZString.compressToEncodedURIComponent("loop {}"))}`,
+  );
+  const info = page.getByRole("region", { name: "Ruby の実行環境" });
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.4.1",
+    { timeout: 10_000 },
+  );
+  await expect(page.getByRole("status")).toContainText("実行中");
+  await expect(page.getByTestId("preview-console")).toHaveText("");
+  await page.getByRole("button", { name: "停止", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
+  await expect(info.getByRole("heading", { level: 2 })).toHaveText(
+    "Ruby 3.4.1",
+  );
+});
+
+test("theme controls preserve edits across layouts and reloads", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "light" });
@@ -13,20 +125,13 @@ test("theme and preview controls preserve edits across layouts and reloads", asy
   await page.getByText("UI Theme:", { exact: true }).click();
   await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
   await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
-  await page.getByText("HTML Preview", { exact: true }).click();
-  await expect(
-    page.frameLocator("iframe").getByRole("heading", { name: "Ruby preview" }),
-  ).toBeVisible();
   await page.reload();
   await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
+  await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
+  await expect(page.locator("iframe")).toHaveCount(0);
   await expect(
     page.getByRole("checkbox", { name: "HTML Preview" }),
-  ).toBeChecked();
-  await expect(
-    page.frameLocator("iframe").getByRole("heading", { name: "Ruby preview" }),
-  ).toBeVisible();
-  await page.getByText("HTML Preview", { exact: true }).click();
-  await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
+  ).toHaveCount(0);
 
   const editor = page.getByRole("region", { name: "エディター" });
   const output = page.getByRole("region", { name: "出力" });
@@ -70,7 +175,7 @@ test("address bar saves Unicode and empty source without adding history entries"
   page,
 }) => {
   await page.goto("./?campaign=ruby#about");
-  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await expectInitialRuby(page);
   const historyLength = await page.evaluate(() => history.length);
   for (const code of ['puts "こんにちは + & # 😀"', ""]) {
     await edit(page, code);
@@ -137,15 +242,11 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   await expect(
     page.getByRole("checkbox", { name: "UI Theme", exact: true }),
   ).toBeFocused();
-  await page.keyboard.press("Tab");
-  await expect(
-    page.getByRole("checkbox", { name: "HTML Preview" }),
-  ).toBeFocused();
   await expect(
     page.getByRole("button", { name: /^(実行|再実行)$/ }),
   ).toHaveCount(0);
 
-  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await expectInitialRuby(page);
   await page.locator(".monaco-editor .view-lines").click();
   await expect(
     page.getByRole("textbox", { name: "Ruby source" }),
@@ -257,13 +358,16 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   const coldRunError = (
     await page.getByRole("main").getByRole("alert").allTextContents()
   ).join("\n");
-  const coldRunOutput = await page
-    .getByTestId("preview-console")
-    .innerText()
-    .catch(() => "");
+  const coldRunOutput = await page.getByTestId("preview-console").innerText();
 
   if (coldRunStatus === "完了") {
-    expect(coldRunOutput.trim()).toBe("Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3");
+    expect(
+      coldRunOutput
+        .trimEnd()
+        .split("\n")
+        .map((row) => row.trimEnd())
+        .join("\n"),
+    ).toBe(INITIAL_OUTPUT);
     expect(coldRunError).toBe("");
   } else {
     expect(coldRunError).toContain("タイムアウト");

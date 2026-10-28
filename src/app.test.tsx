@@ -9,7 +9,9 @@ import {
 } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { parseShareUrl, buildShareUrl } from "./share";
-import App, { INITIAL_CODE } from "./app";
+import type { startRubyRun } from "./workers/client";
+import App from "./app";
+import { INITIAL_CODE } from "./sample";
 vi.mock("./editor", () => ({
   default: ({
     code,
@@ -26,7 +28,7 @@ vi.mock("./editor", () => ({
   ),
 }));
 const start = vi.hoisted(() =>
-  vi.fn(() => ({
+  vi.fn<typeof startRubyRun>(() => ({
     promise: Promise.resolve({ stdout: "", stderr: "", output: "" }),
     cancel: vi.fn(),
   })),
@@ -58,12 +60,19 @@ describe("playground UI", () => {
         undefined,
         undefined,
         "4.0",
+        expect.any(Function),
       ),
     );
     fireEvent.change(editor, { target: { value: "" } });
     await screen.findByText("出力なし");
     await waitFor(() =>
-      expect(start).toHaveBeenCalledWith("", undefined, undefined, "4.0"),
+      expect(start).toHaveBeenCalledWith(
+        "",
+        undefined,
+        undefined,
+        "4.0",
+        expect.any(Function),
+      ),
     );
   });
   it("labels editor and output sections and links to the safety pages", () => {
@@ -83,7 +92,7 @@ describe("playground UI", () => {
     ]);
   });
   it.each(['puts "こんにちは + & # 😀"', ""])(
-    "automatically saves edited source %j with version and format",
+    "automatically saves edited source %j with version",
     async (code) => {
       // Arrange
       window.history.replaceState(null, "", "/?campaign=ruby#about");
@@ -97,7 +106,6 @@ describe("playground UI", () => {
       fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
         target: { value: "3.4" },
       });
-      fireEvent.click(screen.getByRole("checkbox", { name: "HTML Preview" }));
       // Assert
       const url = new URL(window.location.href);
       expect({
@@ -106,14 +114,14 @@ describe("playground UI", () => {
         hash: url.hash,
         historyLength: window.history.length,
       }).toEqual({
-        state: { code, version: "3.4", format: "html" },
+        state: { code, version: "3.4" },
         campaign: "ruby",
         hash: "#about",
         historyLength,
       });
     },
   );
-  it("restores editor and format when browser history changes", async () => {
+  it("restores editor and version when browser history changes", async () => {
     // Arrange
     setup();
     const editor = await screen.findByRole("textbox", { name: "Ruby source" });
@@ -124,7 +132,6 @@ describe("playground UI", () => {
       buildShareUrl(window.location.href, {
         code: "puts 42",
         version: "3.3",
-        format: "html",
       }),
     );
     fireEvent(window, new PopStateEvent("popstate"));
@@ -133,12 +140,7 @@ describe("playground UI", () => {
       code: (editor as HTMLTextAreaElement).value,
       version: (screen.getByLabelText("Ruby バージョン") as HTMLSelectElement)
         .value,
-      html: (
-        screen.getByRole("checkbox", {
-          name: "HTML Preview",
-        }) as HTMLInputElement
-      ).checked,
-    }).toEqual({ code: "puts 42", version: "3.3", html: true });
+    }).toEqual({ code: "puts 42", version: "3.3" });
   });
   it("shows loading immediately on edits and hides it when execution finishes", async () => {
     // Arrange
@@ -208,6 +210,7 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
     undefined,
     undefined,
     "3.4",
+    expect.any(Function),
   );
   await act(async () =>
     completions[1]({ stdout: "new", stderr: "", output: "new" }),
@@ -220,4 +223,37 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
     promise: Promise.resolve({ stdout: "", stderr: "", output: "" }),
     cancel: vi.fn(),
   }));
+});
+
+it("updates environment independently and rejects a cancelled run's late metadata", async () => {
+  // Arrange
+  setup();
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  const oldInfo = start.mock.calls[0][4]!;
+  const ruby40 = {
+    version: "4.0.0",
+    platform: "wasm32-wasi",
+    encoding: "UTF-8",
+    releaseDate: "2025-12-25",
+    revision: "553f1675f3",
+  };
+  // Act
+  act(() => oldInfo(ruby40));
+  fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+    target: { value: "3.3" },
+  });
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
+  act(() =>
+    start.mock.calls[1][4]!({
+      ...ruby40,
+      version: "3.3.3",
+      releaseDate: "2024-06-12",
+      revision: "f1c7b6f435",
+    }),
+  );
+  act(() => oldInfo(ruby40));
+  // Assert
+  expect(
+    screen.getByRole("region", { name: "Ruby の実行環境" }).textContent,
+  ).toContain("Ruby 3.3.3");
 });

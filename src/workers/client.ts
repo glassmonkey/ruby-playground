@@ -3,7 +3,7 @@ import {
   isRubyVersion,
   type RubyVersion,
 } from "../versions";
-import type { RunResult } from "../runtime";
+import type { RunResult, RuntimeInfo } from "../runtime";
 
 export const RUN_TIMEOUT_MS = 20_000;
 export type RunHandle = { promise: Promise<RunResult>; cancel: () => void };
@@ -16,6 +16,7 @@ export function startRubyRun(
     }),
   timeoutMs = RUN_TIMEOUT_MS,
   version: RubyVersion = DEFAULT_RUBY_VERSION,
+  onRuntimeInfo?: (info: RuntimeInfo) => void,
 ): RunHandle {
   let cancel = () => {};
   const promise = new Promise<RunResult>((resolve) => {
@@ -43,12 +44,42 @@ export function startRubyRun(
     try {
       worker = createWorker();
       worker.onmessage = (event: MessageEvent<unknown>) => {
+        if (settled) return;
         const value = event.data;
         if (typeof value !== "object" || value === null) {
           fail("Ruby Worker の応答が不正です。");
           return;
         }
         const data = value as Record<string, unknown>;
+        if (data.type === "runtime-info") {
+          const info = data.info;
+          if (
+            typeof info !== "object" ||
+            info === null ||
+            ["version", "platform", "releaseDate", "revision", "encoding"].some(
+              (key) => {
+                const field = (info as Record<string, unknown>)[key];
+                return (
+                  typeof field !== "string" ||
+                  field.length === 0 ||
+                  field.length > 512
+                );
+              },
+            )
+          ) {
+            fail("Ruby Worker の環境情報が不正です。");
+            return;
+          }
+          const fields = info as RuntimeInfo;
+          onRuntimeInfo?.({
+            version: fields.version,
+            platform: fields.platform,
+            releaseDate: fields.releaseDate,
+            revision: fields.revision,
+            encoding: fields.encoding,
+          });
+          return;
+        }
         const fields = ["stdout", "stderr", "output"] as const;
         if (
           fields.some(

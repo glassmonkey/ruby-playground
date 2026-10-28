@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 import { RUBY_PATCH_VERSIONS } from "../src/versions";
-import { editRuby as edit, expectRubyOutput } from "./editor";
+import {
+  editRuby as edit,
+  expectRubyOutput,
+  expectInitialRuby,
+} from "./editor";
 import { expectDocumentToFitViewport } from "./layout";
 test.beforeEach(async ({ page }) => {
   page.on("pageerror", (error) =>
@@ -38,7 +42,7 @@ test("initial and edited Ruby automatically execute with errors, empty output an
   await expect(
     page.getByRole("button", { name: /^(実行|再実行)$/ }),
   ).toHaveCount(0);
-  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await expectInitialRuby(page);
   await edit(page, 'puts "こんにちは"; warn "warning"; $answer = 42');
   await expectRubyOutput(page, "こんにちは\nwarning\n");
   await page.screenshot({
@@ -110,7 +114,7 @@ test("initial and edited Ruby automatically execute with errors, empty output an
   ).toBe(true);
   expect(errors).toEqual([]);
 });
-test("shared code, version and HTML output automatically restore on direct load and reload", async ({
+test("shared code and version automatically restore on direct load and reload", async ({
   page,
 }) => {
   test.setTimeout(90_000);
@@ -120,30 +124,23 @@ test("shared code, version and HTML output automatically restore on direct load 
     page,
     'puts "<h1>Hello HTML #{RUBY_VERSION}</h1>"; puts %q{<script>parent.document.title="unsafe"</script>}',
   );
-  await page.getByText("HTML Preview", { exact: true }).click();
-  await expect(
-    page
-      .frameLocator("iframe")
-      .getByRole("heading", { name: /^Hello HTML 3\.4\./ }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expectRubyOutput(
+    page,
+    '<h1>Hello HTML 3.4.1</h1>\n<script>parent.document.title="unsafe"</script>\n',
+  );
   const url = page.url();
   expect(new URL(url).searchParams.get("v")).toBe("3.4");
   for (const navigate of [() => page.goto(url), () => page.reload()]) {
     await navigate();
     await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.4");
-    await expect(
-      page.getByRole("checkbox", { name: "HTML Preview" }),
-    ).toBeChecked();
     await expect(page.locator(".monaco-editor .view-lines")).toContainText(
       "Hello HTML",
     );
-    await expect(
-      page
-        .frameLocator("iframe")
-        .getByRole("heading", { name: /^Hello HTML 3\.4\./ }),
-    ).toBeVisible({ timeout: 30_000 });
-    await expect(page.getByRole("status")).toHaveText("完了");
-    await expect(page.locator("iframe")).toHaveAttribute("sandbox", "");
+    await expectRubyOutput(
+      page,
+      '<h1>Hello HTML 3.4.1</h1>\n<script>parent.document.title="unsafe"</script>\n',
+    );
+    await expect(page.locator("iframe")).toHaveCount(0);
     await expect(page).toHaveTitle("Ruby Playground");
   }
 });
@@ -175,7 +172,7 @@ test("rapid edits and version changes cancel stale runs and keep only the latest
 }) => {
   test.setTimeout(60_000);
   await page.goto("./");
-  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await expectInitialRuby(page);
   const oldWorkerStarted = page.waitForEvent("worker", {
     predicate: (worker) => worker.url().includes("ruby-worker"),
   });
@@ -222,7 +219,7 @@ test("an infinite automatic run times out and the next edit recovers", async ({
 }) => {
   test.setTimeout(60_000);
   await page.goto("./");
-  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  await expectInitialRuby(page);
   await edit(page, "loop {}");
   await expect(page.getByRole("status")).toContainText("実行中");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(

@@ -8,6 +8,14 @@ import {
 } from "@bjorn3/browser_wasi_shim";
 
 export const MAX_OUTPUT_BYTES = 100_000;
+export type RuntimeInfo = {
+  version: string;
+  platform: string;
+  releaseDate: string;
+  revision: string;
+  encoding: string;
+};
+
 export type RunResult = {
   stdout: string;
   stderr: string;
@@ -19,6 +27,7 @@ export type RunResult = {
 export async function executeRuby(
   module: WebAssembly.Module,
   code: string,
+  onRuntimeInfo?: (info: RuntimeInfo) => void,
 ): Promise<RunResult> {
   const result: RunResult = { stdout: "", stderr: "", output: "" };
   const decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() };
@@ -68,6 +77,16 @@ export async function executeRuby(
     });
     initializing = false;
     vm.eval("$stdout.sync = true; $stderr.sync = true");
+    if (onRuntimeInfo) {
+      // Inspect the actual VM before user code can redefine constants or block.
+      onRuntimeInfo({
+        version: vm.eval("RUBY_VERSION").toString(),
+        platform: vm.eval("RUBY_PLATFORM").toString(),
+        releaseDate: vm.eval("RUBY_RELEASE_DATE").toString(),
+        revision: vm.eval("RUBY_REVISION.to_s").toString(),
+        encoding: vm.eval("Encoding.default_external.name").toString(),
+      });
+    }
     vm.eval(code);
   } catch (error) {
     result.error = error instanceof Error ? error.message : String(error);

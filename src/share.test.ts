@@ -50,16 +50,27 @@ describe("shared playground URLs", () => {
     'puts "Hello"\n',
     'puts "こんにちは 🌸"\n',
     "\u0000\ud800\uffff",
-  ])("round trips source %j and HTML mode", (code) => {
-    const url = buildShareUrl(base, { code, version: "4.0", format: "html" });
+  ])("round trips source %j", (code) => {
+    const url = buildShareUrl(base, { code, version: "4.0" });
     expect(parseShareUrl(url, fallback)).toEqual({
       code,
       version: "4.0",
-      format: "html",
     });
     expect(new URL(url).searchParams.get("theme")).toBe("dark");
     expect(new URL(url).hash).toBe("#editor");
   });
+
+  it.each(["html", "console"])(
+    "accepts old f=%s links without losing source",
+    (format) => {
+      // Arrange
+      const url = `${encodedUrl('puts "legacy"')}&v=3.4&f=${format}`;
+      // Act
+      const got = parseShareUrl(url, fallback);
+      // Assert
+      expect(got).toEqual({ code: 'puts "legacy"', version: "3.4" });
+    },
+  );
 
   it("reads lz-string URI payloads produced independently", () => {
     const code = 'puts "Ruby"\n'.repeat(400);
@@ -68,21 +79,19 @@ describe("shared playground URLs", () => {
 
   it("accepts the exact source length boundary", () => {
     const code = "あ".repeat(MAX_SOURCE_LENGTH);
-    expect(
-      parseShareUrl(buildShareUrl(base, { code, format: "console" }), fallback)
-        .code,
-    ).toBe(code);
+    expect(parseShareUrl(buildShareUrl(base, { code }), fallback).code).toBe(
+      code,
+    );
   });
 
   it("uses fallback without warnings when no sharing parameters exist", () => {
     expect(parseShareUrl(base, fallback)).toEqual({
       code: fallback,
       version: "4.0",
-      format: "console",
     });
   });
 
-  it("normalizes unsupported version and format without losing valid code", () => {
+  it("normalizes unsupported version without losing valid code", () => {
     const parsed = parseShareUrl(
       `${encodedUrl("puts 42")}&v=9.9&f=javascript`,
       fallback,
@@ -90,10 +99,8 @@ describe("shared playground URLs", () => {
     expect(parsed).toMatchObject({
       code: "puts 42",
       version: "4.0",
-      format: "console",
     });
     expect(parsed.warning).toContain("Ruby 4.0");
-    expect(parsed.warning).toContain("Unknown output format");
   });
 
   it.each(["", "%", "!!!", "A", "B", "zzzzzz", "Qgarbage", "Q$"])(
@@ -128,7 +135,6 @@ describe("shared playground URLs", () => {
     expect(() =>
       buildShareUrl(base, {
         code: "x".repeat(MAX_SOURCE_LENGTH + 1),
-        format: "console",
       }),
     ).toThrow("50,000");
   });
@@ -144,10 +150,11 @@ describe("shared playground URLs", () => {
     const url = new URL(
       buildShareUrl(
         `${base.split("#")[0]}&c=old&c=duplicate&v=3&f=bad#anchor`,
-        { code: "", format: "console" },
+        { code: "" },
       ),
     );
     expect(url.searchParams.getAll("c")).toHaveLength(1);
+    expect(url.searchParams.has("f")).toBe(false);
     expect(url.searchParams.get("v")).toBe("4.0");
     expect(url.searchParams.get("theme")).toBe("dark");
     expect(url.hash).toBe("#anchor");
@@ -156,7 +163,7 @@ describe("shared playground URLs", () => {
   it("round trips a generated URL at the complete-URL byte limit", () => {
     const code = 'puts "ok"';
     const baseAtLimit = `https://ruby.example/${"p".repeat(MAX_SHARE_URL_BYTES - 180)}`;
-    const url = buildShareUrl(baseAtLimit, { code, format: "console" });
+    const url = buildShareUrl(baseAtLimit, { code });
     expect(new TextEncoder().encode(url).byteLength).toBeLessThanOrEqual(
       MAX_SHARE_URL_BYTES,
     );
@@ -166,9 +173,9 @@ describe("shared playground URLs", () => {
   it("rejects an overlong complete URL without changing the source", () => {
     const code = 'puts "keep me"';
     const baseBeyondLimit = `https://ruby.example/${"p".repeat(MAX_SHARE_URL_BYTES)}`;
-    expect(() =>
-      buildShareUrl(baseBeyondLimit, { code, format: "console" }),
-    ).toThrow("URL に保存できません");
+    expect(() => buildShareUrl(baseBeyondLimit, { code })).toThrow(
+      "URL に保存できません",
+    );
     expect(code).toBe('puts "keep me"');
   });
 
@@ -189,7 +196,6 @@ it.each(["4.0", "3.4", "3.3"] as const)(
     const state = {
       code: "puts RUBY_VERSION",
       version,
-      format: "console" as const,
     };
     expect(
       parseShareUrl(

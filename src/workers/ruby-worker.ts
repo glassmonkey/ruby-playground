@@ -20,7 +20,11 @@ self.onmessage = async (
     if (!response.ok)
       throw new Error(`Ruby download failed (${response.status}).`);
     const module = await WebAssembly.compile(await response.arrayBuffer());
-    self.postMessage(await executeRuby(module, event.data.code));
+    self.postMessage(
+      await executeRuby(module, event.data.code, (info) => {
+        self.postMessage({ type: "runtime-info", info });
+      }),
+    );
   } catch (error) {
     self.postMessage({
       stdout: "",

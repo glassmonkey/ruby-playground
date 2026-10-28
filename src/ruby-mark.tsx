@@ -1,0 +1,13 @@
+import { Icon, type IconProps } from "@chakra-ui/react";
+
+export default function RubyMark({ boxSize = 12 }: Pick<IconProps, "boxSize">) {
+  return (
+    <Icon viewBox="0 0 40 40" boxSize={boxSize} aria-hidden="true">
+      <path fill="#e62923" d="M10 5h20l8 12-18 20L2 17Z" />
+      <path fill="#f5a9a7" d="m10 5 10 12H2Z" />
+      <path fill="#eb544f" d="M10 5h20L20 17Z" />
+      <path fill="#b8211c" d="m30 5 8 12H20L20 37Z" />
+      <path fill="#8a1915" d="M38 17 20 37 20 17Z" />
+    </Icon>
+  );
+}
