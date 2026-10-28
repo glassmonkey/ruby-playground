@@ -156,20 +156,21 @@ source limits do not fix regexp compilation bugs. Shared links automatically
 execute; do not open untrusted links or enter secrets. Patched trusted builds
 remain recommended follow-up work, not a claim that current builds are patched.
 
-## Tutorial content
+## Ruby tutorial
 
-The English tutorial lives at `/tutorial/`, with 15 introductory lessons and a
-coverage map against the official Ruby 4.0 syntax reference. `/examples/` forwards
-to the tutorial. This is not exhaustive language or core-library API coverage;
-each lesson lists its remaining topics.
+The Ruby tutorial presents a guided lesson sequence with a chapter sidebar and
+visible course progress. Each lesson combines a short explanation, an editable
+Ruby example, an explicit Run control, expected output, a practice task and
+feedback. Lesson text and starter code remain readable without JavaScript.
 
-Edit `content/tutorial.json` and `content/tutorial.css`, then run
-`npm run tutorial:generate`. Commit the content and generated `tutorial/` HTML
-and sitemap together. Generation also runs before `npm run dev` and
-`npm run build`. Vite treats every lesson as an HTML entry so direct URLs work
-in both development and production. Lessons need no JavaScript to read.
+The header version selector switches the course, starter code and bundled runtime
+together. It shows concrete Ruby version numbers; the Ruby 4.1 development
+course is labeled separately. `/tutorial/` resolves to the internal default
+stable course, while `/tutorial/{version}/{slug}/` preserves version-specific
+lesson URLs. The Light/Dark control shares its saved preference with the main
+Playground and keeps it across lesson and version navigation.
 
-`e2e/seo.spec.ts` runs every lesson in the real bundled Ruby VM, checks expected
-output, exercises feedback and next-lesson navigation, and checks mobile layout.
-Run it against production with `npx playwright test e2e/seo.spec.ts`, and against
-development with `E2E_DEV_SERVER=1 npx playwright test e2e/seo.spec.ts`.
+Continue in the full Playground to carry the current edits and selected Ruby
+version into a new tab. For lesson authoring, release updates and content
+evaluation, see the [Ruby tutorial authoring skill](skills/ruby-tutorial-authoring/SKILL.md)
+and its [evaluation record](docs/tutorial-skill-evaluation.md).

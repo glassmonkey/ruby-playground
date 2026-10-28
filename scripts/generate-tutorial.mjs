@@ -1,8 +1,14 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import lz from "lz-string";
-const lessons = JSON.parse(
-  readFileSync(new URL("../content/tutorial.json", import.meta.url), "utf8"),
-);
+import {
+  tutorialVersions,
+  latestTutorialVersion,
+  tutorialSlugs,
+  lessonsForVersion,
+  resolveLesson,
+  lessonPath,
+} from "../src/tutorial-content.ts";
+import { RUBY_VERSIONS } from "../src/versions.ts";
 const root = new URL("../", import.meta.url);
 const escape = (value) =>
   String(value)
@@ -10,6 +16,28 @@ const escape = (value) =>
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+const latest = tutorialVersions.find(
+  (version) => version.id === latestTutorialVersion,
+);
+if (!latest || latest.channel !== "stable")
+  throw new Error("Tutorial latest must select a supported stable version.");
+if (
+  new Set(tutorialSlugs).size !== tutorialSlugs.length ||
+  tutorialSlugs.some((slug) => !/^[a-z0-9-]+$/.test(slug))
+)
+  throw new Error("Tutorial slugs must be unique URL-safe identifiers.");
+for (const version of tutorialVersions) {
+  if (!RUBY_VERSIONS.includes(version.id))
+    throw new Error(`No bundled runtime for tutorial ${version.id}`);
+}
+const newestStable = tutorialVersions
+  .filter((version) => version.channel === "stable")
+  .sort((a, b) => a.id.localeCompare(b.id, "en", { numeric: true }))
+  .at(-1);
+if (latest.id !== newestStable?.id)
+  throw new Error(
+    "Tutorial latest must be the newest supported stable course.",
+  );
 const syntax = {
   "Code Layout": "layout",
   Comments: "comments",
@@ -26,68 +54,123 @@ const syntax = {
   Refinements: "refinements",
   Miscellaneous: "miscellaneous",
 };
-const source = (name) =>
-  `https://docs.ruby-lang.org/en/4.0/${syntax[name] ? `syntax/${syntax[name]}_rdoc` : name}.html`;
-const path = (lesson) => `/tutorial/${lesson.slug}/`;
-const link = (lesson) =>
-  `<a href="${path(lesson)}">${escape(lesson.title)}</a>`;
+// Older references group layout/operator material under different chapter names.
+const referenceOverrides = {
+  3.2: { "Code Layout": "miscellaneous", Operators: "methods" },
+  3.3: { "Code Layout": "miscellaneous" },
+  3.4: { "Code Layout": "miscellaneous" },
+};
+const source = (name, version) => {
+  const chapter = referenceOverrides[version.id]?.[name] ?? syntax[name];
+  return `https://docs.ruby-lang.org/en/${version.reference}/${chapter ? `syntax/${chapter}_rdoc` : name}.html`;
+};
 const style = readFileSync(
   new URL("../content/tutorial.css", import.meta.url),
   "utf8",
 );
-function page(url, title, description, body) {
-  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} – Ruby Playground</title><meta name="description" content="${escape(description)}"><link rel="canonical" href="https://ruby-play.dev${url}"><link rel="icon" href="/favicon.svg"><style>${style}</style></head><body><header><a href="/">Ruby Playground</a><a href="/tutorial/">Ruby Tutorial</a></header><main>${body}</main><footer><a href="/">Open the playground</a> · <a href="/tutorial/#coverage">Coverage and references</a></footer></body></html>`;
+const coursePath = (version) => `/tutorial/${version.id}/`;
+const versionLabel = (version) => version.label;
+const link = (lesson, version) =>
+  `<a href="${lessonPath(version.id, lesson.slug)}">${escape(lesson.title)}</a>`;
+function versionNavigation(version, slug) {
+  return `<nav class="version-navigation" aria-label="Tutorial versions">${tutorialVersions.map((item) => `<a ${item.id === version.id ? 'aria-current="page"' : ""} href="${slug ? lessonPath(item.id, slug) : coursePath(item)}">${escape(item.label)}</a>`).join("")}</nav>`;
+}
+function page(url, title, description, body, { noindex = false } = {}) {
+  const [, , versionId, slug] = url.split("/");
+  const version = tutorialVersions.find((item) => item.id === versionId);
+  const themeScript = `try{const m=localStorage.getItem("chakra-ui-color-mode");document.documentElement.dataset.theme=m==="dark"||m==="light"?m:matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light"}catch{}`;
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)} – Ruby Playground</title><meta name="description" content="${escape(description)}"><link rel="canonical" href="https://ruby-play.dev${url}">${noindex ? '<meta name="robots" content="noindex">' : ""}<link rel="icon" href="/favicon.svg"><script>${themeScript}</script><link rel="stylesheet" href="/tutorial.css"></head><body data-course-version="${version.id}" data-current-lesson="${slug || ""}"><header><a href="/">Ruby Playground</a><a href="/tutorial/">Ruby Tutorial</a><div id="tutorial-header-controls" data-version="${version.id}" data-lesson="${slug || ""}">${versionNavigation(version, slug)}</div></header><nav class="breadcrumbs" aria-label="Breadcrumb"><a href="/tutorial/">Tutorial</a><span>›</span><a href="${coursePath(version)}">${escape(version.label)}</a>${slug ? `<span>›</span><span>${escape(resolveLesson(slug, version.id)?.title ?? "Lesson")}</span>` : ""}</nav><main>${body}</main><footer><a href="/">Open the playground</a> · <a href="/tutorial/">Choose a tutorial version</a></footer><script type="module" src="/src/tutorial.tsx"></script></body></html>`;
 }
 function write(relative, text) {
   const url = new URL(relative, root);
   mkdirSync(new URL("./", url), { recursive: true });
   writeFileSync(url, text);
 }
-for (const [i, lesson] of lessons.entries()) {
-  const share = `/?c=${encodeURIComponent(lz.compressToEncodedURIComponent(lesson.code))}&v=4.0`;
-  const body = `<p class="eyebrow">${escape(lesson.chapter)} · Lesson ${i + 1} of ${lessons.length}</p><h1>${escape(lesson.title)}</h1><p class="lead">${escape(lesson.goal)}</p><p class="prerequisite">Before you start: ${i ? link(lessons[i - 1]) : "no previous Ruby experience needed"}. Examples use bundled Ruby 4.0.</p>
-<section aria-labelledby="learn"><h2 id="learn">Understand the idea</h2>${lesson.paragraphs.map((p) => `<p>${escape(p)}</p>`).join("")}</section>
-<section aria-labelledby="run"><h2 id="run">Read, predict, then run</h2><p>Predict what this program will print before opening it in the playground.</p><pre><code>${escape(lesson.code)}</code></pre><a class="button run-example" href="${escape(share)}" target="_blank" rel="noopener noreferrer">Run this lesson in Playground ↗</a><p class="note">Opens a new tab so you can keep this lesson open. Code runs automatically; use puts or p to see a result.</p><h3>Expected output</h3><pre class="expected-output">${escape(lesson.output)}</pre></section>
-<section aria-labelledby="practice"><h2 id="practice">Try it yourself</h2><p>${escape(lesson.task)}</p><details><summary>Check your understanding</summary><p>${escape(lesson.answer)}</p></details><h3>Watch out for</h3><p>${escape(lesson.pitfall)}</p></section>
-<section aria-labelledby="references"><h2 id="references">Keep learning</h2><p>${escape(lesson.remaining)}</p><ul>${lesson.refs.map((ref) => `<li><a href="${source(ref)}">Official Ruby 4.0 documentation: ${escape(ref)}</a></li>`).join("")}</ul></section>
-<nav class="lesson-navigation" aria-label="Lesson navigation">${i ? `<div><span>Previous</span>${link(lessons[i - 1])}</div>` : ""}<div><span>${i + 1 < lessons.length ? "Next lesson" : "You finished the introductory path"}</span>${i + 1 < lessons.length ? link(lessons[i + 1]) : '<a href="/tutorial/#coverage">Choose what to explore next</a>'}</div></nav>`;
+function redirect(relative, destination) {
   write(
-    `tutorial/${lesson.slug}/index.html`,
-    page(path(lesson), `${lesson.title} | Ruby Tutorial`, lesson.goal, body),
+    relative,
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="0;url=${destination}"><link rel="canonical" href="https://ruby-play.dev${destination}"><title>Ruby Tutorial – Ruby Playground</title></head><body><p>Continue to the <a href="${destination}">Ruby tutorial</a>.</p></body></html>`,
   );
 }
-const chapters = [...new Set(lessons.map((l) => l.chapter))];
-const coverage = Object.keys(syntax)
-  .map(
-    (ref) =>
-      `<tr><th scope="row"><a href="${source(ref)}">${escape(ref)}</a></th><td>${lessons
-        .filter((l) => l.refs.includes(ref))
-        .map(link)
-        .join(
-          "<br>",
-        )}</td><td>Introduction available; deeper topics listed in each lesson</td></tr>`,
-  )
-  .join("");
-write(
-  "tutorial/index.html",
-  page(
-    "/tutorial/",
-    "Ruby Tutorial – Learn Ruby in Your Browser",
-    "Learn Ruby step by step with runnable lessons, practice tasks and explanations. Follow a learning path from output and variables to classes and pattern matching.",
-    `<p class="eyebrow">Learn by running Ruby</p><h1>Ruby Tutorial</h1><p class="lead">Learn the language step by step, then change the code and see what happens.</p><p>These ${lessons.length} lessons build from printing your first value to reading advanced syntax. Each includes an explanation, runnable code, expected output and a practice task with feedback. No installation or account is needed.</p><a class="button" href="${path(lessons[0])}">Start learning Ruby</a><p>Already know some Ruby? Pick a lesson below. Keep the lesson open while you experiment in a separate playground tab.</p><nav aria-label="Course contents">${chapters
-      .map(
-        (ch) =>
-          `<section><h2>${escape(ch)}</h2><ol start="${lessons.findIndex((l) => l.chapter === ch) + 1}">${lessons
-            .filter((l) => l.chapter === ch)
-            .map((l) => `<li>${link(l)}<p>${escape(l.goal)}</p></li>`)
-            .join("")}</ol></section>`,
-      )
-      .join(
-        "",
-      )}</nav><section id="coverage"><h2>What this tutorial covers</h2><p>The learning order is designed for beginners. The coverage checklist follows the <a href="https://docs.ruby-lang.org/en/4.0/syntax_rdoc.html">official Ruby 4.0 syntax reference</a>. This is an introductory path, not an exhaustive language specification: each lesson identifies the details still to explore.</p><div class="table-scroll"><table><caption>Syntax reference coverage</caption><thead><tr><th>Reference area</th><th>Lesson</th><th>Depth</th></tr></thead><tbody>${coverage}</tbody></table></div><h3>Core APIs and standard libraries</h3><p>Array, Hash, Enumerable and Proc appear where they support a language concept. Their full APIs are outside this first path. Standard libraries, gems, Rails, files, network access and interactive standard input are not taught here. Browser runtime limits make some of these unsuitable for this playground.</p><h3>Versions and verification</h3><p>Runnable examples target the bundled Ruby 4.0 runtime. You can switch versions in the playground to experiment, but the lessons do not promise identical results across every version. Each run starts fresh. Do not enter secrets: shared URLs contain the full source.</p></section>`,
-  ),
-);
+write("assets/tutorial.css", style);
+// This directory contains generated pages only; remove stale routes when lessons change.
+rmSync(new URL("tutorial/", root), { recursive: true, force: true });
+const sitemap = ["/"];
+for (const version of tutorialVersions) {
+  const lessons = lessonsForVersion(version.id);
+  const chapters = [...new Set(lessons.map((lesson) => lesson.chapter))];
+  for (const slug of tutorialSlugs) {
+    const lesson = resolveLesson(slug, version.id);
+    const url = lessonPath(version.id, slug);
+    if (!lesson) {
+      write(
+        `tutorial/${version.id}/${slug}/index.html`,
+        page(
+          url,
+          `Lesson unavailable in ${version.label}`,
+          `This topic is not taught in ${version.label}.`,
+          `<h1>This lesson is not available in ${escape(version.label)}</h1><p>Choose another version above or <a href="${coursePath(version)}">return to this course</a>.</p>`,
+          { noindex: true },
+        ),
+      );
+      continue;
+    }
+    const i = lessons.findIndex((item) => item.slug === slug);
+    const share = `/?c=${encodeURIComponent(lz.compressToEncodedURIComponent(lesson.code))}&v=${version.id}#editor-heading`;
+    const sidebar = `<aside class="course-sidebar"><details open><summary>Course contents</summary><div class="course-progress"><p data-progress-summary>0 of ${lessons.length} completed</p><progress data-progress-bar max="${lessons.length}" value="0" aria-label="Course progress"></progress></div><nav aria-label="Course contents">${lessons.map((item, index) => `<a data-lesson-link="${item.slug}" ${item.slug === slug ? 'aria-current="page"' : ""} href="${lessonPath(version.id, item.slug)}"><span class="lesson-number">${String(index + 1).padStart(2, "0")}</span><span>${escape(item.title)}</span></a>`).join("")}</nav></details></aside>`;
+    const body = `<div class="lesson-layout">${sidebar}<article><p class="eyebrow">Lesson ${i + 1} of ${lessons.length} · ${escape(version.label)} · ${escape(lesson.chapter)}</p><h1>${escape(lesson.title)}</h1><p class="lead">${escape(lesson.goal)}</p>${version.channel === "development" ? '<p class="version-note">Development course: behavior may change with future runtime updates.</p>' : ""}${lesson.versionNote ? `<p class="version-note">${escape(lesson.versionNote)}</p>` : ""}<div class="lesson-workspace"><div class="lesson-explanation">
+<section aria-labelledby="run"><h2 id="run">Run it first</h2><p>Run the example and see what it prints. Each run starts fresh.</p><details><summary>Expected output of the original example (${escape(version.label)})</summary><pre class="expected-output">${escape(lesson.output)}</pre></details></section>
+<section aria-labelledby="learn"><h2 id="learn">How it works</h2>${lesson.paragraphs.map((text) => `<p>${escape(text)}</p>`).join("")}</section>
+<section aria-labelledby="practice"><h2 id="practice">Try it yourself</h2><p>${escape(lesson.task)}</p><details class="practice-answer"><summary>Check your understanding</summary><p>${escape(lesson.answer)}</p></details><h3>Watch out for</h3><p>${escape(lesson.pitfall)}</p></section>
+<section aria-labelledby="references"><h2 id="references">Explore the official manual</h2><ul>${lesson.refs.map((ref) => `<li><a href="${source(ref, version)}">Official ${escape(version.label)} documentation: ${escape(ref)}</a></li>`).join("")}${slug === "blocks" ? '<li><a href="https://docs.ruby-lang.org/en/3.4/NEWS_md.html">Ruby 3.4 release notes: introduction of the it block parameter</a></li>' : ""}</ul></section></div>
+<div class="lesson-editor"><div id="tutorial-runner" data-lesson="${slug}" data-version="${version.id}"><pre><code>${escape(lesson.code)}</code></pre><a class="button" href="${escape(share)}" target="_blank" rel="noopener noreferrer">Continue in full Playground ↗</a><p class="note">Enable JavaScript to edit and run code here, or use the full playground.</p></div></div></div>
+<div class="lesson-completion"><button class="button" data-complete-lesson hidden>Mark complete</button><span class="note">Progress is saved in this browser.</span></div><nav class="lesson-navigation" aria-label="Lesson navigation">${i ? `<div><span>Previous</span>${link(lessons[i - 1], version)}</div>` : `<div><a href="${coursePath(version)}">All lessons</a></div>`}<div><span>${i + 1 < lessons.length ? "Next lesson" : "Keep exploring"}</span>${i + 1 < lessons.length ? link(lessons[i + 1], version) : `<a href="${coursePath(version)}">Back to your learning path</a>`}</div></nav></article></div>`;
+    write(
+      `tutorial/${version.id}/${slug}/index.html`,
+      page(
+        url,
+        `${lesson.title} | ${version.label} Tutorial`,
+        lesson.goal,
+        body,
+      ),
+    );
+    sitemap.push(url);
+  }
+  const body = `<div class="course-home"><p class="eyebrow">${escape(versionLabel(version))} · Learn in your browser</p><h1>Ruby Tutorial</h1><p class="lead">Learn Ruby, one experiment at a time.</p><p>Write your first program, change it, and see what happens. Follow the lessons at your own pace — no installation needed.</p>${lessons.length ? `<a class="button" data-resume-course href="${lessonPath(version.id, lessons[0].slug)}">Start learning Ruby</a>` : ""}<div class="course-progress"><p data-progress-summary>0 of ${lessons.length} completed</p><progress data-progress-bar max="${lessons.length}" value="0" aria-label="Course progress"></progress></div><h2>Your learning path</h2><nav aria-label="Course contents">${chapters
+    .map(
+      (chapter) =>
+        `<section class="course-chapter"><h3>${escape(chapter)}</h3><div class="lesson-cards">${lessons
+          .filter((lesson) => lesson.chapter === chapter)
+          .map(
+            (lesson) =>
+              `<a class="lesson-card" data-lesson-link="${lesson.slug}" href="${lessonPath(version.id, lesson.slug)}"><span class="lesson-number">${String(lessons.indexOf(lesson) + 1).padStart(2, "0")}</span><div><strong>${escape(lesson.title)}</strong><p>${escape(lesson.goal)}</p></div><span aria-hidden="true">→</span></a>`,
+          )
+          .join("")}</div></section>`,
+    )
+    .join("")}</nav></div>`;
+  const html = page(
+    coursePath(version),
+    `${version.label} Tutorial – Learn Ruby in Your Browser`,
+    `Learn ${version.label} step by step with interactive lessons, practice tasks and version-specific explanations.`,
+    body,
+  );
+  write(`tutorial/${version.id}/index.html`, html);
+  if (version.id === latestTutorialVersion) write("tutorial/index.html", html);
+  sitemap.push(coursePath(version));
+}
+redirect("tutorial/latest/index.html", coursePath(latest));
+for (const slug of tutorialSlugs) {
+  redirect(
+    `tutorial/${slug}/index.html`,
+    lessonPath(latestTutorialVersion, slug),
+  );
+  redirect(
+    `tutorial/latest/${slug}/index.html`,
+    lessonPath(latestTutorialVersion, slug),
+  );
+}
+redirect("examples/index.html", "/tutorial/");
 write(
   "assets/sitemap.xml",
-  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${["/", "/tutorial/", ...lessons.map(path)].map((url) => `  <url><loc>https://ruby-play.dev${url}</loc></url>`).join("\n")}\n</urlset>\n`,
+  `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${sitemap.map((url) => `  <url><loc>https://ruby-play.dev${url}</loc></url>`).join("\n")}\n</urlset>\n`,
 );

@@ -5,7 +5,7 @@
     "chapter": "Getting started",
     "goal": "Print a result and distinguish output from a return value.",
     "paragraphs": [
-      "A Ruby program evaluates expressions in order. In this playground, editing the code starts a new run. The Output panel shows what the program prints; it does not automatically show the value of every expression as an interactive Ruby console would.",
+      "A Ruby program evaluates expressions in order. In this lesson, press Run code to execute your changes. Each run starts fresh. The Output panel shows what the program prints; it does not automatically show the value of every expression as an interactive Ruby console would.",
       "Use puts for a readable line of text and p when you want to inspect a value. Text after # is a comment. Indentation makes nested code easier to read; ordinary statements can start on separate lines."
     ],
     "code": "# Print a greeting, then inspect a number.\nputs \"Hello, Ruby!\"\np 2 + 3\np puts(\"One more line\")",
@@ -164,10 +164,11 @@
     "goal": "Pass behavior to a method and call a Proc or lambda.",
     "paragraphs": [
       "A block is behavior supplied alongside a method call. A method can invoke it with yield. Block parameters receive the values passed by yield. Blocks can use local variables from their surrounding scope.",
-      "A Proc or lambda makes callable behavior available as an object. Invoke it with call. Lambdas enforce argument counts more like methods; Proc and lambda also differ in how return behaves. This example stays with simple expression bodies."
+      "A Proc or lambda makes callable behavior available as an object. Invoke it with call. Lambdas enforce argument counts more like methods; Proc and lambda also differ in how return behaves. This example stays with simple expression bodies.",
+      "Ruby 3.4 introduced it as an implicit block parameter. In the final expression, it refers to each array element. Use an explicit parameter such as |number| when a descriptive name makes the code easier to follow."
     ],
-    "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)",
-    "output": "6\n8\n12",
+    "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { it * 2 }",
+    "output": "6\n8\n12\n[2, 4, 6]",
     "task": "Change yield 2 to yield 5. Which output changes?",
     "answer": "Only the first result changes, to 15. The two stored callables still receive 4 independently.",
     "pitfall": "Calling yield when no block was supplied raises LocalJumpError. Methods with optional blocks can check block_given?.",
@@ -175,7 +176,28 @@
       "Calling Methods",
       "Proc"
     ],
-    "remaining": "Non-local return, & conversion, block binding precedence and numbered parameters require further lessons."
+    "remaining": "Non-local return, & conversion, block binding precedence and numbered parameters require further lessons.",
+    "versionNote": "This lesson uses the implicit it block parameter, introduced in Ruby 3.4.",
+    "variants": {
+      "3.2": {
+        "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }",
+        "paragraphs": [
+          "A block is behavior supplied alongside a method call. A method can invoke it with yield. Block parameters receive the values passed by yield. Blocks can use local variables from their surrounding scope.",
+          "A Proc or lambda makes callable behavior available as an object. Invoke it with call. Lambdas enforce argument counts more like methods; Proc and lambda also differ in how return behaves. This example stays with simple expression bodies.",
+          "This version uses an explicit block parameter, |number|. The implicit it parameter was introduced in Ruby 3.4 and is not available in this version. Keep the parameter declaration when running this example."
+        ],
+        "versionNote": "Ruby 3.2 does not support the implicit it block parameter. This lesson uses an explicit |number| parameter instead."
+      },
+      "3.3": {
+        "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }",
+        "paragraphs": [
+          "A block is behavior supplied alongside a method call. A method can invoke it with yield. Block parameters receive the values passed by yield. Blocks can use local variables from their surrounding scope.",
+          "A Proc or lambda makes callable behavior available as an object. Invoke it with call. Lambdas enforce argument counts more like methods; Proc and lambda also differ in how return behaves. This example stays with simple expression bodies.",
+          "This version uses an explicit block parameter, |number|. The implicit it parameter was introduced in Ruby 3.4 and is not available in this version. Keep the parameter declaration when running this example."
+        ],
+        "versionNote": "Ruby 3.3 does not support the implicit it block parameter. This lesson uses an explicit |number| parameter instead."
+      }
+    }
   },
   {
     "slug": "classes",
