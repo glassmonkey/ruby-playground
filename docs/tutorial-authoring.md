@@ -10,3 +10,5 @@
 - [ページ生成の手順](../skills/ruby-tutorial-authoring/references/page-generation.md)
 
 依頼例: 「このリポジトリの ruby-tutorial-authoring スキルで、継承の教材データを作成して評価して」「教材データからページを生成し、プレビューで確認して」。新しいレッスンの公開まで依頼された場合は、両段階を続けて実施します。
+
+スキル自体の動作確認は[新規作成・誤り検出の検証記録](tutorial-skill-validation.md)を参照してください。再実行用の教材JSONとブラウザスクリプトも保存しています。

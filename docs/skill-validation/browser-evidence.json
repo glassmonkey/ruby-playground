@@ -1,0 +1,47 @@
+{
+  "results": [
+    {
+      "version": "4.0",
+      "rubyVersion": "4.0.0",
+      "starter": "pass",
+      "exercise": "pass",
+      "handoff": "pass",
+      "themePreservesEdits": "pass"
+    },
+    {
+      "version": "3.4",
+      "rubyVersion": "3.4.1",
+      "starter": "pass",
+      "exercise": "pass",
+      "handoff": "pass",
+      "themePreservesEdits": "pass"
+    },
+    {
+      "version": "3.3",
+      "rubyVersion": "3.3.3",
+      "starter": "pass",
+      "exercise": "pass",
+      "handoff": "pass",
+      "themePreservesEdits": "pass"
+    },
+    {
+      "version": "3.2",
+      "rubyVersion": "3.2.4",
+      "starter": "pass",
+      "exercise": "pass",
+      "handoff": "pass",
+      "themePreservesEdits": "pass"
+    },
+    {
+      "version": "4.1",
+      "rubyVersion": "4.1.0",
+      "starter": "pass",
+      "exercise": "pass",
+      "handoff": "pass",
+      "themePreservesEdits": "pass"
+    }
+  ],
+  "progress": "pass",
+  "mobile": "pass",
+  "withoutJavaScript": "pass"
+}

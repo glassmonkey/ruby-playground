@@ -6,6 +6,7 @@ Use this rubric for an explicit review or after creating/updating lessons. Evalu
 
 - Read the reviewed lesson and its relevant neighboring lessons. Check the current version catalog, resolver and page generator.
 - For each version claim, consult the official version-specific Ruby reference and NEWS. Record direct source links and the claim they support.
+- Resolve and inspect each supported version separately, including overridden code, rather than assuming the shared starter represents every variant. If runtime checks are unavailable, do not conclude version compatibility from a base-lesson inspection.
 - Run each lesson's exact code through the bundled WASM runtime for every claimed course version. Record actual `RUBY_VERSION` and output; compare output line by line with the authored expected output.
 - Open the real page at its versioned route. Confirm its visible version, course content, starter code and selected runtime agree. Check the header selector, navigation, aliases and unavailable lessons against the current implementation.
 - Use the on-page editor to run the starter example and perform the lesson task. Check that the task is meaningful, the feedback matches the observed behavior, and the full Playground handoff preserves edited code and version.
