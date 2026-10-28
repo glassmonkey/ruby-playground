@@ -1,13 +1,13 @@
 :root {
   color-scheme: light;
   --button-text: white;
-  --bg: #fffaf7;
+  --bg: #ffffff;
   --panel: #fff;
   --text: #292524;
   --muted: #665a52;
   --border: #e7dcd5;
   --accent: #a31924;
-  --code: #f3ece7;
+  --code: #faf8f7;
 }
 * {
   box-sizing: border-box;
@@ -274,7 +274,8 @@ footer {
   padding: 4px 20px;
   background: var(--code);
 }
-.practice-answer {
+.practice-answer,
+.practice-tip {
   margin-top: 12px;
 }
 @media (max-width: 480px) {
@@ -435,7 +436,7 @@ main {
   padding: 28px 32px 48px;
 }
 h1 {
-  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-size: clamp(1.6rem, 2.2vw, 1.9rem);
 }
 h2 {
   font-size: 1.15rem;
@@ -446,7 +447,7 @@ h2 {
 }
 .lesson-layout {
   display: grid;
-  grid-template-columns: 224px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 28px;
 }
 .lesson-layout article {
@@ -640,5 +641,114 @@ nav[aria-label="Course contents"] .course-chapter {
   }
   .embedded-playground textarea {
     min-height: 220px;
+  }
+}
+
+/* One editor surface, with all actions beside the Run control. */
+.embedded-playground {
+  padding: 0;
+  overflow: hidden;
+  border-radius: 7px;
+}
+.editor-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--code);
+  border-bottom: 1px solid var(--border);
+}
+.editor-heading label {
+  margin: 0;
+  font-size: 0.8rem;
+}
+.editor-heading .note {
+  font-size: 0.75rem;
+}
+.embedded-playground textarea {
+  border: 0;
+  border-radius: 0;
+  background: var(--code);
+  padding: 18px 16px;
+}
+.embedded-playground textarea:focus-visible {
+  outline-offset: -2px;
+}
+.runner-controls {
+  margin: 0;
+  gap: 8px;
+  padding: 12px;
+  align-items: center;
+  background: var(--code);
+  border-top: 1px solid var(--border);
+}
+.runner-controls button {
+  font-size: 0.8rem;
+  padding: 8px 12px;
+  border-radius: 6px;
+}
+.runner-controls a {
+  margin-left: auto;
+  font-size: 0.75rem;
+  text-decoration: none;
+}
+.lesson-output {
+  padding: 16px;
+  border-top: 1px solid var(--border);
+}
+.lesson-output h3 {
+  margin: 0 0 12px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.lesson-output pre {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  min-height: 80px;
+}
+.runner-status,
+.embedded-playground > [role="alert"] {
+  padding: 0 16px;
+  font-size: 0.8rem;
+}
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+.lesson-explanation section {
+  margin: 28px 0;
+}
+.lesson-explanation h2 {
+  font-size: 1.05rem;
+}
+.lesson-explanation li {
+  font-size: 0.85rem;
+}
+.eyebrow {
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+@media (max-width: 480px) {
+  .embedded-playground {
+    padding: 0;
+  }
+  .editor-heading {
+    flex-wrap: wrap;
+    gap: 4px 12px;
+  }
+  .runner-controls a {
+    width: 100%;
+    margin-top: 4px;
   }
 }

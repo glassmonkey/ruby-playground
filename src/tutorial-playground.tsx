@@ -62,11 +62,13 @@ export default function TutorialPlayground({
 
   return (
     <div className="embedded-playground">
-      <p className="lesson-version">
-        Runtime: Ruby {RUBY_PATCH_VERSIONS[version]}
-        {version === "4.1" ? "-dev" : ""}
-      </p>
-      <label htmlFor="lesson-code">Ruby code — edit and experiment</label>
+      <div className="editor-heading">
+        <label htmlFor="lesson-code">Ruby code</label>
+        <span className="note">
+          Ruby {RUBY_PATCH_VERSIONS[version]}
+          {version === "4.1" ? " · development" : ""}
+        </span>
+      </div>
       <textarea
         id="lesson-code"
         spellCheck={false}
@@ -112,8 +114,23 @@ export default function TutorialPlayground({
         >
           Reset example
         </button>
+        <a
+          href={fullPlaygroundUrl}
+          aria-disabled={!fullPlaygroundUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          Continue in full Playground ↗
+        </a>
       </div>
-      <p role="status" className="note">
+      <p
+        role="status"
+        className={
+          status === "Ready to run" || status === "Complete"
+            ? "visually-hidden"
+            : "runner-status note"
+        }
+      >
         {status}
       </p>
       <div
@@ -137,18 +154,6 @@ export default function TutorialPlayground({
             : "Run the code to see what happens."}
         </pre>
       </div>
-      <a
-        href={fullPlaygroundUrl}
-        aria-disabled={!fullPlaygroundUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        Continue in full Playground ↗
-      </a>
-      <p className="note">
-        Carries your edited code into a new tab, where you can also switch Ruby
-        versions. Each run starts fresh.
-      </p>
       {shareWarning && <p role="alert">{shareWarning}</p>}
     </div>
   );
