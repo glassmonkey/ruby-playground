@@ -23,7 +23,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 
 ## Features and limits
 
-- PHP Playground-style full-width workspace: side-by-side editor/output on large
+- Full-width workspace: side-by-side editor/output on large
   screens and stacked panes on smaller screens, with an 80vh working area.
 - System-aware light/dark UI and Monaco themes, remembered across reloads.
   The HTML Preview checkbox switches between console output and sandboxed HTML;
