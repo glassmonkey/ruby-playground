@@ -216,7 +216,9 @@ export default function App() {
               >
                 {RUBY_VERSIONS.map((value) => (
                   <option key={value} value={value}>
-                    Ruby {value} ({RUBY_PATCH_VERSIONS[value]})
+                    {value === "4.1"
+                      ? `Ruby 4.1 (${RUBY_PATCH_VERSIONS[value]}-dev)`
+                      : `Ruby ${value} (${RUBY_PATCH_VERSIONS[value]})`}
                   </option>
                 ))}
               </Select>

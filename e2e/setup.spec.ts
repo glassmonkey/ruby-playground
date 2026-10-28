@@ -158,12 +158,21 @@ test("each selected minor version executes its own real Ruby VM", async ({
       .evaluateAll((options) =>
         options.map((option) => (option as HTMLOptionElement).value),
       ),
-  ).toEqual(["4.0", "3.4", "3.3"]);
-  for (const version of ["4.0", "3.4", "3.3", "4.0"] as const) {
+  ).toEqual(["4.0", "3.4", "3.3", "3.2", "4.1"]);
+  for (const version of ["4.0", "3.4", "3.3", "3.2", "4.1", "4.0"] as const) {
     await selector.selectOption(version);
     await expectRubyOutput(page, `${RUBY_PATCH_VERSIONS[version]}\n`);
     const sharedUrl = page.url();
     expect(new URL(sharedUrl).searchParams.get("v")).toBe(version);
+    if (version === "4.1") {
+      await page.reload();
+      await expect(selector).toHaveValue("4.1");
+      await expectRubyOutput(page, "4.1.0\n");
+      await page.screenshot({
+        path: "test-results/ruby-4.1.png",
+        fullPage: true,
+      });
+    }
   }
 });
 
