@@ -1,0 +1,294 @@
+[
+  {
+    "slug": "output",
+    "title": "Your first Ruby program",
+    "chapter": "Getting started",
+    "goal": "Print a result and distinguish output from a return value.",
+    "paragraphs": [
+      "A Ruby program evaluates expressions in order. In this playground, editing the code starts a new run. The Output panel shows what the program prints; it does not automatically show the value of every expression as an interactive Ruby console would.",
+      "Use puts for a readable line of text and p when you want to inspect a value. Text after # is a comment. Indentation makes nested code easier to read; ordinary statements can start on separate lines."
+    ],
+    "code": "# Print a greeting, then inspect a number.\nputs \"Hello, Ruby!\"\np 2 + 3\np puts(\"One more line\")",
+    "output": "Hello, Ruby!\n5\nOne more line\nnil",
+    "task": "Change 2 + 3 to 2 * 3. Why does the final line still say nil?",
+    "answer": "The number becomes 6. puts prints its argument but returns nil; the outer p prints that return value.",
+    "pitfall": "Writing 2 + 3 alone produces no visible output here. Wrap it in p.",
+    "refs": [
+      "Code Layout",
+      "Comments"
+    ],
+    "remaining": "Line continuation rules, block comments and magic comments are not covered yet."
+  },
+  {
+    "slug": "values",
+    "title": "Numbers, strings and symbols",
+    "chapter": "Values and variables",
+    "goal": "Recognize literal values and interpolate a value into a string.",
+    "paragraphs": [
+      "A literal writes a value directly in your program. 7 is an Integer and 7.0 is a Float. Double-quoted strings can insert the result of an expression with #{...}. Single-quoted strings do not perform that interpolation.",
+      "A Symbol, such as :ruby, is often used as a name or key. true and false represent boolean values; nil commonly represents an absent value. These are objects too, and you can ask each object for its class."
+    ],
+    "code": "language = \"Ruby\"\nputs \"Hello, #{language}!\"\np 7 / 2\np 7.0 / 2\np :ruby.class\np nil.nil?",
+    "output": "Hello, Ruby!\n3\n3.5\nSymbol\ntrue",
+    "task": "Change 7 / 2 to 7 / 2.0. Predict the result before running.",
+    "answer": "The result is 3.5 because one operand is a Float. Integer division in the original expression returned 3.",
+    "pitfall": "A Symbol and a String with similar spelling are different values: :ruby == \"ruby\" is false.",
+    "refs": [
+      "Literals"
+    ],
+    "remaining": "Regular expressions, heredocs, percent literals, numeric bases, Rational and Complex literals need further lessons."
+  },
+  {
+    "slug": "variables",
+    "title": "Assignment and object references",
+    "chapter": "Values and variables",
+    "goal": "Use local variables and understand when two names refer to the same object.",
+    "paragraphs": [
+      "Assignment associates a name with a value. Reassigning a variable changes what that name refers to. It does not automatically copy an object. This distinction matters when an object can be modified.",
+      "Local variable names usually begin with a lowercase letter. Constants begin with an uppercase letter; instance variables begin with @ and will appear in the classes lesson. A method has its own local-variable scope."
+    ],
+    "code": "name = \"Ruby\"\nother = name\nother << \"!\"\nputs name\nother = \"Python\"\nputs name\nputs other",
+    "output": "Ruby!\nRuby!\nPython",
+    "task": "Change other = name to other = name.dup. What does the first puts print?",
+    "answer": "It prints Ruby. dup creates a separate string, so appending to other no longer changes name.",
+    "pitfall": "Assignment is not a deep copy. A copy of a collection can still contain references to the same nested objects.",
+    "refs": [
+      "Assignment"
+    ],
+    "remaining": "Multiple assignment, constant lookup, global/class variables and detailed block scope are not covered yet."
+  },
+  {
+    "slug": "operators",
+    "title": "Operators and precedence",
+    "chapter": "Expressions and decisions",
+    "goal": "Group calculations deliberately and inspect comparisons.",
+    "paragraphs": [
+      "Operator precedence determines how an expression groups its parts. Multiplication groups before addition. Parentheses make a different grouping explicit and can also make your intent easier to read.",
+      "== compares values; = performs assignment. Many Ruby operators are method calls on an object, so their behavior depends on the receiver. For example, + adds numbers but joins strings."
+    ],
+    "code": "p 2 + 3 * 4\np (2 + 3) * 4\np 5 == 5\nputs \"Ruby\" + \" Playground\"",
+    "output": "14\n20\ntrue\nRuby Playground",
+    "task": "Replace (2 + 3) * 4 with 2 * (3 + 4).",
+    "answer": "The result becomes 14: the parenthesized addition is evaluated as a group, then multiplied by 2.",
+    "pitfall": "The words and/or have different precedence from &&/||. Do not mechanically swap them in assignments.",
+    "refs": [
+      "Operators",
+      "Precedence"
+    ],
+    "remaining": "Operator definitions on custom classes, bitwise operators, safe navigation and boolean assignment precedence need deeper treatment."
+  },
+  {
+    "slug": "conditionals",
+    "title": "Choose a branch with if and case",
+    "chapter": "Expressions and decisions",
+    "goal": "Use conditional expressions and recognize Ruby truthiness.",
+    "paragraphs": [
+      "if selects a branch using a condition. Only false and nil are falsey in Ruby: zero and an empty string are truthy. An if expression also produces the value of its selected branch.",
+      "Use elsif to test another condition and else for the fallback. unless runs its branch when a condition is falsey. A case/when expression compares a value against alternatives; ranges can represent groups of numbers."
+    ],
+    "code": "score = 72\nlabel = if score >= 60\n  \"pass\"\nelse\n  \"retry\"\nend\nputs label\nputs \"zero is truthy\" if 0\ncase score\nwhen 90..100\n  puts \"excellent\"\nwhen 60...90\n  puts \"on track\"\nelse\n  puts \"practice\"\nend",
+    "output": "pass\nzero is truthy\non track",
+    "task": "Change score to 95 and predict both score-related messages.",
+    "answer": "The messages are pass and excellent. The condition still passes, but case now selects the first range.",
+    "pitfall": "An empty collection is also truthy. Test empty? when you mean \u201ccontains no elements\u201d.",
+    "refs": [
+      "Control Expressions"
+    ],
+    "remaining": "Ternary expressions, modifier parsing details and case equality require further examples."
+  },
+  {
+    "slug": "loops",
+    "title": "Repeat work and control a loop",
+    "chapter": "Collections and iteration",
+    "goal": "Use iteration, next and break without creating an unbounded loop.",
+    "paragraphs": [
+      "Iteration repeats work for each value. each yields successive values to a block, while while repeats as long as its condition stays truthy. until repeats while its condition is falsey.",
+      "next skips the remainder of the current iteration. break leaves the loop. A loop that never changes its condition can run forever; this playground imposes an execution timeout, and its Stop control can cancel a run."
+    ],
+    "code": "(1..5).each do |number|\n  next if number == 2\n  break if number == 5\n  puts number\nend\ncount = 0\nwhile count < 2\n  count += 1\nend\np count",
+    "output": "1\n3\n4\n2",
+    "task": "Move break if number == 5 before next, then change the break value to 3.",
+    "answer": "The iteration prints only 1. The value 2 is skipped and the loop ends before printing 3. The final count is still 2.",
+    "pitfall": "A .. range includes its end; a ... range excludes it. That can change how many times an iteration runs.",
+    "refs": [
+      "Control Expressions"
+    ],
+    "remaining": "for-loop scope, redo, retry and loop return values are not covered yet."
+  },
+  {
+    "slug": "collections",
+    "title": "Work with arrays, hashes and Enumerable",
+    "chapter": "Collections and iteration",
+    "goal": "Transform a collection while keeping track of the returned value.",
+    "paragraphs": [
+      "An Array stores ordered values and uses zero-based indexes. A Hash associates keys with values. The colon form ruby: 10 creates a Symbol key, so fetch(:ruby) retrieves it.",
+      "Enumerable methods describe common operations: map builds transformed values, select keeps matching values, and reduce combines values into an accumulator. These are APIs, not special language syntax. They use the blocks introduced in the iteration lesson."
+    ],
+    "code": "numbers = [1, 2, 3, 4]\np numbers.map { |n| n * 2 }\np numbers.select { |n| n.even? }\np numbers.reduce(0) { |sum, n| sum + n }\nscores = { ruby: 10, python: 8 }\np scores.fetch(:ruby)\np scores.fetch(:go, 0)",
+    "output": "[2, 4, 6, 8]\n[2, 4]\n10\n10\n0",
+    "task": "Change even? to odd? and use 10 instead of 0 as the initial reduce value.",
+    "answer": "select returns [1, 3]. reduce returns 20 because it starts with 10 and then adds all four numbers.",
+    "pitfall": "map returns a new array; it does not replace the original array. fetch without a default raises an error for a missing key.",
+    "refs": [
+      "Literals",
+      "Array",
+      "Hash",
+      "Enumerable"
+    ],
+    "remaining": "This is a selection of core APIs, not complete Array, Hash or Enumerable API coverage."
+  },
+  {
+    "slug": "methods",
+    "title": "Define methods and pass arguments",
+    "chapter": "Methods and blocks",
+    "goal": "Define a reusable method with a positional and keyword argument.",
+    "paragraphs": [
+      "A method packages a calculation behind a name. Define it with def and close the body with end. Ruby returns the last evaluated expression unless an explicit return exits the method earlier.",
+      "Positional arguments are matched by position. Keyword arguments are passed by name. Defaults let callers omit an argument. Parentheses at the call site make the argument list clear even when Ruby permits omitting them."
+    ],
+    "code": "def greeting(name, punctuation: \"!\")\n  \"Hello, #{name}#{punctuation}\"\nend\nputs greeting(\"Ruby\")\nputs greeting(\"Matz\", punctuation: \"?\")",
+    "output": "Hello, Ruby!\nHello, Matz?",
+    "task": "Change the default punctuation to \".\". Which call changes?",
+    "answer": "Only greeting(\"Ruby\") changes. The second call explicitly supplies its own keyword value.",
+    "pitfall": "Printing inside a method is different from returning a string. A method ending in puts returns nil.",
+    "refs": [
+      "Methods",
+      "Calling Methods"
+    ],
+    "remaining": "Rest arguments, keyword rest, forwarding, destructuring, singleton methods and argument evaluation order need dedicated lessons."
+  },
+  {
+    "slug": "blocks",
+    "title": "Yield to blocks and store callable behavior",
+    "chapter": "Methods and blocks",
+    "goal": "Pass behavior to a method and call a Proc or lambda.",
+    "paragraphs": [
+      "A block is behavior supplied alongside a method call. A method can invoke it with yield. Block parameters receive the values passed by yield. Blocks can use local variables from their surrounding scope.",
+      "A Proc or lambda makes callable behavior available as an object. Invoke it with call. Lambdas enforce argument counts more like methods; Proc and lambda also differ in how return behaves. This example stays with simple expression bodies."
+    ],
+    "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)",
+    "output": "6\n8\n12",
+    "task": "Change yield 2 to yield 5. Which output changes?",
+    "answer": "Only the first result changes, to 15. The two stored callables still receive 4 independently.",
+    "pitfall": "Calling yield when no block was supplied raises LocalJumpError. Methods with optional blocks can check block_given?.",
+    "refs": [
+      "Calling Methods",
+      "Proc"
+    ],
+    "remaining": "Non-local return, & conversion, block binding precedence and numbered parameters require further lessons."
+  },
+  {
+    "slug": "classes",
+    "title": "Create objects with classes",
+    "chapter": "Objects and modules",
+    "goal": "Initialize instance state and expose behavior through methods.",
+    "paragraphs": [
+      "A class defines behavior for its instances. new creates an instance and calls initialize. Instance variables belong to an object, so separate instances can hold different values.",
+      "attr_reader defines a reader method. Public methods form the callable interface; private methods support its implementation. Inheritance lets a subclass reuse and specialize behavior, and super invokes the corresponding superclass implementation."
+    ],
+    "code": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @value = start\n  end\n  def increment\n    @value += 1\n  end\nend\nfirst = Counter.new\nsecond = Counter.new(10)\nfirst.increment\np first.value\np second.value",
+    "output": "1\n10",
+    "task": "Call first.increment twice more. Does second.value change?",
+    "answer": "first.value becomes 3. second.value stays 10 because the objects have separate instance variables.",
+    "pitfall": "attr_reader exposes reading only. It does not generate a value= writer.",
+    "refs": [
+      "Modules and Classes"
+    ],
+    "remaining": "Inheritance examples, super, singleton classes, private/protected methods and constant lookup need further lessons."
+  },
+  {
+    "slug": "modules",
+    "title": "Share behavior with modules",
+    "chapter": "Objects and modules",
+    "goal": "Include instance behavior and organize names with a module.",
+    "paragraphs": [
+      "A module can group related names and define methods for reuse. include makes a module\u2019s instance methods available to instances of the including class. You cannot instantiate a module with new.",
+      "Modules also provide namespaces. Qualify a nested constant with :: to identify where it belongs. include, extend and prepend serve different purposes; this lesson demonstrates include only."
+    ],
+    "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"book\"\n  end\nend\nputs Product.new.label",
+    "output": "item: book",
+    "task": "Change Product#name to return \"pen\".",
+    "answer": "The output becomes item: pen. The included method calls name on the same Product instance.",
+    "pitfall": "Included methods can depend on methods of their receiver. Those dependencies still need to be implemented by the class.",
+    "refs": [
+      "Modules and Classes"
+    ],
+    "remaining": "extend, prepend, method lookup order and namespace resolution need dedicated examples."
+  },
+  {
+    "slug": "exceptions",
+    "title": "Handle an expected failure",
+    "chapter": "Errors and recovery",
+    "goal": "Raise an exception, handle a specific error and run cleanup.",
+    "paragraphs": [
+      "An exception interrupts normal execution. rescue handles a matching exception so your program can respond. Prefer a specific exception class when you know which failure you can recover from.",
+      "ensure runs when leaving its protected block during normal Ruby control flow, including exception propagation. It is useful for cleanup. Browser termination or stopping the Worker is outside this guarantee."
+    ],
+    "code": "begin\n  Integer(\"not a number\")\nrescue ArgumentError\n  puts \"Please use digits\"\nensure\n  puts \"Attempt finished\"\nend\nbegin\n  raise ArgumentError, \"score must be positive\"\nrescue ArgumentError => error\n  puts error.message\nend",
+    "output": "Please use digits\nAttempt finished\nscore must be positive",
+    "task": "Replace \"not a number\" with \"42\". Which message disappears?",
+    "answer": "Please use digits disappears because conversion succeeds. Attempt finished still prints, and the separate explicit raise is still handled.",
+    "pitfall": "A broad rescue can hide programming errors. Handling a failure should have a specific purpose.",
+    "refs": [
+      "Exceptions"
+    ],
+    "remaining": "Custom exception classes, else, retry and exception cause chains are not covered yet."
+  },
+  {
+    "slug": "pattern-matching",
+    "title": "Match structured data",
+    "chapter": "Advanced syntax",
+    "goal": "Select a branch using the shape and values of a Hash.",
+    "paragraphs": [
+      "Pattern matching examines a value\u2019s structure. In a case/in expression, a hash pattern can require particular keys and bind values to local variables. This is useful when handling data with several possible shapes.",
+      "The role value below must equal \"admin\". The name: shorthand binds the associated value to name. The else branch handles a mismatch; without a matching branch or else, case/in raises an error."
+    ],
+    "code": "user = { name: \"Ruby\", role: \"admin\" }\ncase user\nin { name:, role: \"admin\" }\n  puts \"Welcome, #{name}\"\nelse\n  puts \"Guest\"\nend",
+    "output": "Welcome, Ruby",
+    "task": "Change role to \"member\" and run again.",
+    "answer": "The output is Guest because the literal role requirement no longer matches.",
+    "pitfall": "A hash pattern can allow extra keys. Use an explicit restrictive pattern when extra keys must be rejected.",
+    "refs": [
+      "Pattern matching"
+    ],
+    "remaining": "Array/find patterns, pins, guards, deconstruction and rightward assignment are not covered yet."
+  },
+  {
+    "slug": "refinements",
+    "title": "Scope a method extension with refinements",
+    "chapter": "Advanced syntax",
+    "goal": "Activate an extension in a lexical scope.",
+    "paragraphs": [
+      "Reopening a class changes methods for its users broadly. A refinement can limit where an extension is active. Define the extension inside refine, then activate the containing module with using.",
+      "Activation follows where code is defined, not simply which object is passed around. A method defined outside the active scope does not gain the refinement merely because a caller activated it. Keep this distinction in mind when splitting code into methods."
+    ],
+    "code": "module ExcitedText\n  refine String do\n    def excited\n      self + \"!\"\n    end\n  end\nend\nusing ExcitedText\nputs \"Ruby\".excited",
+    "output": "Ruby!",
+    "task": "Replace self + \"!\" with upcase + \"!\".",
+    "answer": "The output becomes RUBY!: the refined method calls the existing upcase method and appends punctuation.",
+    "pitfall": "using cannot be activated inside a method. Refinements are not a general global extension mechanism.",
+    "refs": [
+      "Refinements"
+    ],
+    "remaining": "Refinement method lookup and interactions with inheritance and imports are not covered yet."
+  },
+  {
+    "slug": "special-forms",
+    "title": "Recognize alias, undef, BEGIN and END",
+    "chapter": "Advanced syntax",
+    "goal": "Identify less common forms and their effect on execution.",
+    "paragraphs": [
+      "alias introduces another name for an existing method at that point in the program. undef makes a method unavailable through that class. These forms affect an interface, so ordinary method definitions are often clearer when no aliasing is needed.",
+      "BEGIN executes before the main body and END registers work for normal Ruby process exit. In this playground, the host evaluates the code and then terminates its Worker without a normal Ruby process shutdown. The END block below therefore does not print finish here; running the same program with a local ruby command does print it. The expected output documents the browser behavior."
+    ],
+    "code": "BEGIN { puts \"start\" }\nclass Message\n  def text\n    \"hello\"\n  end\n  alias original_text text\n  undef text\nend\nputs Message.new.original_text\np Message.new.respond_to?(:text)\nEND { puts \"finish\" }",
+    "output": "start\nhello\nfalse",
+    "task": "Remove undef text. What changes?",
+    "answer": "respond_to?(:text) becomes true. Both names are available; the printed greeting remains hello.",
+    "pitfall": "Do not use END for cleanup in this playground. Its execution lifecycle differs from running a Ruby script as a command-line process.",
+    "refs": [
+      "Miscellaneous"
+    ],
+    "remaining": "Multiple END blocks and alias behavior across later method redefinitions need further examples."
+  }
+]

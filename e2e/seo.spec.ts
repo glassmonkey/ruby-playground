@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import lessons from "../content/tutorial.json" with { type: "json" };
 
 test("initial HTML and share URLs expose the intended indexing signals", async ({
   page,
@@ -47,42 +48,52 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
 });
 
-test("examples open runnable code with the documented output", async ({
-  page,
-}) => {
-  await page.goto("/examples/");
-  const examples = await page.locator("main section").evaluateAll((sections) =>
-    sections.map((section) => ({
-      url: section.querySelector("a")!.getAttribute("href")!,
-      output: section.querySelectorAll("pre")[1].textContent!.trim(),
-    })),
-  );
-  expect(examples).toHaveLength(5);
-  for (const example of examples) {
-    await page.goto(example.url);
-    await expect(page.getByRole("status")).toHaveText("Complete", {
+for (const [index, lesson] of lessons.entries()) {
+  test(`tutorial: ${lesson.slug} teaches and runs the documented program`, async ({
+    page,
+    context,
+  }) => {
+    await page.goto(`/tutorial/${lesson.slug}/`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      lesson.title,
+    );
+    await expect(page.locator(".expected-output")).toHaveText(lesson.output);
+    const feedback = page.locator("details p");
+    await expect(feedback).toBeHidden();
+    await page.getByText("Check your understanding", { exact: true }).click();
+    await expect(feedback).toHaveText(lesson.answer);
+    const popup = context.waitForEvent("page");
+    await page
+      .getByRole("link", { name: "Run this lesson in Playground" })
+      .click();
+    const runner = await popup;
+    await expect(runner.getByRole("status")).toHaveText("Complete", {
       timeout: 60000,
     });
-    await expect(
-      page.getByRole("region", { name: "Output", exact: true }),
-    ).toContainText(example.output);
-  }
-  await page.goto("/");
-  await expect(
-    page.getByRole("heading", { name: "Ruby Playground FAQ" }),
-  ).toBeVisible();
-  await page.screenshot({
-    path: "test-results/seo-desktop.png",
-    fullPage: true,
+    await expect(runner.getByTestId("preview-console")).toHaveText(
+      lesson.output + "\n",
+    );
+    await runner.close();
+    const navigation = page.getByRole("navigation", {
+      name: "Lesson navigation",
+    });
+    if (index + 1 < lessons.length) {
+      await navigation
+        .getByRole("link", { name: lessons[index + 1].title })
+        .click();
+      await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+        lessons[index + 1].title,
+      );
+    } else {
+      await navigation
+        .getByRole("link", { name: "Choose what to explore next" })
+        .click();
+      await expect(page).toHaveURL(/\/tutorial\/#coverage$/);
+    }
   });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.screenshot({
-    path: "test-results/seo-mobile.png",
-    fullPage: true,
-  });
-});
+}
 
-test("examples are reachable from the header on desktop and mobile", async ({
+test("tutorial is discoverable, readable without JavaScript and usable on mobile", async ({
   page,
 }) => {
   for (const width of [1280, 390]) {
@@ -90,12 +101,36 @@ test("examples are reachable from the header on desktop and mobile", async ({
     await page.goto("/");
     const link = page
       .getByRole("banner")
-      .getByRole("link", { name: "Browse Ruby examples" });
+      .getByRole("link", { name: "Start Ruby tutorial" });
     await expect(link).toBeInViewport();
     await link.click();
-    await expect(page).toHaveURL(/\/examples\/$/);
+    await expect(page).toHaveURL(/\/tutorial\/$/);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-      "Ruby code examples you can run online",
+      "Ruby Tutorial",
     );
+    await expect(
+      page.getByRole("navigation", { name: "Course contents" }).locator("li"),
+    ).toHaveCount(lessons.length);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: `test-results/tutorial-${width}.png`,
+      fullPage: true,
+    });
+    await page
+      .getByRole("link", { name: "Start learning Ruby", exact: true })
+      .click();
+    await expect(page).toHaveURL(/\/tutorial\/output\/$/);
+    await page.screenshot({
+      path: `test-results/lesson-${width}.png`,
+      fullPage: true,
+    });
   }
+  const response = await page.request.get("/tutorial/output/");
+  expect(await response.text()).toContain("Your first Ruby program");
+  await page.goto("/examples/");
+  await expect(page).toHaveURL(/\/tutorial\/$/);
 });

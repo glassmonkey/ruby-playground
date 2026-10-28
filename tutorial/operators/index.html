@@ -1,0 +1,208 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Operators and precedence | Ruby Tutorial – Ruby Playground</title><meta name="description" content="Group calculations deliberately and inspect comparisons."><link rel="canonical" href="https://ruby-play.dev/tutorial/operators/"><link rel="icon" href="/favicon.svg"><style>:root {
+  color-scheme: light dark;
+  --bg: #fffaf7;
+  --panel: #fff;
+  --text: #292524;
+  --muted: #665a52;
+  --border: #e7dcd5;
+  --accent: #a31924;
+  --code: #f3ece7;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  border-top: 4px solid var(--accent);
+  background: var(--bg);
+  color: var(--text);
+  font:
+    17px/1.75 system-ui,
+    sans-serif;
+}
+header,
+footer {
+  max-width: 960px;
+  margin: auto;
+  padding: 22px 28px;
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+header {
+  border-bottom: 1px solid var(--border);
+}
+main {
+  max-width: 900px;
+  margin: auto;
+  padding: 32px 28px 48px;
+}
+a {
+  color: var(--accent);
+  text-underline-offset: 3px;
+}
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 4px;
+}
+h1,
+h2,
+h3 {
+  line-height: 1.25;
+  letter-spacing: -0.025em;
+}
+h1 {
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  margin: 12px 0 20px;
+}
+h2 {
+  font-size: 1.5rem;
+}
+h3 {
+  font-size: 1.1rem;
+}
+.lead {
+  font-size: 1.25rem;
+}
+.eyebrow,
+.note,
+.prerequisite {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+.eyebrow {
+  font-weight: 600;
+}
+section {
+  margin: 32px 0;
+}
+nav[aria-label="Course contents"] section {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--panel);
+  padding: 12px 24px;
+}
+li {
+  padding: 6px 0;
+}
+li p {
+  margin: 2px 0 8px;
+  color: var(--muted);
+  font-size: 0.95rem;
+}
+pre {
+  padding: 20px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--code);
+  font-size: 0.9rem;
+  line-height: 1.65;
+}
+code {
+  font-family: ui-monospace, monospace;
+}
+.button {
+  display: inline-block;
+  background: var(--accent);
+  color: white;
+  border-radius: 8px;
+  padding: 10px 18px;
+  text-decoration: none;
+  font-weight: 600;
+}
+details {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px 20px;
+}
+summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+details p {
+  margin-bottom: 0;
+}
+.lesson-navigation {
+  border-top: 1px solid var(--border);
+  padding-top: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.lesson-navigation div {
+  flex: 1;
+  min-width: 180px;
+}
+.lesson-navigation span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.table-scroll {
+  overflow: auto;
+}
+table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.9rem;
+}
+caption {
+  text-align: left;
+  font-weight: 600;
+  padding: 8px 0;
+}
+td,
+th {
+  text-align: left;
+  vertical-align: top;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+}
+footer {
+  font-size: 0.9rem;
+  border-top: 1px solid var(--border);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #211d1b;
+    --panel: #29231f;
+    --text: #f5efeb;
+    --muted: #c9bdb4;
+    --border: #544741;
+    --accent: #ff929b;
+    --code: #302925;
+  }
+  .button {
+    color: #211d1b;
+  }
+}
+@media (max-width: 480px) {
+  main {
+    padding: 24px 18px;
+  }
+  header,
+  footer {
+    padding: 18px;
+  }
+  pre {
+    padding: 14px;
+  }
+  nav[aria-label="Course contents"] section {
+    padding: 8px 16px;
+  }
+}
+</style></head><body><header><a href="/">Ruby Playground</a><a href="/tutorial/">Ruby Tutorial</a></header><main><p class="eyebrow">Expressions and decisions · Lesson 4 of 15</p><h1>Operators and precedence</h1><p class="lead">Group calculations deliberately and inspect comparisons.</p><p class="prerequisite">Before you start: <a href="/tutorial/variables/">Assignment and object references</a>. Examples use bundled Ruby 4.0.</p>
+<section aria-labelledby="learn"><h2 id="learn">Understand the idea</h2><p>Operator precedence determines how an expression groups its parts. Multiplication groups before addition. Parentheses make a different grouping explicit and can also make your intent easier to read.</p><p>== compares values; = performs assignment. Many Ruby operators are method calls on an object, so their behavior depends on the receiver. For example, + adds numbers but joins strings.</p></section>
+<section aria-labelledby="run"><h2 id="run">Read, predict, then run</h2><p>Predict what this program will print before opening it in the playground.</p><pre><code>p 2 + 3 * 4
+p (2 + 3) * 4
+p 5 == 5
+puts &quot;Ruby&quot; + &quot; Playground&quot;</code></pre><a class="button run-example" href="/?c=A4AgTCDUIMwgVCALAKFACgtGBKBy0QBWEAXlOLQFcAXAZxACIAlKgIwE9GomQAFADYBDDgHMATgHsqAOwAmjIA&amp;v=4.0" target="_blank" rel="noopener noreferrer">Run this lesson in Playground ↗</a><p class="note">Opens a new tab so you can keep this lesson open. Code runs automatically; use puts or p to see a result.</p><h3>Expected output</h3><pre class="expected-output">14
+20
+true
+Ruby Playground</pre></section>
+<section aria-labelledby="practice"><h2 id="practice">Try it yourself</h2><p>Replace (2 + 3) * 4 with 2 * (3 + 4).</p><details><summary>Check your understanding</summary><p>The result becomes 14: the parenthesized addition is evaluated as a group, then multiplied by 2.</p></details><h3>Watch out for</h3><p>The words and/or have different precedence from &amp;&amp;/||. Do not mechanically swap them in assignments.</p></section>
+<section aria-labelledby="references"><h2 id="references">Keep learning</h2><p>Operator definitions on custom classes, bitwise operators, safe navigation and boolean assignment precedence need deeper treatment.</p><ul><li><a href="https://docs.ruby-lang.org/en/4.0/syntax/operators_rdoc.html">Official Ruby 4.0 documentation: Operators</a></li><li><a href="https://docs.ruby-lang.org/en/4.0/syntax/precedence_rdoc.html">Official Ruby 4.0 documentation: Precedence</a></li></ul></section>
+<nav class="lesson-navigation" aria-label="Lesson navigation"><div><span>Previous</span><a href="/tutorial/variables/">Assignment and object references</a></div><div><span>Next lesson</span><a href="/tutorial/conditionals/">Choose a branch with if and case</a></div></nav></main><footer><a href="/">Open the playground</a> · <a href="/tutorial/#coverage">Coverage and references</a></footer></body></html>

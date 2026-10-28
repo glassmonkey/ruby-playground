@@ -141,3 +141,21 @@ RCE is not evidence of browser/host RCE in this configuration. Run timeout and
 source limits do not fix regexp compilation bugs. Shared links automatically
 execute; do not open untrusted links or enter secrets. Patched trusted builds
 remain recommended follow-up work, not a claim that current builds are patched.
+
+## Tutorial content
+
+The English tutorial lives at `/tutorial/`, with 15 introductory lessons and a
+coverage map against the official Ruby 4.0 syntax reference. `/examples/` forwards
+to the tutorial. This is not exhaustive language or core-library API coverage;
+each lesson lists its remaining topics.
+
+Edit `content/tutorial.json` and `content/tutorial.css`, then run
+`npm run tutorial:generate`. Commit the content and generated `tutorial/` HTML
+and sitemap together. Generation also runs before `npm run dev` and
+`npm run build`. Vite treats every lesson as an HTML entry so direct URLs work
+in both development and production. Lessons need no JavaScript to read.
+
+`e2e/seo.spec.ts` runs every lesson in the real bundled Ruby VM, checks expected
+output, exercises feedback and next-lesson navigation, and checks mobile layout.
+Run it against production with `npx playwright test e2e/seo.spec.ts`, and against
+development with `E2E_DEV_SERVER=1 npx playwright test e2e/seo.spec.ts`.

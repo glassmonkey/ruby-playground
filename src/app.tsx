@@ -143,13 +143,13 @@ export default function App() {
         </Text>
         <Button
           as="a"
-          href="/examples/"
+          href="/tutorial/"
           colorScheme="ruby"
           size="sm"
           mt={3}
           mr={4}
         >
-          Browse Ruby examples
+          Start Ruby tutorial
         </Button>
         <Link
           href="#about"
@@ -419,12 +419,12 @@ export default function App() {
           </Text>
           <Text mb={4}>
             Start with our{" "}
-            <Link href="/examples/" color="accent">
-              Ruby code examples
+            <Link href="/tutorial/" color="accent">
+              Ruby Tutorial
             </Link>{" "}
-            for output, arrays, hashes, blocks and pattern matching. Each
-            example includes expected output and a link to try it in the
-            playground.
+            to learn step by step, from your first output to classes and
+            advanced syntax. Each lesson includes an explanation, runnable code
+            and a practice task.
           </Text>
           <Heading as="h3" size="sm" mb={2}>
             Notes

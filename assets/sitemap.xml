@@ -1,7 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <url>
-    <loc>https://ruby-play.dev/</loc>
-  </url>
-  <url><loc>https://ruby-play.dev/examples/</loc></url>
+  <url><loc>https://ruby-play.dev/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/output/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/values/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/variables/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/operators/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/conditionals/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/loops/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/collections/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/methods/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/blocks/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/classes/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/modules/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/exceptions/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/pattern-matching/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/refinements/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/special-forms/</loc></url>
 </urlset>
