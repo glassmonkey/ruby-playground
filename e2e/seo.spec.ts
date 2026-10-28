@@ -67,7 +67,7 @@ for (const version of tutorialVersions) {
       await expect(page.locator(".expected-output")).toHaveText(lesson.output);
       const feedback = page.locator(".practice-answer p");
       await expect(feedback).toBeHidden();
-      await page.getByText("Check your understanding", { exact: true }).click();
+      await page.getByText("Answer", { exact: true }).click();
       await expect(feedback).toHaveText(lesson.answer);
       await page.getByRole("button", { name: "Run code", exact: true }).click();
       await expect(page.getByRole("status")).toHaveText("Complete", {
@@ -144,7 +144,7 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
     "Your first Ruby program",
   );
   await staticPage
-    .getByText("Check your understanding", { exact: true })
+    .getByText("Answer", { exact: true })
     .click();
   await expect(staticPage.locator(".practice-answer p")).toBeVisible();
   await noScript.close();

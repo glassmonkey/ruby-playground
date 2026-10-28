@@ -274,8 +274,7 @@ footer {
   padding: 4px 20px;
   background: var(--code);
 }
-.practice-answer,
-.practice-tip {
+.practice-answer {
   margin-top: 12px;
 }
 @media (max-width: 480px) {
