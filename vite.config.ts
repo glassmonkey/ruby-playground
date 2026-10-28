@@ -7,5 +7,14 @@ export default defineConfig({
   plugins: [react()],
   server: { host: "127.0.0.1", port: 18888, strictPort: true },
   publicDir: "assets",
-  build: { outDir: "public", assetsDir: "." },
+  build: {
+    outDir: "public",
+    assetsDir: ".",
+    rollupOptions: {
+      input: {
+        main: new URL("./index.html", import.meta.url).pathname,
+        examples: new URL("./examples/index.html", import.meta.url).pathname,
+      },
+    },
+  },
 });
