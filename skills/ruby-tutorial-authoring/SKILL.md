@@ -7,6 +7,16 @@ description: Author, update, and evaluate versioned Ruby tutorial lessons in thi
 
 Use this skill to create or update course content, roll the course forward for a Ruby release, or evaluate existing lessons. Read [the evaluation rubric](references/evaluation.md) for review requests and for the quality pass after authoring. Treat the user's requested scope and publication permissions as authoritative; do not publish, commit, or push unless asked.
 
+## Two-stage workflow
+
+The repository copy of this skill is authoritative. Use structured lesson data as the source of truth, not generated HTML. “Structured data” here means the authoring model, not SEO JSON-LD.
+
+- **Create or revise lesson data:** read [the data contract](references/data-contract.md), then follow the authoring instructions below. Deliver changes to `content/tutorial.json` and, only when needed, the version catalog. Evaluate factual accuracy, learning sequence and experiment/feedback alignment before rendering. Do not introduce layout or HTML into lesson strings.
+- **Build pages from approved lesson data:** read [page generation](references/page-generation.md). Use the existing deterministic generator and common UI. Do not paraphrase, add claims, or independently author a second copy of the lesson during generation. If data is incomplete or incorrect, fix it in the first stage and regenerate.
+- **End-to-end lesson addition:** perform both stages and their separate checks. A request for data only does not require publishing pages; a request to regenerate pages does not authorize rewriting the curriculum.
+
+The handoff is the lesson JSON diff, affected versions and evidence from content evaluation. Generated HTML is a derived artifact. Data structure checks, teaching-quality review and rendered-page checks answer different questions; report which were actually performed.
+
 ## Establish current project facts
 
 Inspect the current lesson data, version catalog, resolver, generator, README and relevant browser UI before editing. Likely sources are `content/tutorial.json`, `content/tutorial-versions.json`, `src/tutorial-content.ts`, `scripts/generate-tutorial.mjs` and `src/tutorial*.tsx`; verify paths because implementation can change. Keep edits within the requested content scope. Do not redesign the site UI or alter tests unless requested.
