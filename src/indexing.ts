@@ -29,12 +29,14 @@ export function installIndexingPolicy(): void {
   sync();
   window.addEventListener("popstate", sync);
 
-  // The share action uses pushState; browsers do not emit popstate for it.
-  const originalPushState = window.history.pushState;
-  window.history.pushState = function (...args) {
-    originalPushState.apply(this, args);
-    sync();
-  };
+  // History writes do not emit popstate; edits save through replaceState.
+  for (const method of ["pushState", "replaceState"] as const) {
+    const original = window.history[method];
+    window.history[method] = function (...args) {
+      original.apply(this, args);
+      sync();
+    };
+  }
 }
 
 if (typeof window !== "undefined" && typeof document !== "undefined") {

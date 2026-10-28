@@ -23,11 +23,16 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 
 ## Features and limits
 
+- Ruby-red accents, warm neutral surfaces and locally hosted Plus Jakarta Sans.
+
 - Full-width workspace: side-by-side editor/output on large
   screens and stacked panes on smaller screens, with an 80vh working area.
 - System-aware light/dark UI and Monaco themes, remembered across reloads.
   The HTML Preview checkbox switches between console output and sandboxed HTML;
-  the shared URL preserves the selected output format.
+  edits, version and output format are saved automatically to the address bar
+  using compressed, URL-safe parameters. Copy the address to share or reload to
+  restore. Updates replace the current history entry. Oversized URLs show a warning
+  and remove stale code parameters; the editor keeps the source.
 
 - Local-bundled Monaco editor with Ruby highlighting; no editor CDN required.
 - Select Ruby 4.0, 3.4 or 3.3. Pinned official ruby.wasm 2.10.1 builds contain
@@ -38,8 +43,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 - Live execution after 350 ms without edits, including initial/shared links and
   version changes. There is no Run button; Stop stays available while running.
   Edits/switches terminate old work immediately and ignore stale results.
-  Stop/timeout do not loop or retry; edit code, change version, or reset the sample
-  to resume. Every run creates and terminates a new Worker/VM;
+  Stop/timeout do not loop or retry; edit code or change version to resume. Every run creates and terminates a new Worker/VM;
   global variables, constants and virtual files are not retained.
 - stdout, stderr and exceptions, including partial writes and empty output.
   Expression return values are not printed unless the Ruby code prints them.

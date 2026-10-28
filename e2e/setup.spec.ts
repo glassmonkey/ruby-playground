@@ -126,10 +126,7 @@ test("shared code, version and HTML output automatically restore on direct load 
       .frameLocator("iframe")
       .getByRole("heading", { name: /^Hello HTML 3\.4\./ }),
   ).toBeVisible({ timeout: 30_000 });
-  await page.getByRole("button", { name: "URL を共有" }).click();
-  const url = await page
-    .getByRole("textbox", { name: "共有 URL" })
-    .inputValue();
+  const url = page.url();
   expect(new URL(url).searchParams.get("v")).toBe("3.4");
   for (const navigate of [() => page.goto(url), () => page.reload()]) {
     await navigate();
@@ -168,10 +165,7 @@ test("each selected minor version executes its own real Ruby VM", async ({
   for (const version of ["4.0", "3.4", "3.3", "4.0"] as const) {
     await selector.selectOption(version);
     await expectRubyOutput(page, `${RUBY_PATCH_VERSIONS[version]}\n`);
-    await page.getByRole("button", { name: "URL を共有" }).click();
-    const sharedUrl = await page
-      .getByRole("textbox", { name: "共有 URL" })
-      .inputValue();
+    const sharedUrl = page.url();
     expect(new URL(sharedUrl).searchParams.get("v")).toBe(version);
   }
 });
@@ -210,7 +204,9 @@ test("stop an infinite automatic run without restarting until the source changes
 }) => {
   await page.goto("./");
   await edit(page, "loop {}");
+  await expect(page.getByLabel("実行中", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "停止", exact: true }).click();
+  await expect(page.getByLabel("実行中", { exact: true })).toHaveCount(0);
   await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
   await page.waitForTimeout(700);
   await expect(

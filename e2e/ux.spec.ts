@@ -17,7 +17,6 @@ test("theme and preview controls preserve edits across layouts and reloads", asy
   await expect(
     page.frameLocator("iframe").getByRole("heading", { name: "Ruby preview" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "URL を共有" }).click();
   await page.reload();
   await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
   await expect(
@@ -67,6 +66,29 @@ test("theme and preview controls preserve edits across layouts and reloads", asy
   });
 });
 
+test("address bar saves Unicode and empty source without adding history entries", async ({
+  page,
+}) => {
+  await page.goto("./?campaign=ruby#about");
+  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
+  const historyLength = await page.evaluate(() => history.length);
+  for (const code of ['puts "こんにちは + & # 😀"', ""]) {
+    await edit(page, code);
+    await expectRubyOutput(page, code ? "こんにちは + & # 😀\n" : "");
+    expect(await page.evaluate(() => history.length)).toBe(historyLength);
+    const url = new URL(page.url());
+    expect(url.searchParams.get("campaign")).toBe("ruby");
+    expect(url.hash).toBe("#about");
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+      "content",
+      "noindex",
+    );
+    await page.reload();
+    await expectRubyOutput(page, code ? "こんにちは + & # 😀\n" : "");
+    await expect(page.getByLabel("実行中", { exact: true })).toHaveCount(0);
+  }
+});
+
 test("keyboard order, labelled work areas and narrow layouts remain usable", async ({
   page,
 }, testInfo) => {
@@ -74,9 +96,7 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   const navigationStartedAt = Date.now();
   await page.goto("./");
   await expect(page.locator(".monaco-editor .view-lines")).toBeVisible();
-  await expect(page.getByRole("main")).toContainText(
-    "低速回線では初回の Ruby 読み込みがタイムアウトすることがあります。通信環境を変え、コードを編集するかバージョンを変更してください。",
-  );
+
   const editorReadyElapsedMs = Date.now() - navigationStartedAt;
   const navigationTiming = await page.evaluate(() => {
     const entry = performance.getEntriesByType(
@@ -125,10 +145,13 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
     page.getByRole("button", { name: /^(実行|再実行)$/ }),
   ).toHaveCount(0);
 
+  await expectRubyOutput(page, "Hello, Ruby!\nRuby 1\nRuby 2\nRuby 3\n");
   await page.locator(".monaco-editor .view-lines").click();
   await expect(
     page.getByRole("textbox", { name: "Ruby source" }),
   ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("region", { name: "出力" })).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(page.getByRole("link", { name: "安全な利用" })).toBeFocused();
 
@@ -159,42 +182,14 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
     await page.getByRole("link", { name: "ライセンス" }).getAttribute("href"),
   ).toBe("./licenses/");
 
-  const appOrigin = new URL(page.url()).origin;
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"], {
-    origin: appOrigin,
-  });
-  await page.evaluate(() => {
-    const clipboard = navigator.clipboard;
-    Object.defineProperty(navigator, "clipboard", {
-      configurable: true,
-      value: {
-        writeText: async () => {
-          throw new DOMException("Clipboard unavailable", "NotAllowedError");
-        },
-        readText: clipboard.readText.bind(clipboard),
-      },
-    });
-  });
-  await page.getByRole("button", { name: "URL を共有" }).click();
-  const sharedUrl = page.getByRole("textbox", { name: "共有 URL" });
-  await expect(sharedUrl).toHaveValue(/^http/);
-  await sharedUrl.focus();
-  const selectedCharacters = await sharedUrl.evaluate((element) => {
-    const input = element as HTMLInputElement;
-    return input.selectionEnd! - input.selectionStart!;
-  });
-  expect(selectedCharacters).toBe(
-    await sharedUrl.evaluate(
-      (element) => (element as HTMLInputElement).value.length,
-    ),
-  );
-  const copyShortcut = await page.evaluate(() =>
-    navigator.platform.startsWith("Mac") ? "Meta+C" : "Control+C",
-  );
-  await page.keyboard.press(copyShortcut);
-  await expect
-    .poll(() => page.evaluate(() => navigator.clipboard.readText()))
-    .toBe(await sharedUrl.inputValue());
+  await expect(
+    page.getByRole("button", { name: "サンプルに戻す" }),
+  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "URL を共有" })).toHaveCount(0);
+  const url = page.url();
+  expect(new URL(url).searchParams.get("v")).toBe("3.3");
+  await page.reload();
+  await expectRubyOutput(page, /^mobile 3\.3\.\d+\n$/);
 });
 
 test("records fresh low-speed first-run outcome, stop and recovery timings", async ({

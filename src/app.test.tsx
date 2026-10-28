@@ -8,6 +8,7 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
+import { parseShareUrl, buildShareUrl } from "./share";
 import App, { INITIAL_CODE } from "./app";
 vi.mock("./editor", () => ({
   default: ({
@@ -65,16 +66,6 @@ describe("playground UI", () => {
       expect(start).toHaveBeenCalledWith("", undefined, undefined, "4.0"),
     );
   });
-  it("resets repeatedly and preserves editable initial code", async () => {
-    setup();
-    const editor = (await screen.findByRole("textbox", {
-      name: "Ruby source",
-    })) as HTMLTextAreaElement;
-    fireEvent.change(editor, { target: { value: "puts 42" } });
-    fireEvent.click(screen.getByRole("button", { name: "サンプルに戻す" }));
-    fireEvent.click(screen.getByRole("button", { name: "サンプルに戻す" }));
-    expect(editor.value).toBe(INITIAL_CODE);
-  });
   it("labels editor and output sections and links to the safety pages", () => {
     setup();
     expect(screen.getByRole("region", { name: "エディター" })).toBeTruthy();
@@ -91,24 +82,74 @@ describe("playground UI", () => {
       ["ライセンス", "./licenses/"],
     ]);
   });
-  it("shares the current state and restores state on back navigation", async () => {
+  it.each(['puts "こんにちは + & # 😀"', ""])(
+    "automatically saves edited source %j with version and format",
+    async (code) => {
+      // Arrange
+      window.history.replaceState(null, "", "/?campaign=ruby#about");
+      setup();
+      const editor = await screen.findByRole("textbox", {
+        name: "Ruby source",
+      });
+      const historyLength = window.history.length;
+      // Act
+      fireEvent.change(editor, { target: { value: code } });
+      fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+        target: { value: "3.4" },
+      });
+      fireEvent.click(screen.getByRole("checkbox", { name: "HTML Preview" }));
+      // Assert
+      const url = new URL(window.location.href);
+      expect({
+        state: parseShareUrl(url, INITIAL_CODE),
+        campaign: url.searchParams.get("campaign"),
+        hash: url.hash,
+        historyLength: window.history.length,
+      }).toEqual({
+        state: { code, version: "3.4", format: "html" },
+        campaign: "ruby",
+        hash: "#about",
+        historyLength,
+      });
+    },
+  );
+  it("restores editor and format when browser history changes", async () => {
+    // Arrange
     setup();
-    const editor = (await screen.findByRole("textbox", {
-      name: "Ruby source",
-    })) as HTMLTextAreaElement;
-    fireEvent.change(editor, { target: { value: "puts 42" } });
-    fireEvent.click(screen.getByRole("button", { name: "URL を共有" }));
-    expect(
-      (
-        (await screen.findByRole("textbox", {
-          name: "共有 URL",
-        })) as HTMLInputElement
-      ).value,
-    ).toContain("c=");
-
-    window.history.replaceState(null, "", "/");
+    const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+    // Act
+    window.history.pushState(
+      null,
+      "",
+      buildShareUrl(window.location.href, {
+        code: "puts 42",
+        version: "3.3",
+        format: "html",
+      }),
+    );
     fireEvent(window, new PopStateEvent("popstate"));
-    expect(editor.value).toBe(INITIAL_CODE);
+    // Assert
+    expect({
+      code: (editor as HTMLTextAreaElement).value,
+      version: (screen.getByLabelText("Ruby バージョン") as HTMLSelectElement)
+        .value,
+      html: (
+        screen.getByRole("checkbox", {
+          name: "HTML Preview",
+        }) as HTMLInputElement
+      ).checked,
+    }).toEqual({ code: "puts 42", version: "3.3", html: true });
+  });
+  it("shows loading immediately on edits and hides it when execution finishes", async () => {
+    // Arrange
+    setup();
+    const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+    await screen.findByText("出力なし");
+    // Act
+    fireEvent.change(editor, { target: { value: "puts 42" } });
+    // Assert
+    expect(screen.getByLabelText("実行中")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByLabelText("実行中")).toBeNull());
   });
   it("keeps editor content and reports when the complete share URL is too long", async () => {
     setup();
@@ -123,14 +164,19 @@ describe("playground UI", () => {
       seed = (seed * 1664525 + 1013904223) >>> 0;
       code += alphabet[seed % alphabet.length];
     }
+    fireEvent.change(editor, { target: { value: "puts :previous" } });
     fireEvent.change(editor, { target: { value: code } });
-    fireEvent.click(screen.getByRole("button", { name: "URL を共有" }));
 
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "共有 URL が長すぎます。コードを短くしてから再度共有してください。",
+      "URL に保存できません。コードが長すぎるため、短くしてください。",
     );
     expect(editor.value).toBe(code);
-    expect(screen.queryByRole("textbox", { name: "共有 URL" })).toBeNull();
+    expect(new URL(window.location.href).searchParams.has("c")).toBe(false);
+    fireEvent.change(editor, { target: { value: "puts :recovered" } });
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(parseShareUrl(window.location.href, INITIAL_CODE).code).toBe(
+      "puts :recovered",
+    );
   });
 });
 

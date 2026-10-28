@@ -23,6 +23,22 @@ describe("shared URL indexing policy", () => {
     },
   );
 
+  it.each(["pushState", "replaceState"] as const)(
+    "updates indexing after %s without a popstate event",
+    (method) => {
+      // Act
+      window.history[method](null, "", "/?c=payload");
+      // Assert
+      expect(
+        document.querySelector<HTMLMetaElement>('meta[name="robots"]')?.content,
+      ).toBe("noindex");
+      // Act
+      window.history[method](null, "", "/");
+      // Assert
+      expect(document.querySelector('meta[name="robots"]')).toBeNull();
+    },
+  );
+
   it("adds noindex for a shared URL and removes it on the normal route", () => {
     syncRobotsMeta("?c=payload");
     expect(
