@@ -1,13 +1,20 @@
-import { Icon, type IconProps } from "@chakra-ui/react";
+import { designTokens } from "./design-tokens";
 
-export default function RubyMark({ boxSize = 12 }: Pick<IconProps, "boxSize">) {
+export default function RubyMark({ boxSize = 12 }: { boxSize?: number }) {
+  const ruby = designTokens.ruby;
   return (
-    <Icon viewBox="0 0 40 40" boxSize={boxSize} aria-hidden="true">
-      <path fill="#e62923" d="M10 5h20l8 12-18 20L2 17Z" />
-      <path fill="#f5a9a7" d="m10 5 10 12H2Z" />
-      <path fill="#eb544f" d="M10 5h20L20 17Z" />
-      <path fill="#b8211c" d="m30 5 8 12H20L20 37Z" />
-      <path fill="#8a1915" d="M38 17 20 37 20 17Z" />
-    </Icon>
+    <svg
+      viewBox="0 0 40 40"
+      width={`${boxSize / 4}rem`}
+      height={`${boxSize / 4}rem`}
+      aria-hidden="true"
+      focusable="false"
+    >
+      <path fill={ruby[600]} d="M10 5h20l8 12-18 20L2 17Z" />
+      <path fill={ruby[300]} d="m10 5 10 12H2Z" />
+      <path fill={ruby[500]} d="M10 5h20L20 17Z" />
+      <path fill={ruby[700]} d="m30 5 8 12H20L20 37Z" />
+      <path fill={ruby[800]} d="M38 17 20 37 20 17Z" />
+    </svg>
   );
 }

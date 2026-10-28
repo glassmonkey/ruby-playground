@@ -1,0 +1,14 @@
+[
+  {
+    "slug": "code-layout",
+    "redirectTo": "output"
+  },
+  {
+    "slug": "comments",
+    "redirectTo": "output"
+  },
+  {
+    "slug": "operators",
+    "redirectTo": "values"
+  }
+]

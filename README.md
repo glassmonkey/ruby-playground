@@ -158,22 +158,12 @@ remain recommended follow-up work, not a claim that current builds are patched.
 
 ## Ruby tutorial
 
-The Ruby tutorial presents a guided lesson sequence with a chapter sidebar. Each lesson combines a short explanation, an editable
-Ruby example, an explicit Run control, and two or three selectable experiments. Example demonstrates the basic form;
-Experiment applies or varies it. Sample choices sit beside their explanations. Expected output stays in the data for validation; learners see actual
-output by running code. Example and each experiment retain independent edits
-while switching samples. Lesson text and starter code remain readable without JavaScript.
+The tutorial uses the same application entry, build output, Ruby releases, brand
+and theme tokens as the Playground. Lessons provide a basic Example and two or
+three selectable Experiments, with execution on demand. Static lesson HTML uses
+the same React components as the interactive page.
 
-The chapter catalog and lesson order are shared across all Ruby versions. The course follows an original learning sequence; official
-Ruby documentation supports technical explanations. It is not labeled as conforming
-to a particular release. The header version selector keeps the current lesson and
-changes its explanation, samples, references and bundled runtime as needed. It shows concrete Ruby version numbers; the Ruby 4.1 development
-course is labeled separately. `/tutorial/` resolves to the internal default
-stable course, while `/tutorial/{version}/{slug}/` preserves version-specific
-lesson URLs. The Light/Dark control shares its saved preference with the main
-Playground and keeps it across lesson and version navigation.
-
-Continue in the full Playground to carry the current edits and selected Ruby
-version into a new tab. For lesson authoring, release updates and content
-evaluation, see the [Ruby tutorial authoring skill](.agents/skills/ruby-tutorial-authoring/SKILL.md)
-and its [evaluation record](docs/tutorial-skill-evaluation.md).
+Authoring rules live in the [repository skill](.agents/skills/ruby-tutorial-authoring/SKILL.md).
+Edit structured JSON in `src/tutorial/data/`, run `npm run tutorial:validate`,
+then use the normal `npm run build`. Rendering components and build integration
+are in `src/tutorial/` and `src/build/`; generated pages stay in `public/`.

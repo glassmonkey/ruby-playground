@@ -20,7 +20,7 @@ import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
-import RubyMark from "./ruby-mark";
+import Brand from "./brand";
 
 import { INITIAL_CODE } from "./sample";
 
@@ -121,18 +121,7 @@ export default function App() {
     >
       <Box as="header" mb={6}>
         <Flex align="center" gap={3} mb={3}>
-          <RubyMark boxSize={{ base: 9, md: 12 }} />
-          <Heading
-            as="h1"
-            fontWeight="800"
-            letterSpacing="-0.05em"
-            fontSize={{ base: "2xl", md: "4xl" }}
-          >
-            <Box as="span" color="accent">
-              Ruby
-            </Box>{" "}
-            Playground
-          </Heading>
+          <Brand heading />
         </Flex>
         <Text color="mutedText" fontSize="sm">
           Run Ruby online in your browser. No installation or account required.

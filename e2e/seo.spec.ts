@@ -3,7 +3,7 @@ import {
   tutorialVersions,
   latestTutorialVersion,
   lessonsForVersion,
-} from "../src/tutorial-content";
+} from "../src/tutorial/content";
 import { RUBY_PATCH_VERSIONS } from "../src/versions";
 const lessons = lessonsForVersion(latestTutorialVersion);
 

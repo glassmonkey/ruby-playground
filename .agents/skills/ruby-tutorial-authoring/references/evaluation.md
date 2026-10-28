@@ -4,7 +4,7 @@ Use this rubric for an explicit review or after creating/updating lessons. Evalu
 
 ## Gather evidence
 
-- Read the reviewed lesson and its relevant neighboring lessons. Check the current version catalog, resolver and page generator.
+- Read the reviewed lesson and its relevant neighboring lessons. Check the current version catalog, resolver and build plugin.
 - For each version claim, consult the official version-specific Ruby reference and NEWS. Record direct source links and the claim they support.
 - Resolve and inspect each supported version separately, including overridden code, rather than assuming the shared starter represents every variant. If runtime checks are unavailable, do not conclude version compatibility from a base-lesson inspection.
 - Run each lesson's exact code through the bundled WASM runtime for every claimed course version. Record actual `RUBY_VERSION` and output; compare output line by line with the authored expected output.

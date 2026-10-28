@@ -1,6 +1,6 @@
 # Learning sequence
 
-The shared catalog in `content/tutorial-chapters.json` defines the published order. Plan a lesson around something a learner can do, then identify concepts needed to understand its Example and Experiments. Existing slugs and page counts are not curriculum requirements: split overloaded lessons, add missing foundations and preserve retired URLs through explicit successor redirects.
+The shared catalog in `src/tutorial/data/chapters.json` defines the published order. Plan a lesson around something a learner can do, then identify concepts needed to understand its Example and Experiments. Existing slugs and page counts are not curriculum requirements: split overloaded lessons, add missing foundations and preserve retired URLs through explicit successor redirects.
 
 The main course progresses through:
 
