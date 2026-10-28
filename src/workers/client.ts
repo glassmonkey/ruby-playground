@@ -32,13 +32,13 @@ export function startRubyRun(
     };
     const fail = (error: string) =>
       finish({ stdout: "", stderr: "", output: "", error });
-    cancel = () => fail("実行を停止しました。");
+    cancel = () => fail("Execution stopped.");
     if (!isRubyVersion(version)) {
       fail("Unsupported Ruby version.");
       return;
     }
     if (code.length > 50_000) {
-      fail("コードは 50,000 文字以内にしてください。");
+      fail("Code must be 50,000 characters or fewer.");
       return;
     }
     try {
@@ -47,7 +47,7 @@ export function startRubyRun(
         if (settled) return;
         const value = event.data;
         if (typeof value !== "object" || value === null) {
-          fail("Ruby Worker の応答が不正です。");
+          fail("Invalid response from the Ruby worker.");
           return;
         }
         const data = value as Record<string, unknown>;
@@ -67,7 +67,7 @@ export function startRubyRun(
               },
             )
           ) {
-            fail("Ruby Worker の環境情報が不正です。");
+            fail("Invalid runtime information from the Ruby worker.");
             return;
           }
           const fields = info as RuntimeInfo;
@@ -90,7 +90,7 @@ export function startRubyRun(
           (data.error !== undefined &&
             (typeof data.error !== "string" || data.error.length > 100_000))
         ) {
-          fail("Ruby Worker の応答が不正です。");
+          fail("Invalid response from the Ruby worker.");
           return;
         }
         finish({
@@ -100,12 +100,11 @@ export function startRubyRun(
           error: data.error as string | undefined,
         });
       };
-      worker.onerror = () =>
-        fail("Ruby Worker の実行に失敗しました。再実行してください。");
+      worker.onerror = () => fail("The Ruby worker failed. Please try again.");
       worker.onmessageerror = () =>
-        fail("Ruby Worker の応答を読み取れませんでした。");
+        fail("Could not read the Ruby worker response.");
       timer = setTimeout(
-        () => fail("実行がタイムアウトしました（20 秒）。"),
+        () => fail("Execution timed out after 20 seconds."),
         timeoutMs,
       );
       worker.postMessage({ code, version });

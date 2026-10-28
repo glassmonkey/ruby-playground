@@ -15,7 +15,7 @@ test("runtime information stays separate from initial and edited console output"
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("./");
   await expectInitialRuby(page);
-  const info = page.getByRole("region", { name: "Ruby の実行環境" });
+  const info = page.getByRole("region", { name: "Ruby runtime environment" });
   await expect(info.getByRole("heading", { level: 2 })).toHaveText(
     "Ruby 4.0.0",
   );
@@ -59,7 +59,7 @@ test("runtime information stays separate from initial and edited console output"
     path: testInfo.outputPath("initial-mobile.png"),
     fullPage: true,
   });
-  await page.getByLabel("Ruby バージョン").selectOption("3.3");
+  await page.getByLabel("Ruby version").selectOption("3.3");
   await expect(info.getByRole("heading", { level: 2 })).toHaveText(
     "Ruby 3.3.3",
   );
@@ -74,8 +74,8 @@ test("runtime information stays separate from initial and edited console output"
   );
   await expect(
     page
-      .getByRole("region", { name: "出力" })
-      .getByRole("region", { name: "Ruby の実行環境" }),
+      .getByRole("region", { name: "Output" })
+      .getByRole("region", { name: "Ruby runtime environment" }),
   ).toHaveCount(0);
   await edit(page, 'puts "ruby 9.9.9 (2000-01-01 revision deadbeef) [spoof]"');
   await expectRubyOutput(
@@ -100,15 +100,17 @@ test("environment info arrives even when a shared script never finishes", async 
   await page.goto(
     `./?v=3.4&c=${encodeURIComponent(LZString.compressToEncodedURIComponent("loop {}"))}`,
   );
-  const info = page.getByRole("region", { name: "Ruby の実行環境" });
+  const info = page.getByRole("region", { name: "Ruby runtime environment" });
   await expect(info.getByRole("heading", { level: 2 })).toHaveText(
     "Ruby 3.4.1",
     { timeout: 10_000 },
   );
-  await expect(page.getByRole("status")).toContainText("実行中");
+  await expect(page.getByRole("status")).toContainText("Running");
   await expect(page.getByTestId("preview-console")).toHaveText("");
-  await page.getByRole("button", { name: "停止", exact: true }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "stopped",
+  );
   await expect(info.getByRole("heading", { level: 2 })).toHaveText(
     "Ruby 3.4.1",
   );
@@ -119,10 +121,15 @@ test("theme controls preserve edits across layouts and reloads", async ({
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("./");
+  const themeSwitch = page.getByRole("checkbox", { name: "Light theme" });
+  await expect(themeSwitch).toBeChecked();
+  await expect(page.getByText("Dark", { exact: true })).toBeVisible();
+  await expect(page.getByText("Light", { exact: true })).toBeVisible();
   await edit(page, 'puts "<h1>Ruby preview</h1>"');
   await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
 
   await page.getByText("UI Theme:", { exact: true }).click();
+  await expect(themeSwitch).not.toBeChecked();
   await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
   await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
   await page.reload();
@@ -133,8 +140,8 @@ test("theme controls preserve edits across layouts and reloads", async ({
     page.getByRole("checkbox", { name: "HTML Preview" }),
   ).toHaveCount(0);
 
-  const editor = page.getByRole("region", { name: "エディター" });
-  const output = page.getByRole("region", { name: "出力" });
+  const editor = page.getByRole("region", { name: "Editor" });
+  const output = page.getByRole("region", { name: "Output" });
   await page.setViewportSize({ width: 1280, height: 900 });
   await expect
     .poll(async () => {
@@ -151,6 +158,7 @@ test("theme controls preserve edits across layouts and reloads", async ({
   });
 
   await page.getByText("UI Theme:", { exact: true }).click();
+  await expect(themeSwitch).toBeChecked();
   await expect(page.locator(".monaco-editor.vs")).toBeVisible();
   await page.screenshot({
     path: testInfo.outputPath("desktop-light.png"),
@@ -190,7 +198,7 @@ test("address bar saves Unicode and empty source without adding history entries"
     );
     await page.reload();
     await expectRubyOutput(page, code ? "こんにちは + & # 😀\n" : "");
-    await expect(page.getByLabel("実行中", { exact: true })).toHaveCount(0);
+    await expect(page.getByLabel("Running", { exact: true })).toHaveCount(0);
   }
 });
 
@@ -229,22 +237,22 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   });
 
   await expect(page.getByRole("main")).toHaveCount(1);
-  await expect(page.getByRole("region", { name: "エディター" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "出力" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Editor" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Output" })).toBeVisible();
   await expect(
-    page.getByRole("navigation", { name: "安全と情報" }),
+    page.getByRole("navigation", { name: "Legal and contact" }),
   ).toBeVisible();
 
   await page.getByRole("link", { name: "Donate", exact: true }).focus();
   await page.keyboard.press("Tab");
-  await expect(page.getByLabel("Ruby バージョン")).toBeFocused();
+  await expect(page.getByLabel("Ruby version")).toBeFocused();
   await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("checkbox", { name: "UI Theme", exact: true }),
+    page.getByRole("checkbox", { name: "Light theme", exact: true }),
   ).toBeFocused();
-  await expect(
-    page.getByRole("button", { name: /^(実行|再実行)$/ }),
-  ).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^(Run|Rerun)$/ })).toHaveCount(
+    0,
+  );
 
   await expectInitialRuby(page);
   await page.locator(".monaco-editor .view-lines").click();
@@ -252,14 +260,20 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
     page.getByRole("textbox", { name: "Ruby source" }),
   ).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("region", { name: "出力" })).toBeFocused();
+  await expect(page.getByRole("region", { name: "Output" })).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(page.getByRole("link", { name: "安全な利用" })).toBeFocused();
+  await expect(
+    page.getByRole("link", { name: "issue on GitHub" }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("link", { name: "Privacy Policy" }),
+  ).toBeFocused();
 
   for (const width of [640, 390, 320]) {
     await page.setViewportSize({ width, height: 900 });
     await expectDocumentToFitViewport(page, width);
-    const selector = page.getByLabel("Ruby バージョン");
+    const selector = page.getByLabel("Ruby version");
     await expect(selector).toBeVisible();
     const bounds = await selector.boundingBox();
     expect(bounds).not.toBeNull();
@@ -274,19 +288,23 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   await expectDocumentToFitViewport(page, 320);
 
   expect(
-    await page.getByRole("link", { name: "安全な利用" }).getAttribute("href"),
-  ).toBe("./safety.html");
-  expect(
-    await page.getByRole("link", { name: "プライバシー" }).getAttribute("href"),
+    await page
+      .getByRole("link", { name: "Privacy Policy" })
+      .getAttribute("href"),
   ).toBe("./privacy.html");
   expect(
-    await page.getByRole("link", { name: "ライセンス" }).getAttribute("href"),
-  ).toBe("./licenses/");
+    await page.getByRole("link", { name: "Contact" }).getAttribute("href"),
+  ).toBe("https://twitter.com/glassmonekey");
+  expect(
+    await page
+      .getByRole("link", { name: "License", exact: true })
+      .getAttribute("href"),
+  ).toBe("https://github.com/glassmonkey/ruby-playground/blob/main/LICENSE");
 
-  await expect(
-    page.getByRole("button", { name: "サンプルに戻す" }),
-  ).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "URL を共有" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Reset sample" })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("button", { name: "Share URL" })).toHaveCount(0);
   const url = page.url();
   expect(new URL(url).searchParams.get("v")).toBe("3.3");
   await page.reload();
@@ -332,7 +350,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   const navigationStartedAt = Date.now();
   const navigation = page.goto("./", { waitUntil: "commit" });
   const staticHeading = page.locator("#static-description h1");
-  await expect(staticHeading).toHaveText("ブラウザで Ruby を試す", {
+  await expect(staticHeading).toHaveText("Try Ruby in your browser", {
     timeout: 20_000,
   });
   const staticDescriptionVisibleMs = Date.now() - navigationStartedAt;
@@ -340,7 +358,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   await navigation;
   // Observe completion concurrently: editor loading must not inflate run duration.
   const coldRunFinishedAt = expect(page.getByRole("status"))
-    .toHaveText(/^(完了|エラー)$/, { timeout: 90_000 })
+    .toHaveText(/^(Complete|Error)$/, { timeout: 90_000 })
     .then(() => Date.now());
   await entryChunkContinued;
   await page.waitForLoadState("load");
@@ -360,7 +378,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   ).join("\n");
   const coldRunOutput = await page.getByTestId("preview-console").innerText();
 
-  if (coldRunStatus === "完了") {
+  if (coldRunStatus === "Complete") {
     expect(
       coldRunOutput
         .trimEnd()
@@ -370,7 +388,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
     ).toBe(INITIAL_OUTPUT);
     expect(coldRunError).toBe("");
   } else {
-    expect(coldRunError).toContain("タイムアウト");
+    expect(coldRunError).toContain("timed out");
     expect(coldRunOutput).toBe("");
   }
 
@@ -383,13 +401,15 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   });
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: false });
   await edit(page, "loop {}");
-  await expect(page.getByRole("status")).toContainText("実行中", {
+  await expect(page.getByRole("status")).toContainText("Running", {
     timeout: 10_000,
   });
   await page.waitForTimeout(5000);
   const stopStartedAt = Date.now();
-  await page.getByRole("button", { name: "停止", exact: true }).click();
-  await expect(page.getByRole("main").getByRole("alert")).toContainText("停止");
+  await page.getByRole("button", { name: "Stop", exact: true }).click();
+  await expect(page.getByRole("main").getByRole("alert")).toContainText(
+    "stopped",
+  );
   const stopElapsedMs = Date.now() - stopStartedAt;
 
   const recoveryStartedAt = Date.now();

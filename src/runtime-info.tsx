@@ -19,7 +19,7 @@ export default function RuntimeInfoPanel({
   return (
     <Flex
       as="section"
-      aria-label="Ruby の実行環境"
+      aria-label="Ruby runtime environment"
       aria-busy={!info && isLoading}
       direction={{ base: "column", lg: "row" }}
       borderWidth="1px"
@@ -41,7 +41,7 @@ export default function RuntimeInfoPanel({
       >
         <Box>
           <Text fontSize="xs" color="ruby.100" mb={1}>
-            実行環境
+            Runtime environment
           </Text>
           <Skeleton
             isLoaded={!!info || !isLoading}
