@@ -9,7 +9,8 @@ export async function editRuby(page: Page, code: string) {
     navigator.userAgent.includes("Macintosh") ? "Meta+A" : "Control+A",
   );
   await page.keyboard.press(selectAll);
-  await page.keyboard.insertText(code);
+  if (code) await page.keyboard.insertText(code);
+  else await page.keyboard.press("Backspace");
   if (code) {
     await expect(page.locator(".monaco-editor .view-lines")).toContainText(
       code.split("\n")[0],
