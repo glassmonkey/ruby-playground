@@ -1,6 +1,6 @@
 # Structured lesson data
 
-Read `content/tutorial-chapters.json` for the shared tutorial chapter catalog and `src/tutorial-content.ts` for the current TypeScript contract and resolver, and `content/tutorial-versions.json` for supported versions. This document explains field meaning; it does not replace the executable contract. If the model changes, update the type, consumers and this reference together.
+Read `content/tutorial-chapters.json` for the shared tutorial chapter catalog and `src/tutorial-content.ts` for the current TypeScript contract and resolver, and `src/versions.ts` for supported versions. This document explains field meaning; it does not replace the executable contract. If the model changes, update the type, consumers and this reference together.
 
 `content/tutorial.json` is an ordered array. `content/tutorial-chapters.json` defines a single chapter order shared by every version, using a learner-first sequence rather than reference-manual headings; array order defines lesson order within a chapter. The resolver produces previous/next navigation and sidebar numbering from that order. Each entry describes one lesson; `slug` is its stable identity across versions. Do not rename an existing slug casually: URLs use it.
 

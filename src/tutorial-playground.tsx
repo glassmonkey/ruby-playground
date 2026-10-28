@@ -4,7 +4,7 @@ import type { LessonExperiment } from "./tutorial-content";
 import { startRubyRun, type RunHandle } from "./workers/client";
 import type { RunResult } from "./runtime";
 import { buildShareUrl } from "./share";
-import { RUBY_PATCH_VERSIONS, type RubyVersion } from "./versions";
+import { RUBY_RELEASES, type RubyVersion } from "./versions";
 
 export default function TutorialPlayground({
   initialCode,
@@ -15,6 +15,7 @@ export default function TutorialPlayground({
   experiments: LessonExperiment[];
   version: RubyVersion;
 }) {
+  const release = RUBY_RELEASES.find((item) => item.id === version)!;
   const [selectedSample, setSelectedSample] = useState("example");
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const samples = [
@@ -108,8 +109,8 @@ export default function TutorialPlayground({
       <div className="editor-heading">
         <label htmlFor="lesson-code">Ruby code</label>
         <span className="note">
-          Ruby {RUBY_PATCH_VERSIONS[version]}
-          {version === "4.1" ? " · development" : ""} ·{" "}
+          Ruby {release.patch}
+          {release.channel === "development" ? " · development" : ""} ·{" "}
           {samples.find((sample) => sample.id === selectedSample)?.label}
         </span>
       </div>

@@ -1,6 +1,6 @@
 # Generate pages from lesson data
 
-Inputs are `content/tutorial.json`, `content/tutorial-versions.json` and the shared page/UI implementation. Render the basic Example and named application Experiments, with results obtained only by Run. Omit progress counters and answers. `src/tutorial-content.ts` resolves version variants. `scripts/generate-tutorial.mjs` renders the resolved content, course navigation, metadata and sitemap. Generated `tutorial/` HTML is not an authoring input.
+Inputs are `content/tutorial.json`, `src/versions.ts` and the shared page/UI implementation. Render the basic Example and named application Experiments, with results obtained only by Run. Omit progress counters and answers. `src/tutorial-content.ts` resolves version variants. `scripts/generate-tutorial.mjs` renders the resolved content, course navigation, metadata and sitemap. Generated `tutorial/` HTML is not an authoring input.
 
 1. Check the data-stage handoff and read the generator before running it: it recreates the owned `tutorial/` directory. Preserve unrelated user changes. If there is a factual or teaching defect, return to the JSON authoring stage instead of patching HTML.
 2. Run `npm run tutorial:generate`. Review the generated diff for intended routes, navigation, references and canonical URLs. A second run with identical inputs should produce no further changes.

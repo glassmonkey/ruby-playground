@@ -175,5 +175,5 @@ Playground and keeps it across lesson and version navigation.
 
 Continue in the full Playground to carry the current edits and selected Ruby
 version into a new tab. For lesson authoring, release updates and content
-evaluation, see the [Ruby tutorial authoring skill](skills/ruby-tutorial-authoring/SKILL.md)
+evaluation, see the [Ruby tutorial authoring skill](.agents/skills/ruby-tutorial-authoring/SKILL.md)
 and its [evaluation record](docs/tutorial-skill-evaluation.md).

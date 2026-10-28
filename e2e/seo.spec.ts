@@ -494,3 +494,35 @@ for (const [retired, successor] of [
     );
   });
 }
+
+test("application and tutorial expose the same versions and stable default", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const appSelector = page.getByLabel("Ruby version", { exact: true });
+  await expect(appSelector).toBeVisible();
+  const applicationDefault = await appSelector.inputValue();
+  const applicationVersions = await appSelector
+    .locator("option")
+    .evaluateAll((options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+    );
+  await page
+    .getByRole("link", { name: "Start Ruby tutorial", exact: true })
+    .click();
+  const tutorialSelector = page.getByLabel("Ruby version", { exact: true });
+  await expect(tutorialSelector).toHaveValue(applicationDefault);
+  expect(
+    await tutorialSelector
+      .locator("option")
+      .evaluateAll((options) =>
+        options.map((option) => (option as HTMLOptionElement).value),
+      ),
+  ).toEqual(applicationVersions);
+  await page
+    .getByRole("link", { name: "Start learning Ruby", exact: true })
+    .click();
+  await expect(page).toHaveURL(
+    new RegExp(`/tutorial/${applicationDefault}/output/$`),
+  );
+});

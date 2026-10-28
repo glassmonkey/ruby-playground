@@ -19,11 +19,15 @@ The handoff is the lesson JSON diff, affected versions and evidence from content
 
 ## Establish current project facts
 
-Inspect the current lesson data, version catalog, resolver, generator, README and relevant browser UI before editing. Likely sources are `content/tutorial.json`, `content/tutorial-versions.json`, `src/tutorial-content.ts`, `content/tutorial-chapters.json`, `scripts/generate-tutorial.mjs` and `src/tutorial*.tsx`; verify paths because implementation can change. Keep edits within the requested content scope. Do not redesign the site UI or alter tests unless requested.
+Inspect the current lesson data, version catalog, resolver, generator, README and relevant browser UI before editing. Likely sources are `content/tutorial.json`, `src/versions.ts`, `src/tutorial-content.ts`, `content/tutorial-chapters.json`, `scripts/generate-tutorial.mjs` and `src/tutorial*.tsx`; verify paths because implementation can change. Keep edits within the requested content scope. Do not redesign the site UI or alter tests unless requested.
 
 The course is versioned at `/tutorial/{version}/{slug}/`. `/tutorial/` resolves through the internal `latest` alias to the latest supported stable course. The UI must show concrete Ruby version numbers, with development releases marked separately; never expose a `latest` badge or label. The header version selector changes the course, starter code and runtime together. The inline editor runs only when its Run control is pressed. Its runtime follows the selected course version. The full Playground link carries the current edits and selected version into a new tab.
 
 Tutorial and Playground share the `chakra-ui-color-mode` preference. Check that Light/Dark mode stays synchronized across both surfaces and lesson/version navigation, and that changing theme preserves edited code. Follow the existing tutorial UI patterns, including any local PHP tutorial reference if present; do not assume that reference exists or change UI implementation as part of a content-only request.
+
+## Release and reference policy
+
+Read [release and reference rules](references/releases-and-references.md) when adding a runtime, changing official links or reviewing compatibility. This repository skill is authoritative for authoring rules; `docs/` holds entry links and historical validation evidence, not a second policy definition.
 
 ## Shared course structure
 
@@ -42,7 +46,7 @@ The course has an original learning sequence. The publisher’s public overview 
 5. Shared lessons may define `variants` keyed by version. Variants are shallow overrides: an overridden `paragraphs` array replaces the whole array. Include every paragraph needed for that version, and align its code, output, task, answer, pitfall and version note. Use `available: false` when a lesson cannot be taught for a version; verify the current generator's unavailable-page, course-list and sitemap behavior.
 6. Make a learner's experiment meaningful and easy to run in the on-page editor. The task should target the stated goal, invite a prediction or concrete edit, and have an answer that explains the observed result. Identify a likely misconception with a specific correction. Keep official references useful to that lesson and version. Scope simplified explanations to the example when broader Ruby behavior differs. Use concrete executable syntax in prose rather than placeholders that are themselves Ruby syntax (for example, explain super(text) using that exact call).
 
-For a new release, audit all lessons for changed syntax, behavior and APIs before changing the catalog. Keep development releases in their separate channel. Change `content/tutorial-versions.json`'s `latest` only after every supported runtime and affected lesson has been verified. Preserve version-specific URLs and test legacy aliases. Never edit generated `tutorial/` HTML directly; inspect the generator first because generation may delete and recreate that directory.
+For a new release, audit all lessons for changed syntax, behavior and APIs before changing the catalog. Keep development releases in their separate channel. Register a stable release in `src/versions.ts` only after every supported runtime and affected lesson has been verified; both surfaces derive their default from its newest stable entry. Preserve version-specific URLs and test legacy aliases. Never edit generated `tutorial/` HTML directly; inspect the generator first because generation may delete and recreate that directory.
 
 ## Verify and report
 

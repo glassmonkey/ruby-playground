@@ -78,8 +78,10 @@ const referenceLabel = (name, version) => {
   return name;
 };
 const source = (name, version) => {
-  if (name === "Kernel#puts" || name === "Kernel#p")
-    return `https://docs.ruby-lang.org/en/${version.reference}/Kernel.html#method-i-${name.split("#")[1]}`;
+  if (/^[A-Za-z]+#[A-Za-z_]+$/.test(name)) {
+    const [owner, method] = name.split("#");
+    return `https://docs.ruby-lang.org/en/${version.reference}/${owner}.html#method-i-${method}`;
+  }
   const chapter = referenceOverrides[version.id]?.[name] ?? syntax[name];
   return `https://docs.ruby-lang.org/en/${version.reference}/${chapter ? `syntax/${chapter}_rdoc` : name}.html`;
 };

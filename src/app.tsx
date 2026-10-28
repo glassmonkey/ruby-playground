@@ -15,11 +15,7 @@ import {
 } from "@chakra-ui/react";
 import type { RunResult, RuntimeInfo } from "./runtime";
 import { startRubyRun, type RunHandle } from "./workers/client";
-import {
-  RUBY_VERSIONS,
-  RUBY_PATCH_VERSIONS,
-  type RubyVersion,
-} from "./versions";
+import { RUBY_RELEASES, type RubyVersion } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 
 import Output from "./output";
@@ -224,11 +220,9 @@ export default function App() {
                   updateUrl({ code, version: next });
                 }}
               >
-                {RUBY_VERSIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value === "4.1"
-                      ? `Ruby 4.1 (${RUBY_PATCH_VERSIONS[value]}-dev)`
-                      : `Ruby ${value} (${RUBY_PATCH_VERSIONS[value]})`}
+                {RUBY_RELEASES.map((release) => (
+                  <option key={release.id} value={release.id}>
+                    {`Ruby ${release.id} (${release.patch}${release.channel === "development" ? "-dev" : ""})`}
                   </option>
                 ))}
               </Select>

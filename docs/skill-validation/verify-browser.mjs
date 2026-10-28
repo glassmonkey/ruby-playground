@@ -1,12 +1,10 @@
 import { chromium, expect } from "@playwright/test";
 import { readFileSync, writeFileSync } from "node:fs";
 import lz from "lz-string";
+import { RUBY_RELEASES as versions } from "../../src/versions.ts";
 const lesson = JSON.parse(readFileSync("content/tutorial.json")).find(
   (x) => x.slug === "inheritance",
 );
-const versions = JSON.parse(
-  readFileSync("content/tutorial-versions.json"),
-).versions;
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 const results = [];

@@ -4,7 +4,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import lessons from "./content/tutorial.json";
 import supplements from "./content/tutorial-supplements.json";
-import catalog from "./content/tutorial-versions.json";
+import { RUBY_VERSIONS } from "./src/versions";
 
 export default defineConfig({
   plugins: [react()],
@@ -21,7 +21,7 @@ export default defineConfig({
         examples: new URL("./examples/index.html", import.meta.url).pathname,
         tutorial: new URL("./tutorial/index.html", import.meta.url).pathname,
         ...Object.fromEntries(
-          ["latest", ...catalog.versions.map((version) => version.id)]
+          ["latest", ...RUBY_VERSIONS]
             .flatMap((version) => [
               [
                 `tutorial-${version}`,

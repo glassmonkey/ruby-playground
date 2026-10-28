@@ -30,7 +30,11 @@
       }
     ],
     "pitfall": "The editor runs the program; it does not automatically display every expression. Use puts or p when you want to see a value.",
-    "refs": ["Kernel#puts", "Kernel#p"],
+    "refs": [
+      "Kernel#puts",
+      "Kernel#p",
+      "Comments"
+    ],
     "remaining": ""
   },
   {
@@ -63,7 +67,9 @@
       }
     ],
     "pitfall": "Quotes create literal text: puts \"destination\" displays the word destination. Use puts destination to read the variable.",
-    "refs": ["Assignment"],
+    "refs": [
+      "Assignment"
+    ],
     "remaining": ""
   },
   {
@@ -96,7 +102,12 @@
       }
     ],
     "pitfall": "Writing a decimal point after a calculation cannot recover a fraction discarded by integer division. Use a Float operand in the division itself.",
-    "refs": ["Literals", "Integer", "Float", "Precedence"],
+    "refs": [
+      "Literals",
+      "Integer",
+      "Float",
+      "Precedence"
+    ],
     "remaining": ""
   },
   {
@@ -130,7 +141,10 @@
       }
     ],
     "pitfall": "A string and a number cannot be joined directly with + in these examples. Use interpolation, such as \"Time: #{minutes}\", to insert a number into text.",
-    "refs": ["Literals", "String"],
+    "refs": [
+      "Literals",
+      "String"
+    ],
     "remaining": ""
   },
   {
@@ -205,7 +219,11 @@
       }
     ],
     "pitfall": "The colon belongs to symbol syntax. :boarding is a symbol, while \"boarding\" is a string; choose the kind of value the program expects.",
-    "refs": ["Literals", "Symbol", "String"],
+    "refs": [
+      "Literals",
+      "Symbol",
+      "String"
+    ],
     "remaining": ""
   },
   {
@@ -239,7 +257,10 @@
       }
     ],
     "pitfall": "Put narrower conditions before broader ones: if the first test already matches, Ruby does not try a later elsif.",
-    "refs": ["Control Expressions", "Operators"],
+    "refs": [
+      "Control Expressions",
+      "Integer"
+    ],
     "remaining": ""
   },
   {
@@ -280,7 +301,9 @@
       }
     ],
     "pitfall": "A condition that never changes can keep a loop running forever. Check the update path, including paths that reach next.",
-    "refs": ["Control Expressions"],
+    "refs": [
+      "Control Expressions"
+    ],
     "remaining": ""
   },
   {
@@ -322,7 +345,10 @@
       }
     ],
     "pitfall": "The last index of a nonempty array is length - 1, not length. Use -1 when you want its last entry.",
-    "refs": ["Array", "Kernel#p"],
+    "refs": [
+      "Array",
+      "Kernel#p"
+    ],
     "remaining": ""
   },
   {
@@ -364,7 +390,10 @@
       }
     ],
     "pitfall": "name: is a convenient way to write the Symbol key :name inside a hash. Read that entry with hash[:name], not hash[\"name\"].",
-    "refs": ["Hash", "Literals"],
+    "refs": [
+      "Hash",
+      "Literals"
+    ],
     "remaining": ""
   },
   {
@@ -397,7 +426,10 @@
       }
     ],
     "pitfall": "Count the dots carefully: ... excludes the end, while .. includes it. The beginning is included in both forms here.",
-    "refs": ["Range", "Literals"],
+    "refs": [
+      "Range",
+      "Literals"
+    ],
     "remaining": ""
   },
   {
@@ -439,7 +471,10 @@
       }
     ],
     "pitfall": "A puts call displays text but returns nil. Keep a calculation or value as the final expression when callers need to use its result.",
-    "refs": ["Methods", "Calling Methods"],
+    "refs": [
+      "Methods",
+      "Calling Methods"
+    ],
     "remaining": ""
   },
   {
@@ -481,7 +516,10 @@
       }
     ],
     "pitfall": "Attaching a block does not run it by itself. The called method controls whether and how often it invokes the block.",
-    "refs": ["Methods", "Calling Methods"],
+    "refs": [
+      "Methods",
+      "Calling Methods"
+    ],
     "remaining": ""
   },
   {
@@ -524,7 +562,11 @@
       }
     ],
     "pitfall": "Use a value expression as the last line of a map block. If its last line is puts, map collects the nil values returned by puts.",
-    "refs": ["Enumerable", "Array", "Calling Methods"],
+    "refs": [
+      "Enumerable",
+      "Array",
+      "Calling Methods"
+    ],
     "remaining": "",
     "versionNote": "The final experiment uses it, introduced in Ruby 3.4. You can also use an explicit block parameter such as |count|.",
     "variants": {
@@ -630,7 +672,11 @@
       }
     ],
     "pitfall": "Local variables inside a method do not persist as instance state. Use an instance variable such as @value when later calls on that object need the value.",
-    "refs": ["Modules and Classes", "Module"],
+    "refs": [
+      "Modules and Classes",
+      "Class#new",
+      "Module#attr_reader"
+    ],
     "remaining": ""
   },
   {
@@ -663,7 +709,10 @@
       }
     ],
     "pitfall": "A bare super forwards every received argument. In PriorityNotice#initialize, use super(text) because Notice#initialize accepts one argument, not both text and priority.",
-    "refs": ["Modules and Classes", "Calling Methods"],
+    "refs": [
+      "Modules and Classes",
+      "Calling Methods"
+    ],
     "remaining": ""
   },
   {
@@ -678,7 +727,9 @@
     "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"book\"\n  end\nend\nputs Product.new.label",
     "output": "item: book",
     "pitfall": "Included methods can depend on methods of their receiver. Those dependencies still need to be implemented by the class.",
-    "refs": ["Modules and Classes"],
+    "refs": [
+      "Modules and Classes"
+    ],
     "remaining": "extend, prepend, method lookup order and namespace resolution need dedicated examples.",
     "experiments": [
       {
@@ -729,7 +780,10 @@
       }
     ],
     "pitfall": "Not every operator is a redefinable method. Logical operators such as && and || have language-defined short-circuit behavior; defining + does not affect them.",
-    "refs": ["Methods", "Operators"],
+    "refs": [
+      "Methods",
+      "Operators"
+    ],
     "remaining": ""
   },
   {
@@ -770,7 +824,10 @@
       }
     ],
     "pitfall": "Rescue only failures you can handle. A broad rescue can conceal unrelated programming errors and make a broken program appear to continue successfully.",
-    "refs": ["Exceptions", "Kernel"],
+    "refs": [
+      "Exceptions",
+      "Kernel"
+    ],
     "remaining": ""
   },
   {
@@ -786,7 +843,9 @@
     "code": "user = { name: \"Ruby\", role: \"admin\" }\ncase user\nin { name:, role: \"admin\" }\n  puts \"Welcome, #{name}\"\nelse\n  puts \"Guest\"\nend",
     "output": "Welcome, Ruby",
     "pitfall": "A hash pattern can allow extra keys. Use an explicit restrictive pattern when extra keys must be rejected.",
-    "refs": ["Pattern matching"],
+    "refs": [
+      "Pattern matching"
+    ],
     "remaining": "Array/find patterns, pins, deconstruction and rightward assignment are outside this lesson.",
     "experiments": [
       {
@@ -853,7 +912,9 @@
       }
     ],
     "pitfall": "A block passed directly to a method is not an ordinary positional argument. When the method expects a callable parameter such as rule, pass the Proc or lambda object explicitly.",
-    "refs": ["Proc"],
+    "refs": [
+      "Proc"
+    ],
     "remaining": ""
   },
   {
@@ -868,7 +929,9 @@
     "code": "module ExcitedText\n  refine String do\n    def excited\n      self + \"!\"\n    end\n  end\nend\nusing ExcitedText\nputs \"Ruby\".excited",
     "output": "Ruby!",
     "pitfall": "using cannot be activated inside a method. Refinements are not a general global extension mechanism.",
-    "refs": ["Refinements"],
+    "refs": [
+      "Refinements"
+    ],
     "remaining": "Refinement method lookup and interactions with inheritance and imports are not covered yet.",
     "experiments": [
       {
@@ -901,7 +964,10 @@
     "code": "BEGIN { puts \"start\" }\nclass Message\n  def text\n    \"hello\"\n  end\n  alias original_text text\n  undef text\nend\nputs Message.new.original_text\np Message.new.respond_to?(:text)\nEND { puts \"finish\" }",
     "output": "start\nhello\nfalse",
     "pitfall": "Do not use END for cleanup in this playground. Its execution lifecycle differs from running a Ruby script as a command-line process.",
-    "refs": ["Miscellaneous"],
+    "refs": [
+      "Miscellaneous",
+      "Module#alias_method"
+    ],
     "remaining": "Multiple END blocks and alias behavior across later method redefinitions need further examples.",
     "experiments": [
       {

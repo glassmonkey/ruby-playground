@@ -4,7 +4,7 @@ No blockers found in the source-data review. Two improvements follow. This is no
 
 ## Scope and evidence
 
-Read the updated repository `skills/ruby-tutorial-authoring/SKILL.md`, `references/learning-sequence.md` and `references/evaluation.md`; inspected final `content/tutorial.json` from `conditionals` through `special-forms` (17 lessons), the chapter catalog, version catalog, resolver and generator reference mapping. Did not review the six introductory lessons I authored. No content was modified, server started, or generation performed.
+Read the updated repository `.agents/skills/ruby-tutorial-authoring/SKILL.md`, `references/learning-sequence.md` and `references/evaluation.md`; inspected final `content/tutorial.json` from `conditionals` through `special-forms` (17 lessons), the chapter catalog, version catalog, resolver and generator reference mapping. Did not review the six introductory lessons I authored. No content was modified, server started, or generation performed.
 
 The final sequence implements the skill's prerequisite boundaries: decisions and loops do not require blocks; arrays/hashes/ranges precede methods and blocks; `enumerable` follows blocks; classes, inheritance and mixins precede operator definitions; exceptions precede the rescued lambda-arity experiment; refinements and special forms are supplementary. Experiments are independent runnable snippets. Examples show representative basic forms, while most experiments apply a concept to new conditions or a richer use. Expected output and explanatory answers remain in author-only fields.
 

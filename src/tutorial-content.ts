@@ -1,6 +1,6 @@
 import content from "../content/tutorial.json" with { type: "json" };
 import chapterCatalog from "../content/tutorial-chapters.json" with { type: "json" };
-import catalog from "../content/tutorial-versions.json" with { type: "json" };
+import { DEFAULT_RUBY_VERSION, RUBY_RELEASES } from "./versions.ts";
 
 export type LessonExperiment = {
   id: string;
@@ -34,8 +34,8 @@ type Lesson = LessonContent & {
   >;
 };
 const lessons: Lesson[] = content;
-export const tutorialVersions = catalog.versions;
-export const latestTutorialVersion = catalog.latest;
+export const tutorialVersions = RUBY_RELEASES;
+export const latestTutorialVersion = DEFAULT_RUBY_VERSION;
 export const tutorialSlugs = lessons.map((lesson) => lesson.slug);
 export function lessonPath(version: string, slug: string): string {
   return `/tutorial/${version}/${slug}/`;
