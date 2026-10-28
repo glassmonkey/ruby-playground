@@ -8,11 +8,11 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   expect(response.ok()).toBe(true);
   const html = await response.text();
   expect(html).toContain('<meta name="referrer" content="no-referrer"');
-  expect(html).toContain("<h1>ブラウザで Ruby を試す</h1>");
+  expect(html).toContain("<h1>Try Ruby in your browser</h1>");
   expect(html.match(/<h1\b/g)).toHaveLength(1);
   expect(html).toContain('property="og:title" content="Ruby Playground"');
   expect(html).toContain('name="twitter:card" content="summary"');
-  expect(html).toContain("標準入力、追加gem、永続保存には対応しません。");
+  expect(html).toContain("Try small programs and share them with a URL.");
   const staticCode = await page.evaluate(
     (source) =>
       new DOMParser()
@@ -34,7 +34,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
     );
   expect(socialMetadata).toHaveLength(7);
   expect(socialMetadata.join(" ")).not.toMatch(/[?&](?:c|v|f)=/);
-  await expect(page.locator("h2", { hasText: "エディター" })).toHaveCount(1);
+  await expect(page.locator("h2", { hasText: "Editor" })).toHaveCount(1);
 
   await page.goto("?c=&v=4.0&f=console");
   await expect(page.locator('meta[name="robots"]')).toHaveAttribute(

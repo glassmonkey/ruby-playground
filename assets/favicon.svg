@@ -1,4 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="14" fill="#b91c1c" />
-  <path d="M18 18h17c10 0 16 5 16 14 0 6-3 10-8 12l8 10H37l-7-9h-2v9H18V18zm10 9v9h7c4 0 6-1 6-5s-2-4-6-4h-7z" fill="#fff" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 40">
+  <title>Ruby Playground</title>
+  <path fill="#e62923" d="M10 5h20l8 12-18 20L2 17Z" />
+  <path fill="#f5a9a7" d="m10 5 10 12H2Z" />
+  <path fill="#eb544f" d="M10 5h20L20 17Z" />
+  <path fill="#b8211c" d="m30 5 8 12H20L20 37Z" />
+  <path fill="#8a1915" d="M38 17 20 37 20 17Z" />
 </svg>

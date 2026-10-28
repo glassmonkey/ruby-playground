@@ -174,7 +174,7 @@ describe("shared playground URLs", () => {
     const code = 'puts "keep me"';
     const baseBeyondLimit = `https://ruby.example/${"p".repeat(MAX_SHARE_URL_BYTES)}`;
     expect(() => buildShareUrl(baseBeyondLimit, { code })).toThrow(
-      "URL に保存できません",
+      "The code is too long to save in the URL",
     );
     expect(code).toBe('puts "keep me"');
   });
