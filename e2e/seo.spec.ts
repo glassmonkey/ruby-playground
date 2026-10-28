@@ -81,3 +81,21 @@ test("examples open runnable code with the documented output", async ({
     fullPage: true,
   });
 });
+
+test("examples are reachable from the header on desktop and mobile", async ({
+  page,
+}) => {
+  for (const width of [1280, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/");
+    const link = page
+      .getByRole("banner")
+      .getByRole("link", { name: "Browse Ruby examples" });
+    await expect(link).toBeInViewport();
+    await link.click();
+    await expect(page).toHaveURL(/\/examples\/$/);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Ruby code examples you can run online",
+    );
+  }
+});

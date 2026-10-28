@@ -141,6 +141,16 @@ export default function App() {
         <Text color="mutedText" fontSize="sm">
           Run Ruby online in your browser. No installation or account required.
         </Text>
+        <Button
+          as="a"
+          href="/examples/"
+          colorScheme="ruby"
+          size="sm"
+          mt={3}
+          mr={4}
+        >
+          Browse Ruby examples
+        </Button>
         <Link
           href="#about"
           display="inline-block"
@@ -453,8 +463,8 @@ export default function App() {
           </Heading>
           <Text mb={4}>
             Choose a version above the editor to rerun the same code. The
-            selector shows the exact bundled versions.
-            Each run starts with a fresh environment.
+            selector shows the exact bundled versions. Each run starts with a
+            fresh environment.
           </Text>
           <Heading as="h3" size="sm" mb={2}>
             Can I use Rails, extra gems or standard input?
