@@ -2,6 +2,71 @@ import { expect, test } from "@playwright/test";
 import { expectDocumentToFitViewport } from "./layout";
 import { editRuby as edit, expectRubyOutput } from "./editor";
 
+test("theme and preview controls preserve edits across layouts and reloads", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ colorScheme: "light" });
+  await page.goto("./");
+  await edit(page, 'puts "<h1>Ruby preview</h1>"');
+  await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
+
+  await page.getByText("UI Theme:", { exact: true }).click();
+  await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
+  await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
+  await page.getByText("HTML Preview", { exact: true }).click();
+  await expect(
+    page.frameLocator("iframe").getByRole("heading", { name: "Ruby preview" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "URL を共有" }).click();
+  await page.reload();
+  await expect(page.locator(".monaco-editor.vs-dark")).toBeVisible();
+  await expect(
+    page.getByRole("checkbox", { name: "HTML Preview" }),
+  ).toBeChecked();
+  await expect(
+    page.frameLocator("iframe").getByRole("heading", { name: "Ruby preview" }),
+  ).toBeVisible();
+  await page.getByText("HTML Preview", { exact: true }).click();
+  await expectRubyOutput(page, "<h1>Ruby preview</h1>\n");
+
+  const editor = page.getByRole("region", { name: "エディター" });
+  const output = page.getByRole("region", { name: "出力" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await expect
+    .poll(async () => {
+      const left = await editor.boundingBox();
+      const right = await output.boundingBox();
+      return (
+        !!left && !!right && right.x > left.x && Math.abs(right.y - left.y) < 1
+      );
+    })
+    .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-dark.png"),
+    fullPage: true,
+  });
+
+  await page.getByText("UI Theme:", { exact: true }).click();
+  await expect(page.locator(".monaco-editor.vs")).toBeVisible();
+  await page.screenshot({
+    path: testInfo.outputPath("desktop-light.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectDocumentToFitViewport(page, 390);
+  await expect
+    .poll(async () => {
+      const top = await editor.boundingBox();
+      const bottom = await output.boundingBox();
+      return !!top && !!bottom && bottom.y >= top.y + top.height;
+    })
+    .toBe(true);
+  await page.screenshot({
+    path: testInfo.outputPath("mobile-light.png"),
+    fullPage: true,
+  });
+});
+
 test("keyboard order, labelled work areas and narrow layouts remain usable", async ({
   page,
 }, testInfo) => {
@@ -45,8 +110,17 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
     page.getByRole("navigation", { name: "安全と情報" }),
   ).toBeVisible();
 
+  await page.getByRole("link", { name: "Donate", exact: true }).focus();
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Ruby バージョン")).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("checkbox", { name: "UI Theme", exact: true }),
+  ).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(
+    page.getByRole("checkbox", { name: "HTML Preview" }),
+  ).toBeFocused();
   await expect(
     page.getByRole("button", { name: /^(実行|再実行)$/ }),
   ).toHaveCount(0);

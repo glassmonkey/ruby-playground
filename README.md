@@ -23,6 +23,12 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 
 ## Features and limits
 
+- PHP Playground-style full-width workspace: side-by-side editor/output on large
+  screens and stacked panes on smaller screens, with an 80vh working area.
+- System-aware light/dark UI and Monaco themes, remembered across reloads.
+  The HTML Preview checkbox switches between console output and sandboxed HTML;
+  the shared URL preserves the selected output format.
+
 - Local-bundled Monaco editor with Ruby highlighting; no editor CDN required.
 - Select Ruby 4.0, 3.4 or 3.3. Pinned official ruby.wasm 2.10.1 builds contain
   **Ruby 4.0.0 / 3.4.1 / 3.3.3**, verified by real `RUBY_VERSION` tests, not

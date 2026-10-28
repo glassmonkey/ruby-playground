@@ -1,3 +1,4 @@
+import { useColorMode } from "@chakra-ui/react";
 import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor/editor/editor.api.js";
 import "monaco-editor/languages/definitions/ruby/register.js";
@@ -13,10 +14,12 @@ export default function RubyEditor({
   code: string;
   onChange: (value: string) => void;
 }) {
+  const { colorMode } = useColorMode();
   return (
     <Editor
       language="ruby"
-      height="420px"
+      height="100%"
+      theme={colorMode === "light" ? "vs" : "vs-dark"}
       value={code}
       onChange={(value) => onChange(value ?? "")}
       options={{

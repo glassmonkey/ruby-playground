@@ -33,7 +33,7 @@ test("initial and edited Ruby automatically execute with errors, empty output an
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("./");
   await expect(
-    page.getByRole("heading", { name: "Ruby Playground" }),
+    page.getByRole("heading", { name: "Ruby Playground", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: /^(実行|再実行)$/ }),
@@ -120,7 +120,7 @@ test("shared code, version and HTML output automatically restore on direct load 
     page,
     'puts "<h1>Hello HTML #{RUBY_VERSION}</h1>"; puts %q{<script>parent.document.title="unsafe"</script>}',
   );
-  await page.getByLabel("出力形式").selectOption("html");
+  await page.getByText("HTML Preview", { exact: true }).click();
   await expect(
     page
       .frameLocator("iframe")
@@ -134,7 +134,9 @@ test("shared code, version and HTML output automatically restore on direct load 
   for (const navigate of [() => page.goto(url), () => page.reload()]) {
     await navigate();
     await expect(page.getByLabel("Ruby バージョン")).toHaveValue("3.4");
-    await expect(page.getByLabel("出力形式")).toHaveValue("html");
+    await expect(
+      page.getByRole("checkbox", { name: "HTML Preview" }),
+    ).toBeChecked();
     await expect(page.locator(".monaco-editor .view-lines")).toContainText(
       "Hello HTML",
     );
