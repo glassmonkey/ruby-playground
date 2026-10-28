@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://ruby-play.dev/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/values/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/variables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/operators/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/loops/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.0/collections/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/blocks/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/classes/</loc></url>
@@ -16,14 +14,15 @@
   <url><loc>https://ruby-play.dev/tutorial/4.0/pattern-matching/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/special-forms/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/code-layout/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/comments/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.0/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.0/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/values/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/variables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/operators/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/loops/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.4/collections/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/blocks/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/classes/</loc></url>
@@ -32,14 +31,15 @@
   <url><loc>https://ruby-play.dev/tutorial/3.4/pattern-matching/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/special-forms/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/code-layout/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/comments/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.4/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.4/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/values/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/variables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/operators/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/loops/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.3/collections/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/blocks/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/classes/</loc></url>
@@ -48,14 +48,15 @@
   <url><loc>https://ruby-play.dev/tutorial/3.3/pattern-matching/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/special-forms/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/code-layout/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/comments/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.3/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.3/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/values/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/variables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/operators/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/loops/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/3.2/collections/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/blocks/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/classes/</loc></url>
@@ -64,14 +65,15 @@
   <url><loc>https://ruby-play.dev/tutorial/3.2/pattern-matching/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/special-forms/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/code-layout/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/comments/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/3.2/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/3.2/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/output/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/values/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/variables/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/operators/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/conditionals/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/loops/</loc></url>
-  <url><loc>https://ruby-play.dev/tutorial/4.1/collections/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/blocks/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/classes/</loc></url>
@@ -80,5 +82,8 @@
   <url><loc>https://ruby-play.dev/tutorial/4.1/pattern-matching/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/refinements/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/special-forms/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/code-layout/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/comments/</loc></url>
+  <url><loc>https://ruby-play.dev/tutorial/4.1/operator-methods/</loc></url>
   <url><loc>https://ruby-play.dev/tutorial/4.1/</loc></url>
 </urlset>

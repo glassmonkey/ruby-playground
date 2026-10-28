@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import type { LessonExperiment } from "./tutorial-content";
 import { startRubyRun, type RunHandle } from "./workers/client";
 import type { RunResult } from "./runtime";
 import { buildShareUrl } from "./share";
@@ -7,22 +7,34 @@ import { RUBY_PATCH_VERSIONS, type RubyVersion } from "./versions";
 
 export default function TutorialPlayground({
   initialCode,
-  experimentCode,
-  experimentTarget,
+  experiments,
   version,
 }: {
   initialCode: string;
-  experimentCode: string;
-  experimentTarget: HTMLElement | null;
+  experiments: LessonExperiment[];
   version: RubyVersion;
 }) {
-  const [code, setCode] = useState(initialCode);
+  const [selectedSample, setSelectedSample] = useState("example");
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const samples = [
+    { id: "example", label: "Example", code: initialCode },
+    ...experiments.map((item, index) => ({
+      id: `experiment:${item.id}`,
+      label: `Experiment ${index + 1}`,
+      code: item.code,
+    })),
+  ];
+  const code =
+    drafts[selectedSample] ??
+    samples.find((sample) => sample.id === selectedSample)!.code;
+  function setCode(value: string) {
+    setDrafts((previous) => ({ ...previous, [selectedSample]: value }));
+  }
   const [result, setResult] = useState<RunResult>();
   const [status, setStatus] = useState("Ready to run");
   const [running, setRunning] = useState(false);
   const active = useRef<RunHandle>();
   const editor = useRef<HTMLTextAreaElement>(null);
-  const [beforeExperiment, setBeforeExperiment] = useState<string>();
   const generation = useRef(0);
 
   function cancel() {
@@ -69,34 +81,26 @@ export default function TutorialPlayground({
 
   return (
     <div className="embedded-playground">
-      {experimentTarget &&
-        createPortal(
-          <button
-            type="button"
-            className="button"
-            onClick={() => {
-              cancel();
-              if (beforeExperiment !== undefined) {
-                setCode(beforeExperiment);
-                setBeforeExperiment(undefined);
-                setStatus("Change undone — run to see the output");
-              } else {
-                setBeforeExperiment(code);
-                setCode(experimentCode);
-                setStatus("Change applied — edit or run the code");
-              }
-              setResult(undefined);
-              editor.current?.focus({ preventScroll: true });
-              editor.current?.scrollIntoView({
-                behavior: "smooth",
-                block: "center",
-              });
-            }}
-          >
-            {beforeExperiment !== undefined ? "Undo change" : "Try this change"}
-          </button>,
-          experimentTarget,
-        )}
+      <fieldset className="sample-picker">
+        <legend className="visually-hidden">Code sample</legend>
+        {samples.map((sample) => (
+          <label key={sample.id}>
+            <input
+              type="radio"
+              name="code-sample"
+              value={sample.id}
+              checked={selectedSample === sample.id}
+              onChange={() => {
+                cancel();
+                setSelectedSample(sample.id);
+                setResult(undefined);
+                setStatus("Ready to run");
+              }}
+            />
+            <span>{sample.label}</span>
+          </label>
+        ))}
+      </fieldset>
       <div className="editor-heading">
         <label htmlFor="lesson-code">Ruby code</label>
         <span className="note">
@@ -139,18 +143,6 @@ export default function TutorialPlayground({
             Stop
           </button>
         )}
-        <button
-          type="button"
-          onClick={() => {
-            cancel();
-            setCode(initialCode);
-            setBeforeExperiment(undefined);
-            setResult(undefined);
-            setStatus("Ready to run");
-          }}
-        >
-          Reset example
-        </button>
         <a
           href={fullPlaygroundUrl}
           aria-disabled={!fullPlaygroundUrl}

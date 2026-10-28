@@ -64,11 +64,12 @@ for (const version of tutorialVersions) {
       await expect(page.getByRole("heading", { level: 1 })).toHaveText(
         lesson.title,
       );
-      await expect(page.locator(".expected-output")).toHaveText(lesson.output);
       const feedback = page.locator(".practice-answer p");
-      await expect(feedback).toBeHidden();
-      await page.getByText("Answer", { exact: true }).click();
-      await expect(feedback).toHaveText(lesson.answer);
+      await expect(feedback.first()).toBeHidden();
+      await page.getByText("Answers", { exact: true }).click();
+      await expect(feedback).toHaveText(
+        lesson.experiments.map((item) => item.answer),
+      );
       await page.getByRole("button", { name: "Run code", exact: true }).click();
       await expect(page.getByRole("status")).toHaveText("Complete", {
         timeout: 25000,
@@ -76,22 +77,30 @@ for (const version of tutorialVersions) {
       await expect(page.getByTestId("lesson-output")).toHaveText(
         lesson.output + "\n",
       );
-      await page
-        .getByRole("button", { name: "Try this change", exact: true })
-        .click();
-      await expect(
-        page.getByRole("textbox", { name: "Ruby code" }),
-      ).toHaveValue(lesson.experimentCode);
-      await expect(page.getByRole("status")).toHaveText(
-        "Change applied — edit or run the code",
-      );
-      await page.getByRole("button", { name: "Run code", exact: true }).click();
-      await expect(page.getByRole("status")).toHaveText("Complete", {
-        timeout: 25000,
-      });
-      await expect(page.getByTestId("lesson-output")).toHaveText(
-        lesson.experimentOutput + "\n",
-      );
+      for (const [
+        experimentIndex,
+        experiment,
+      ] of lesson.experiments.entries()) {
+        await page
+          .getByRole("radio", {
+            name: `Experiment ${experimentIndex + 1}`,
+            exact: true,
+          })
+          .check();
+        await expect(
+          page.getByRole("textbox", { name: "Ruby code" }),
+        ).toHaveValue(experiment.code);
+        await expect(page.getByRole("status")).toHaveText("Ready to run");
+        await page
+          .getByRole("button", { name: "Run code", exact: true })
+          .click();
+        await expect(page.getByRole("status")).toHaveText("Complete", {
+          timeout: 25000,
+        });
+        await expect(page.getByTestId("lesson-output")).toHaveText(
+          experiment.output + "\n",
+        );
+      }
       const navigation = page.getByRole("navigation", {
         name: "Lesson navigation",
       });
@@ -146,7 +155,7 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
       .getByRole("link", { name: "Start learning Ruby", exact: true })
       .click();
     await expect(page).toHaveURL(
-      new RegExp(`/tutorial/${latestTutorialVersion}/output/$`),
+      new RegExp(`/tutorial/${latestTutorialVersion}/code-layout/$`),
     );
     await page.screenshot({
       path: `test-results/lesson-${width}.png`,
@@ -155,12 +164,12 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
   }
   const noScript = await browser.newContext({ javaScriptEnabled: false });
   const staticPage = await noScript.newPage();
-  await staticPage.goto("/tutorial/output/");
+  await staticPage.goto("/tutorial/code-layout/");
   await expect(staticPage.getByRole("heading", { level: 1 })).toHaveText(
-    "Your first Ruby program",
+    "Code layout and line breaks",
   );
-  await staticPage.getByText("Answer", { exact: true }).click();
-  await expect(staticPage.locator(".practice-answer p")).toBeVisible();
+  await staticPage.getByText("Answers", { exact: true }).click();
+  await expect(staticPage.locator(".practice-answer p").first()).toBeVisible();
   await noScript.close();
   await page.goto("/examples/");
   await expect(page).toHaveURL(/\/tutorial\/$/);
@@ -175,7 +184,7 @@ test("embedded playground supports experimentation, cancellation and versioned h
   page.on("request", (request) => {
     if (request.url().includes(".wasm")) wasmRequests.push(request.url());
   });
-  await page.goto("/tutorial/output/");
+  await page.goto("/tutorial/code-layout/");
   const editor = page.getByRole("textbox", { name: "Ruby code" });
   const run = page.getByRole("button", { name: "Run code", exact: true });
   await expect(editor).toBeVisible();
@@ -194,13 +203,13 @@ test("embedded playground supports experimentation, cancellation and versioned h
     "Stopped — edit or run again",
   );
   await run.click();
-  await page.getByRole("button", { name: "Reset example" }).click();
-  await expect(editor).toHaveValue(lessons[0].code);
+  await page.getByRole("radio", { name: "Experiment 1", exact: true }).check();
+  await expect(editor).toHaveValue(lessons[0].experiments[0].code);
   await expect(page.getByRole("status")).toHaveText("Ready to run");
   await editor.fill("loop {}");
   await run.click();
   await page.getByLabel("Ruby version", { exact: true }).selectOption("3.3");
-  await expect(page).toHaveURL(/\/tutorial\/3\.3\/output\/$/);
+  await expect(page).toHaveURL(/\/tutorial\/3\.3\/code-layout\/$/);
   await expect(
     page.getByRole("button", { name: "Stop", exact: true }),
   ).toHaveCount(0);
@@ -284,7 +293,7 @@ test("header theme stays in sync across lessons, versions and full Playground", 
   context,
 }) => {
   await page.emulateMedia({ colorScheme: "dark" });
-  await page.goto("/tutorial/4.0/output/");
+  await page.goto("/tutorial/4.0/code-layout/");
   const theme = page.getByRole("checkbox", {
     name: "Light theme",
     exact: true,
@@ -306,11 +315,13 @@ test("header theme stays in sync across lessons, versions and full Playground", 
   await expect(theme).toBeChecked();
   await page
     .getByRole("navigation", { name: "Lesson navigation" })
-    .getByRole("link", { name: "Numbers, strings and symbols" })
+    .getByRole("link", { name: lessons[1].title })
     .click();
   await expect(theme).toBeChecked();
   await page.getByLabel("Ruby version", { exact: true }).selectOption("3.2");
-  await expect(page).toHaveURL(/\/tutorial\/3\.2\/values\/$/);
+  await expect(page).toHaveURL(
+    new RegExp(`/tutorial/3.2/${lessons[1].slug}/$`),
+  );
   await expect(theme).toBeChecked();
   const popup = context.waitForEvent("page");
   await page.getByRole("link", { name: "Continue in full Playground" }).click();
@@ -344,7 +355,7 @@ test("header theme stays in sync across lessons, versions and full Playground", 
 test("course progress persists explicitly and stays separate per Ruby version", async ({
   page,
 }) => {
-  await page.goto("/tutorial/4.0/output/");
+  await page.goto("/tutorial/4.0/code-layout/");
   await expect(page.locator("[data-progress-summary]")).toHaveText(
     `0 of ${lessons.length} completed`,
   );
@@ -361,13 +372,13 @@ test("course progress persists explicitly and stays separate per Ruby version", 
   await page.goto("/tutorial/4.0/");
   await expect(page.locator("[data-resume-course]")).toHaveAttribute(
     "href",
-    "/tutorial/4.0/values/",
+    `/tutorial/4.0/${lessons[1].slug}/`,
   );
-  await page.goto("/tutorial/3.3/output/");
+  await page.goto("/tutorial/3.3/code-layout/");
   await expect(page.locator("[data-progress-summary]")).toHaveText(
     `0 of ${lessons.length} completed`,
   );
-  await page.goto("/tutorial/4.0/output/");
+  await page.goto("/tutorial/4.0/code-layout/");
   await page
     .getByRole("button", { name: "Mark incomplete", exact: true })
     .click();
@@ -380,13 +391,13 @@ test("mobile course menu reveals the current lesson and navigates", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/tutorial/4.0/output/");
+  await page.goto("/tutorial/4.0/code-layout/");
   const menu = page.locator(".course-sidebar");
   await expect(menu.getByRole("navigation")).toBeHidden();
   await menu.getByText("Course contents", { exact: true }).click();
   await expect(menu.locator('[aria-current="page"]')).toHaveAttribute(
     "href",
-    "/tutorial/4.0/output/",
+    "/tutorial/4.0/code-layout/",
   );
   await menu.locator('[data-lesson-link="values"]').click();
   await expect(page).toHaveURL(/\/tutorial\/4.0\/values\/$/);
@@ -397,32 +408,65 @@ test("mobile course menu reveals the current lesson and navigates", async ({
   ).toBe(true);
 });
 
-test("experiment change can be edited, undone and reset without automatic execution", async ({
+test("sample selection preserves independent edits without automatic execution", async ({
   page,
 }) => {
-  await page.goto("/tutorial/4.0/output/");
+  await page.goto("/tutorial/4.0/code-layout/");
   const editor = page.getByRole("textbox", { name: "Ruby code" });
-  await editor.fill('puts "my draft"');
-  await page
-    .getByRole("button", { name: "Try this change", exact: true })
-    .click();
-  await expect(page.getByRole("status")).toHaveText(
-    "Change applied — edit or run the code",
+  await expect(
+    page.getByRole("radio", { name: "Example", exact: true }),
+  ).toBeChecked();
+  await expect(page.getByText("Example output", { exact: true })).toHaveCount(
+    0,
   );
+  await editor.fill('puts "my example"');
+  await page.getByRole("radio", { name: "Experiment 1", exact: true }).check();
+  await expect(editor).toHaveValue(lessons[0].experiments[0].code);
+  await expect(page.getByRole("status")).toHaveText("Ready to run");
   await expect(page.getByTestId("lesson-output")).toHaveText(
     "Run the code to see what happens.",
   );
   await editor.fill('puts "my experiment"');
-  await page.getByRole("button", { name: "Undo change", exact: true }).click();
-  await expect(editor).toHaveValue('puts "my draft"');
-  await page
-    .getByRole("button", { name: "Try this change", exact: true })
-    .click();
-  await page
-    .getByRole("button", { name: "Reset example", exact: true })
-    .click();
-  await expect(editor).toHaveValue(lessons[0].code);
+  await page.getByRole("radio", { name: "Experiment 2", exact: true }).check();
+  await expect(editor).toHaveValue(lessons[0].experiments[1].code);
+  await page.getByRole("radio", { name: "Example", exact: true }).check();
+  await expect(editor).toHaveValue('puts "my example"');
+  await page.getByRole("radio", { name: "Experiment 1", exact: true }).check();
+  await expect(editor).toHaveValue('puts "my experiment"');
   await expect(
-    page.getByRole("button", { name: "Try this change", exact: true }),
-  ).toBeVisible();
+    page.getByRole("button", { name: /Undo|Reset|Back to example/ }),
+  ).toHaveCount(0);
+});
+
+test("version selection preserves the course structure and current lesson", async ({
+  page,
+}) => {
+  await page.goto("/tutorial/4.0/code-layout/");
+  const original = await page
+    .locator(".course-sidebar [data-lesson-link]")
+    .evaluateAll((links) =>
+      links.map((link) => link.getAttribute("data-lesson-link")),
+    );
+  const chapters = await page.locator(".sidebar-chapter h3").allTextContents();
+  for (const version of tutorialVersions) {
+    await page
+      .getByLabel("Ruby version", { exact: true })
+      .selectOption(version.id);
+    await expect(page).toHaveURL(
+      new RegExp(`/tutorial/${version.id}/code-layout/$`),
+    );
+    expect(
+      await page
+        .locator(".course-sidebar [data-lesson-link]")
+        .evaluateAll((links) =>
+          links.map((link) => link.getAttribute("data-lesson-link")),
+        ),
+    ).toEqual(original);
+    expect(await page.locator(".sidebar-chapter h3").allTextContents()).toEqual(
+      chapters,
+    );
+    await expect(
+      page.locator('.course-sidebar [aria-current="page"]'),
+    ).toHaveAttribute("data-lesson-link", "code-layout");
+  }
 });

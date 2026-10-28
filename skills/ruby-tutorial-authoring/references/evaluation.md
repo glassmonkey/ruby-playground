@@ -8,8 +8,9 @@ Use this rubric for an explicit review or after creating/updating lessons. Evalu
 - For each version claim, consult the official version-specific Ruby reference and NEWS. Record direct source links and the claim they support.
 - Resolve and inspect each supported version separately, including overridden code, rather than assuming the shared starter represents every variant. If runtime checks are unavailable, do not conclude version compatibility from a base-lesson inspection.
 - Run each lesson's exact code through the bundled WASM runtime for every claimed course version. Record actual `RUBY_VERSION` and output; compare output line by line with the authored expected output.
+- Verify that selecting a different version preserves chapter order, lesson identity and current position; official documentation restructuring must not reorder the course or introduce a version-compliance badge.
 - Open the real page at its versioned route. Confirm its visible version, course content, starter code and selected runtime agree. Check the header selector, navigation, aliases and unavailable lessons against the current implementation.
-- Use Try this change to load the authored experiment without automatic execution; verify its output, further editing, Undo change and Reset example. Check version overrides for both starter and experiment code.
+- Select Example and every Experiment without automatic execution; verify each output, independent draft retention when switching, and the version overrides for all sample code. Confirm the two or three experiments teach distinct aspects of the stated goal.
 - Use the on-page editor to run the starter example and perform the lesson task. Check that the task is meaningful, the feedback matches the observed behavior, and the full Playground handoff preserves edited code and version.
 - Check learner-facing text and the shared theme behavior. The page should not display an author completeness checklist, coverage matrix, remaining-topic inventory or explanation of the author's methodology. Theme selection should agree with the main Playground and survive lesson/version navigation without clearing edits.
 
@@ -22,7 +23,7 @@ Report a blocker when evidence shows any of the following:
 - A Ruby language/API claim contradicts official documentation, describes a feature in the wrong version, or presents an unverified version-sensitive claim as fact.
 - Example code fails in the claimed bundled runtime, its real output differs from the expected output, or the page runs it on a different version than the selected course.
 - A versioned route, redirect/alias, course navigation, selector, or unavailable state serves content or starter code for the wrong version, drops the route, or promises a lesson that is not available.
-- A source reference resolves to the wrong Ruby version or fails to support the claim it accompanies.
+- A source reference resolves to the wrong Ruby version, points to a missing anchor, or fails to support the main learning goal. A page relevant only to a side remark does not establish that the main topic is referenced.
 - The interface displays “latest” as a version, labels a development build as stable, or otherwise makes the selected Ruby version materially ambiguous.
 
 Distinguish observed failures from evidence gaps. A failed runtime or route check is a blocker. An unavailable source or inaccessible preview is an unverified risk unless other evidence demonstrates a defect.

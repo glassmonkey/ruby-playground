@@ -1,7 +1,9 @@
 import { readFileSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import lz from "lz-string";
+import supplements from "../content/tutorial-supplements.json" with { type: "json" };
 import {
   tutorialVersions,
+  chaptersForVersion,
   latestTutorialVersion,
   tutorialSlugs,
   lessonsForVersion,
@@ -69,6 +71,8 @@ const referenceLabel = (name, version) => {
   return name;
 };
 const source = (name, version) => {
+  if (name === "Kernel#puts" || name === "Kernel#p")
+    return `https://docs.ruby-lang.org/en/${version.reference}/Kernel.html#method-i-${name.split("#")[1]}`;
   const chapter = referenceOverrides[version.id]?.[name] ?? syntax[name];
   return `https://docs.ruby-lang.org/en/${version.reference}/${chapter ? `syntax/${chapter}_rdoc` : name}.html`;
 };
@@ -106,7 +110,11 @@ rmSync(new URL("tutorial/", root), { recursive: true, force: true });
 const sitemap = ["/"];
 for (const version of tutorialVersions) {
   const lessons = lessonsForVersion(version.id);
-  const chapters = [...new Set(lessons.map((lesson) => lesson.chapter))];
+  const chapters = chaptersForVersion(version.id).filter((chapter) =>
+    lessons.some((lesson) => lesson.chapter === chapter),
+  );
+  if (lessons.some((lesson) => !chapters.includes(lesson.chapter)))
+    throw new Error(`Unknown chapter in ${version.id}`);
   for (const slug of tutorialSlugs) {
     const lesson = resolveLesson(slug, version.id);
     const url = lessonPath(version.id, slug);
@@ -123,12 +131,33 @@ for (const version of tutorialVersions) {
       );
       continue;
     }
+    if (
+      lesson.experiments.length < 2 ||
+      lesson.experiments.length > 3 ||
+      new Set(lesson.experiments.map((item) => item.id)).size !==
+        lesson.experiments.length ||
+      lesson.experiments.some((item) => !/^[a-z0-9-]+$/.test(item.id))
+    )
+      throw new Error(
+        `Invalid experiment count or identifiers: ${version.id}/${slug}`,
+      );
     const i = lessons.findIndex((item) => item.slug === slug);
     const share = `/?c=${encodeURIComponent(lz.compressToEncodedURIComponent(lesson.code))}&v=${version.id}#editor-heading`;
-    const sidebar = `<aside class="course-sidebar"><details open><summary>Course contents</summary><div class="course-progress"><p data-progress-summary>0 of ${lessons.length} completed</p><progress data-progress-bar max="${lessons.length}" value="0" aria-label="Course progress"></progress></div><nav aria-label="Course contents">${lessons.map((item, index) => `<a data-lesson-link="${item.slug}" ${item.slug === slug ? 'aria-current="page"' : ""} href="${lessonPath(version.id, item.slug)}"><span class="lesson-number">${String(index + 1).padStart(2, "0")}</span><span>${escape(item.title)}</span></a>`).join("")}</nav></details></aside>`;
+    const sidebar = `<aside class="course-sidebar"><details open><summary>Course contents</summary><div class="course-progress"><p data-progress-summary>0 of ${lessons.length} completed</p><progress data-progress-bar max="${lessons.length}" value="0" aria-label="Course progress"></progress></div><nav aria-label="Course contents">${chapters
+      .map(
+        (chapter) =>
+          `<section class="sidebar-chapter"><h3>${escape(chapter)}</h3>${lessons
+            .filter((item) => item.chapter === chapter)
+            .map(
+              (item) =>
+                `<a data-lesson-link="${item.slug}" ${item.slug === slug ? 'aria-current="page"' : ""} href="${lessonPath(version.id, item.slug)}"><span class="lesson-number">${String(lessons.indexOf(item) + 1).padStart(2, "0")}</span><span>${escape(item.title)}</span></a>`,
+            )
+            .join("")}</section>`,
+      )
+      .join("")}</nav></details></aside>`;
     const body = `<div class="lesson-layout">${sidebar}<article><p class="eyebrow">Lesson ${i + 1} of ${lessons.length} · ${escape(version.label)}</p><h1>${escape(lesson.title)}</h1><p class="lead">${escape(lesson.goal)}</p>${version.channel === "development" ? '<p class="version-note">Development course: behavior may change with future runtime updates.</p>' : ""}${lesson.versionNote ? `<p class="version-note">${escape(lesson.versionNote)}</p>` : ""}<div class="lesson-workspace"><div class="lesson-explanation">
-<section aria-labelledby="learn"><h2 id="learn">Learn</h2>${lesson.paragraphs.map((text) => `<p>${escape(text)}</p>`).join("")}<details><summary>Example output</summary><pre class="expected-output">${escape(lesson.output)}</pre></details></section>
-<section aria-labelledby="practice"><h2 id="practice">Experiment</h2><p>${escape(lesson.task)}</p><div id="experiment-action"></div><details class="practice-answer"><summary>Answer</summary><p>${escape(lesson.answer)}</p></details></section>
+<section aria-labelledby="learn"><h2 id="learn">Learn</h2>${lesson.paragraphs.map((text) => `<p>${escape(text)}</p>`).join("")}</section>
+<section aria-labelledby="practice"><h2 id="practice">Experiment</h2><ol class="experiments">${lesson.experiments.map((experiment) => `<li data-experiment="${escape(experiment.id)}"><h3>${escape(experiment.title)}</h3><p>${escape(experiment.task)}</p></li>`).join("")}</ol><details class="practice-answer"><summary>Answers</summary>${lesson.experiments.map((experiment) => `<h3>${escape(experiment.title)}</h3><p>${escape(experiment.answer)}</p>`).join("")}</details></section>
 <section aria-labelledby="references"><h2 id="references">Explore the official manual</h2><ul>${lesson.refs.map((ref) => `<li><a href="${source(ref, version)}">Official ${escape(version.label)} documentation: ${escape(referenceLabel(ref, version))}</a></li>`).join("")}${slug === "blocks" ? '<li><a href="https://docs.ruby-lang.org/en/3.4/NEWS_md.html">Ruby 3.4 release notes: introduction of the it block parameter</a></li>' : ""}</ul></section></div>
 <div class="lesson-editor"><div id="tutorial-runner" data-lesson="${slug}" data-version="${version.id}"><pre><code>${escape(lesson.code)}</code></pre><a class="button" href="${escape(share)}" target="_blank" rel="noopener noreferrer">Continue in full Playground ↗</a><p class="note">Enable JavaScript to edit and run code here, or use the full playground.</p></div></div></div>
 <div class="lesson-completion"><button class="button" data-complete-lesson hidden>Mark complete</button><span class="note">Progress is saved in this browser.</span></div><nav class="lesson-navigation" aria-label="Lesson navigation">${i ? `<div><span>Previous</span>${link(lessons[i - 1], version)}</div>` : `<div><a href="${coursePath(version)}">All lessons</a></div>`}<div><span>${i + 1 < lessons.length ? "Next lesson" : "Keep exploring"}</span>${i + 1 < lessons.length ? link(lessons[i + 1], version) : `<a href="${coursePath(version)}">Back to your learning path</a>`}</div></nav></article></div>`;
@@ -155,6 +184,12 @@ for (const version of tutorialVersions) {
           .join("")}</div></section>`,
     )
     .join("")}</nav></div>`;
+  for (const retired of supplements) {
+    redirect(
+      `tutorial/${version.id}/${retired.slug}/index.html`,
+      lessonPath(version.id, lessons[0].slug),
+    );
+  }
   const html = page(
     coursePath(version),
     `${version.label} Tutorial – Learn Ruby in Your Browser`,
@@ -175,6 +210,14 @@ for (const slug of tutorialSlugs) {
     `tutorial/latest/${slug}/index.html`,
     lessonPath(latestTutorialVersion, slug),
   );
+}
+for (const retired of supplements) {
+  const destination = lessonPath(
+    latestTutorialVersion,
+    lessonsForVersion(latestTutorialVersion)[0].slug,
+  );
+  redirect(`tutorial/${retired.slug}/index.html`, destination);
+  redirect(`tutorial/latest/${retired.slug}/index.html`, destination);
 }
 redirect("examples/index.html", "/tutorial/");
 write(

@@ -1,30 +1,8 @@
 [
   {
-    "slug": "output",
-    "title": "Your first Ruby program",
-    "chapter": "Getting started",
-    "goal": "Print a result and distinguish output from a return value.",
-    "paragraphs": [
-      "A Ruby program evaluates expressions in order. In this lesson, press Run code to execute your changes. Each run starts fresh. The Output panel shows what the program prints; it does not automatically show the value of every expression as an interactive Ruby console would.",
-      "Use puts for a readable line of text and p when you want to inspect a value. Text after # is a comment. Indentation makes nested code easier to read; ordinary statements can start on separate lines."
-    ],
-    "code": "# Print a greeting, then inspect a number.\nputs \"Hello, Ruby!\"\np 2 + 3\np puts(\"One more line\")",
-    "output": "Hello, Ruby!\n5\nOne more line\nnil",
-    "task": "Change 2 + 3 to 2 * 3. Why does the final line still say nil?",
-    "answer": "The number becomes 6. puts prints its argument but returns nil; the outer p prints that return value.",
-    "pitfall": "Writing 2 + 3 alone produces no visible output here. Wrap it in p.",
-    "refs": [
-      "Code Layout",
-      "Comments"
-    ],
-    "remaining": "Line continuation rules, block comments and magic comments are not covered yet.",
-    "experimentCode": "# Print a greeting, then inspect a number.\nputs \"Hello, Ruby!\"\np 2 * 3\np puts(\"One more line\")",
-    "experimentOutput": "Hello, Ruby!\n6\nOne more line\nnil"
-  },
-  {
     "slug": "values",
     "title": "Numbers, strings and symbols",
-    "chapter": "Values and variables",
+    "chapter": "Literals",
     "goal": "Recognize literal values and interpolate a value into a string.",
     "paragraphs": [
       "A literal writes a value directly in your program. 7 is an Integer and 7.0 is a Float. Double-quoted strings can insert the result of an expression with #{...}. Single-quoted strings do not perform that interpolation.",
@@ -32,20 +10,42 @@
     ],
     "code": "language = \"Ruby\"\nputs \"Hello, #{language}!\"\np 7 / 2\np 7.0 / 2\np :ruby.class\np nil.nil?",
     "output": "Hello, Ruby!\n3\n3.5\nSymbol\ntrue",
-    "task": "Change 7 / 2 to 7 / 2.0. Predict the result before running.",
-    "answer": "The result is 3.5 because one operand is a Float. Integer division in the original expression returned 3.",
     "pitfall": "A Symbol and a String with similar spelling are different values: :ruby == \"ruby\" is false.",
     "refs": [
       "Literals"
     ],
     "remaining": "Regular expressions, heredocs, percent literals, numeric bases, Rational and Complex literals need further lessons.",
-    "experimentCode": "language = \"Ruby\"\nputs \"Hello, #{language}!\"\np 7 / 2.0\np 7.0 / 2\np :ruby.class\np nil.nil?",
-    "experimentOutput": "Hello, Ruby!\n3.5\n3.5\nSymbol\ntrue"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare division results",
+        "task": "This version divides 7 by a Float. Compare it with Example: what result changes, and why?",
+        "code": "language = \"Ruby\"\nputs \"Hello, #{language}!\"\np 7 / 2.0\np 7.0 / 2\np :ruby.class\np nil.nil?",
+        "output": "Hello, Ruby!\n3.5\n3.5\nSymbol\ntrue",
+        "answer": "The division result changes from 3 to 3.5. With a Float operand Ruby performs floating-point division; the Example uses two Integers."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Interpolate a value",
+        "task": "Change the language value to \"Ruby 4\". What part of the sentence changes?",
+        "code": "language = \"Ruby\"\nputs \"I am learning #{language}.\"",
+        "output": "I am learning Ruby.",
+        "answer": "Interpolation inserts the current value of language into the double-quoted string."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Compare literal types",
+        "task": "Which values have different classes, and are the symbol and string equal?",
+        "code": "p 7.class\np 7.0.class\np :ruby == \"ruby\"",
+        "output": "Integer\nFloat\nfalse",
+        "answer": "7 is an Integer, 7.0 is a Float, and :ruby is a Symbol distinct from the String \"ruby\"."
+      }
+    ]
   },
   {
     "slug": "variables",
     "title": "Assignment and object references",
-    "chapter": "Values and variables",
+    "chapter": "Assignment",
     "goal": "Use local variables and understand when two names refer to the same object.",
     "paragraphs": [
       "Assignment associates a name with a value. Reassigning a variable changes what that name refers to. It does not automatically copy an object. This distinction matters when an object can be modified.",
@@ -53,20 +53,42 @@
     ],
     "code": "name = \"Ruby\"\nother = name\nother << \"!\"\nputs name\nother = \"Python\"\nputs name\nputs other",
     "output": "Ruby!\nRuby!\nPython",
-    "task": "Change other = name to other = name.dup. What does the first puts print?",
-    "answer": "It prints Ruby. dup creates a separate string, so appending to other no longer changes name.",
     "pitfall": "Assignment is not a deep copy. A copy of a collection can still contain references to the same nested objects.",
     "refs": [
       "Assignment"
     ],
     "remaining": "Multiple assignment, constant lookup, global/class variables and detailed block scope are not covered yet.",
-    "experimentCode": "name = \"Ruby\"\nother = name.dup\nother << \"!\"\nputs name\nother = \"Python\"\nputs name\nputs other",
-    "experimentOutput": "Ruby\nRuby\nPython"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare shared and copied strings",
+        "task": "Compare this run with Example: why does name stay Ruby here, while the Example prints Ruby! first?",
+        "code": "name = \"Ruby\"\nother = name.dup\nother << \"!\"\nputs name\nother = \"Python\"\nputs name\nputs other",
+        "output": "Ruby\nRuby\nPython",
+        "answer": "Here name and other start with separate strings because dup copies the string. In Example they refer to the same string, so appending through other changes name too."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Reassign a name",
+        "task": "Change the second assignment to \"Crystal\". What prints?",
+        "code": "language = \"Ruby\"\nlanguage = \"Python\"\nputs language",
+        "output": "Python",
+        "answer": "A later assignment makes language refer to the new string, so Crystal prints."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Share a mutable string",
+        "task": "Why does changing second also change what first prints?",
+        "code": "first = \"Ruby\"\nsecond = first\nsecond << \"!\"\nputs first",
+        "output": "Ruby!",
+        "answer": "Both names refer to the same mutable String. Appending through second changes that object."
+      }
+    ]
   },
   {
     "slug": "operators",
     "title": "Operators and precedence",
-    "chapter": "Expressions and decisions",
+    "chapter": "Precedence",
     "goal": "Group calculations deliberately and inspect comparisons.",
     "paragraphs": [
       "Operator precedence determines how an expression groups its parts. Multiplication groups before addition. Parentheses make a different grouping explicit and can also make your intent easier to read.",
@@ -74,21 +96,43 @@
     ],
     "code": "p 2 + 3 * 4\np (2 + 3) * 4\np 5 == 5\nputs \"Ruby\" + \" Playground\"",
     "output": "14\n20\ntrue\nRuby Playground",
-    "task": "Replace (2 + 3) * 4 with 2 * (3 + 4).",
-    "answer": "The result becomes 14: the parenthesized addition is evaluated as a group, then multiplied by 2.",
     "pitfall": "The words and/or have different precedence from &&/||. Do not mechanically swap them in assignments.",
     "refs": [
       "Operators",
       "Precedence"
     ],
     "remaining": "Operator definitions on custom classes, bitwise operators, safe navigation and boolean assignment precedence need deeper treatment.",
-    "experimentCode": "p 2 + 3 * 4\np 2 * (3 + 4)\np 5 == 5\nputs \"Ruby\" + \" Playground\"",
-    "experimentOutput": "14\n14\ntrue\nRuby Playground"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare the groupings",
+        "task": "Compare the second calculation here with Example: why is its result 14 instead of 20?",
+        "code": "p 2 + 3 * 4\np 2 * (3 + 4)\np 5 == 5\nputs \"Ruby\" + \" Playground\"",
+        "output": "14\n14\ntrue\nRuby Playground",
+        "answer": "Here 3 + 4 is grouped before multiplying by 2, giving 14. Example groups 2 + 3 first and then multiplies by 4, giving 20."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Compare two expressions",
+        "task": "Why do the expressions produce different totals?",
+        "code": "p 3 + 4 * 2\np (3 + 4) * 2",
+        "output": "11\n14",
+        "answer": "Multiplication groups before addition unless parentheses change the grouping."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Join strings",
+        "task": "Change second to \" rules\". What does + do here?",
+        "code": "first = \"Ruby\"\nsecond = \"!\"\nputs first + second",
+        "output": "Ruby!",
+        "answer": "For strings, + joins the receiver and argument into a new string."
+      }
+    ]
   },
   {
     "slug": "conditionals",
     "title": "Choose a branch with if and case",
-    "chapter": "Expressions and decisions",
+    "chapter": "Control Expressions",
     "goal": "Use conditional expressions and recognize Ruby truthiness.",
     "paragraphs": [
       "if selects a branch using a condition. Only false and nil are falsey in Ruby: zero and an empty string are truthy. An if expression also produces the value of its selected branch.",
@@ -96,20 +140,42 @@
     ],
     "code": "score = 72\nlabel = if score >= 60\n  \"pass\"\nelse\n  \"retry\"\nend\nputs label\nputs \"zero is truthy\" if 0\ncase score\nwhen 90..100\n  puts \"excellent\"\nwhen 60...90\n  puts \"on track\"\nelse\n  puts \"practice\"\nend",
     "output": "pass\nzero is truthy\non track",
-    "task": "Change score to 95 and predict both score-related messages.",
-    "answer": "The messages are pass and excellent. The condition still passes, but case now selects the first range.",
-    "pitfall": "An empty collection is also truthy. Test empty? when you mean \u201ccontains no elements\u201d.",
+    "pitfall": "An empty collection is also truthy. Test empty? when you mean “contains no elements”.",
     "refs": [
       "Control Expressions"
     ],
     "remaining": "Ternary expressions, modifier parsing details and case equality require further examples.",
-    "experimentCode": "score = 95\nlabel = if score >= 60\n  \"pass\"\nelse\n  \"retry\"\nend\nputs label\nputs \"zero is truthy\" if 0\ncase score\nwhen 90..100\n  puts \"excellent\"\nwhen 60...90\n  puts \"on track\"\nelse\n  puts \"practice\"\nend",
-    "experimentOutput": "pass\nzero is truthy\nexcellent"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare the selected branches",
+        "task": "Compare this run with Example: which case message changes when score is 95?",
+        "code": "score = 95\nlabel = if score >= 60\n  \"pass\"\nelse\n  \"retry\"\nend\nputs label\nputs \"zero is truthy\" if 0\ncase score\nwhen 90..100\n  puts \"excellent\"\nwhen 60...90\n  puts \"on track\"\nelse\n  puts \"practice\"\nend",
+        "output": "pass\nzero is truthy\nexcellent",
+        "answer": "The if message stays pass. The case message changes from on track to excellent because 95 matches the first range."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Use an if result",
+        "task": "Set temperature to -2. Which branch supplies message?",
+        "code": "temperature = 12\nmessage = if temperature < 0\n  \"freezing\"\nelse\n  \"above freezing\"\nend\nputs message",
+        "output": "above freezing",
+        "answer": "The condition is true, so the if expression evaluates to \"freezing\"."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Test Ruby truthiness",
+        "task": "The supplied code tests nil. Change nil to 0: which branch runs now?",
+        "code": "if nil\n  puts \"runs\"\nelse\n  puts \"skips\"\nend",
+        "output": "skips",
+        "answer": "The original nil takes the else branch and prints skips. With 0, the first branch prints runs: only nil and false are falsey in Ruby."
+      }
+    ]
   },
   {
     "slug": "loops",
     "title": "Repeat work and control a loop",
-    "chapter": "Collections and iteration",
+    "chapter": "Control Expressions",
     "goal": "Use iteration, next and break without creating an unbounded loop.",
     "paragraphs": [
       "Iteration repeats work for each value. each yields successive values to a block, while while repeats as long as its condition stays truthy. until repeats while its condition is falsey.",
@@ -117,44 +183,42 @@
     ],
     "code": "(1..5).each do |number|\n  next if number == 2\n  break if number == 5\n  puts number\nend\ncount = 0\nwhile count < 2\n  count += 1\nend\np count",
     "output": "1\n3\n4\n2",
-    "task": "Move break if number == 5 before next, then change the break value to 3.",
-    "answer": "The iteration prints only 1. The value 2 is skipped and the loop ends before printing 3. The final count is still 2.",
     "pitfall": "A .. range includes its end; a ... range excludes it. That can change how many times an iteration runs.",
     "refs": [
       "Control Expressions"
     ],
     "remaining": "for-loop scope, redo, retry and loop return values are not covered yet.",
-    "experimentCode": "(1..5).each do |number|\n  break if number == 3\n  next if number == 2\n  puts number\nend\ncount = 0\nwhile count < 2\n  count += 1\nend\np count",
-    "experimentOutput": "1\n2"
-  },
-  {
-    "slug": "collections",
-    "title": "Work with arrays, hashes and Enumerable",
-    "chapter": "Collections and iteration",
-    "goal": "Transform a collection while keeping track of the returned value.",
-    "paragraphs": [
-      "An Array stores ordered values and uses zero-based indexes. A Hash associates keys with values. The colon form ruby: 10 creates a Symbol key, so fetch(:ruby) retrieves it.",
-      "Enumerable methods describe common operations: map builds transformed values, select keeps matching values, and reduce combines values into an accumulator. These are APIs, not special language syntax. They use the blocks introduced in the iteration lesson."
-    ],
-    "code": "numbers = [1, 2, 3, 4]\np numbers.map { |n| n * 2 }\np numbers.select { |n| n.even? }\np numbers.reduce(0) { |sum, n| sum + n }\nscores = { ruby: 10, python: 8 }\np scores.fetch(:ruby)\np scores.fetch(:go, 0)",
-    "output": "[2, 4, 6, 8]\n[2, 4]\n10\n10\n0",
-    "task": "Change even? to odd? and use 10 instead of 0 as the initial reduce value.",
-    "answer": "select returns [1, 3]. reduce returns 20 because it starts with 10 and then adds all four numbers.",
-    "pitfall": "map returns a new array; it does not replace the original array. fetch without a default raises an error for a missing key.",
-    "refs": [
-      "Literals",
-      "Array",
-      "Hash",
-      "Enumerable"
-    ],
-    "remaining": "This is a selection of core APIs, not complete Array, Hash or Enumerable API coverage.",
-    "experimentCode": "numbers = [1, 2, 3, 4]\np numbers.map { |n| n * 2 }\np numbers.select { |n| n.odd? }\np numbers.reduce(10) { |sum, n| sum + n }\nscores = { ruby: 10, python: 8 }\np scores.fetch(:ruby)\np scores.fetch(:go, 0)",
-    "experimentOutput": "[2, 4, 6, 8]\n[1, 3]\n20\n10\n0"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare loop control",
+        "task": "Compare the loop output with Example: why does this run stop after printing 1?",
+        "code": "(1..5).each do |number|\n  break if number == 3\n  next if number == 2\n  puts number\nend\ncount = 0\nwhile count < 2\n  count += 1\nend\np count",
+        "output": "1\n2",
+        "answer": "Here break runs before next when number is 3, so the loop stops before printing 3. Example skips 2, then prints 3 and 4 before reaching its break at 5."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Iterate over a range",
+        "task": "Change the range to 1...3. Which number disappears?",
+        "code": "(1..3).each do |number|\n  puts number\nend",
+        "output": "1\n2\n3",
+        "answer": "The exclusive range omits its endpoint, so it prints 1 and 2."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Skip one iteration",
+        "task": "What does next do when number is 3?",
+        "code": "(1..4).each do |number|\n  next if number == 3\n  puts number\nend",
+        "output": "1\n2\n4",
+        "answer": "It skips the rest of that iteration and continues with 4."
+      }
+    ]
   },
   {
     "slug": "methods",
     "title": "Define methods and pass arguments",
-    "chapter": "Methods and blocks",
+    "chapter": "Methods",
     "goal": "Define a reusable method with a positional and keyword argument.",
     "paragraphs": [
       "A method packages a calculation behind a name. Define it with def and close the body with end. Ruby returns the last evaluated expression unless an explicit return exits the method earlier.",
@@ -162,21 +226,43 @@
     ],
     "code": "def greeting(name, punctuation: \"!\")\n  \"Hello, #{name}#{punctuation}\"\nend\nputs greeting(\"Ruby\")\nputs greeting(\"Matz\", punctuation: \"?\")",
     "output": "Hello, Ruby!\nHello, Matz?",
-    "task": "Change the default punctuation to \".\". Which call changes?",
-    "answer": "Only greeting(\"Ruby\") changes. The second call explicitly supplies its own keyword value.",
     "pitfall": "Printing inside a method is different from returning a string. A method ending in puts returns nil.",
     "refs": [
       "Methods",
       "Calling Methods"
     ],
     "remaining": "Rest arguments, keyword rest, forwarding, destructuring, singleton methods and argument evaluation order need dedicated lessons.",
-    "experimentCode": "def greeting(name, punctuation: \".\")\n  \"Hello, #{name}#{punctuation}\"\nend\nputs greeting(\"Ruby\")\nputs greeting(\"Matz\", punctuation: \"?\")",
-    "experimentOutput": "Hello, Ruby.\nHello, Matz?"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare the default argument",
+        "task": "Compare the two calls here with Example: which greeting changes, and why?",
+        "code": "def greeting(name, punctuation: \".\")\n  \"Hello, #{name}#{punctuation}\"\nend\nputs greeting(\"Ruby\")\nputs greeting(\"Matz\", punctuation: \"?\")",
+        "output": "Hello, Ruby.\nHello, Matz?",
+        "answer": "The first greeting changes from Hello, Ruby! to Hello, Ruby. because its call uses the default. The Matz call supplies ? explicitly, so it is unchanged."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Return the last expression",
+        "task": "Call double with 9. What does the method return?",
+        "code": "def double(number)\n  number * 2\nend\np double(6)",
+        "output": "12",
+        "answer": "The last expression is number * 2, so double(9) returns 18."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Pass a keyword argument",
+        "task": "Change the explicit punctuation to \"?\". What is printed?",
+        "code": "def label(name, punctuation: \"!\")\n  \"Hi, #{name}#{punctuation}\"\nend\nputs label(\"Ruby\", punctuation: \".\")",
+        "output": "Hi, Ruby.",
+        "answer": "The supplied call prints Hi, Ruby. because it passes a period. After changing that argument to \"?\", it prints Hi, Ruby?; an explicit keyword overrides the default \"!\"."
+      }
+    ]
   },
   {
     "slug": "blocks",
     "title": "Yield to blocks and store callable behavior",
-    "chapter": "Methods and blocks",
+    "chapter": "Calling Methods",
     "goal": "Pass behavior to a method and call a Proc or lambda.",
     "paragraphs": [
       "A block is behavior supplied alongside a method call. A method can invoke it with yield. Block parameters receive the values passed by yield. Blocks can use local variables from their surrounding scope.",
@@ -185,8 +271,6 @@
     ],
     "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { it * 2 }",
     "output": "6\n8\n12\n[2, 4, 6]",
-    "task": "Change yield 2 to yield 5. Which output changes?",
-    "answer": "Only the first result changes, to 15. The two stored callables still receive 4 independently.",
     "pitfall": "Calling yield when no block was supplied raises LocalJumpError. Methods with optional blocks can check block_given?.",
     "refs": [
       "Calling Methods",
@@ -203,7 +287,32 @@
           "This version uses an explicit block parameter, |number|. The implicit it parameter was introduced in Ruby 3.4 and is not available in this version. Keep the parameter declaration when running this example."
         ],
         "versionNote": "Ruby 3.2 does not support the implicit it block parameter. This lesson uses an explicit |number| parameter instead.",
-        "experimentCode": "def twice\n  yield 5\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }"
+        "experiments": [
+          {
+            "id": "change",
+            "title": "Trace the yielded value",
+            "task": "Compare the first result here with Example. Which input changed, and why do the other results stay the same?",
+            "code": "def twice\n  yield 5\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }",
+            "output": "15\n8\n12\n[2, 4, 6]",
+            "answer": "The method yields 5 here instead of 2, so the block result changes from 6 to 15. The Proc and lambda still receive 4, so their results stay 8 and 12."
+          },
+          {
+            "id": "experiment-2",
+            "title": "Yield a value",
+            "task": "Change the yielded value to \"Matz\". What does the block return?",
+            "code": "def announce\n  yield \"Ruby\"\nend\nputs announce { |name| \"Hello, #{name}\" }",
+            "output": "Hello, Ruby",
+            "answer": "The block receives Matz and returns the interpolated string Hello, Matz."
+          },
+          {
+            "id": "experiment-3",
+            "title": "Call stored behavior",
+            "task": "Call the lambda with \"blocks\". What does upcase return?",
+            "code": "shout = ->(word) { word.upcase }\nputs shout.call(\"ruby\")",
+            "output": "RUBY",
+            "answer": "The lambda runs its block body with the argument and returns BLOCKS."
+          }
+        ]
       },
       "3.3": {
         "code": "def twice\n  yield 2\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }",
@@ -213,16 +322,65 @@
           "This version uses an explicit block parameter, |number|. The implicit it parameter was introduced in Ruby 3.4 and is not available in this version. Keep the parameter declaration when running this example."
         ],
         "versionNote": "Ruby 3.3 does not support the implicit it block parameter. This lesson uses an explicit |number| parameter instead.",
-        "experimentCode": "def twice\n  yield 5\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }"
+        "experiments": [
+          {
+            "id": "change",
+            "title": "Trace the yielded value",
+            "task": "Compare the first result here with Example. Which input changed, and why do the other results stay the same?",
+            "code": "def twice\n  yield 5\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { |number| number * 2 }",
+            "output": "15\n8\n12\n[2, 4, 6]",
+            "answer": "The method yields 5 here instead of 2, so the block result changes from 6 to 15. The Proc and lambda still receive 4, so their results stay 8 and 12."
+          },
+          {
+            "id": "experiment-2",
+            "title": "Yield a value",
+            "task": "Change the yielded value to \"Matz\". What does the block return?",
+            "code": "def announce\n  yield \"Ruby\"\nend\nputs announce { |name| \"Hello, #{name}\" }",
+            "output": "Hello, Ruby",
+            "answer": "The block receives Matz and returns the interpolated string Hello, Matz."
+          },
+          {
+            "id": "experiment-3",
+            "title": "Call stored behavior",
+            "task": "Call the lambda with \"blocks\". What does upcase return?",
+            "code": "shout = ->(word) { word.upcase }\nputs shout.call(\"ruby\")",
+            "output": "RUBY",
+            "answer": "The lambda runs its block body with the argument and returns BLOCKS."
+          }
+        ]
       }
     },
-    "experimentCode": "def twice\n  yield 5\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { it * 2 }",
-    "experimentOutput": "15\n8\n12\n[2, 4, 6]"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Trace the yielded value",
+        "task": "Compare the first result here with Example. Which input changed, and why do the other results stay the same?",
+        "code": "def twice\n  yield 5\nend\np twice { |n| n * 3 }\ndouble = Proc.new { |n| n * 2 }\ntriple = ->(n) { n * 3 }\np double.call(4)\np triple.call(4)\np [1, 2, 3].map { it * 2 }",
+        "output": "15\n8\n12\n[2, 4, 6]",
+        "answer": "The method yields 5 here instead of 2, so the block result changes from 6 to 15. The Proc and lambda still receive 4, so their results stay 8 and 12."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Yield a value",
+        "task": "Change the yielded value to \"Matz\". What does the block return?",
+        "code": "def announce\n  yield \"Ruby\"\nend\nputs announce { |name| \"Hello, #{name}\" }",
+        "output": "Hello, Ruby",
+        "answer": "The block receives Matz and returns the interpolated string Hello, Matz."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Call stored behavior",
+        "task": "Call the lambda with \"blocks\". What does upcase return?",
+        "code": "shout = ->(word) { word.upcase }\nputs shout.call(\"ruby\")",
+        "output": "RUBY",
+        "answer": "The lambda runs its block body with the argument and returns BLOCKS."
+      }
+    ]
   },
   {
     "slug": "classes",
     "title": "Create objects with classes",
-    "chapter": "Objects and modules",
+    "chapter": "Modules and Classes",
     "goal": "Initialize instance state and expose behavior through methods.",
     "paragraphs": [
       "A class defines behavior for its instances. new creates an instance and calls initialize. Instance variables belong to an object, so separate instances can hold different values.",
@@ -230,41 +388,85 @@
     ],
     "code": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @value = start\n  end\n  def increment\n    @value += 1\n  end\nend\nfirst = Counter.new\nsecond = Counter.new(10)\nfirst.increment\np first.value\np second.value",
     "output": "1\n10",
-    "task": "Call first.increment twice more. Does second.value change?",
-    "answer": "first.value becomes 3. second.value stays 10 because the objects have separate instance variables.",
     "pitfall": "attr_reader exposes reading only. It does not generate a value= writer.",
     "refs": [
       "Modules and Classes"
     ],
     "remaining": "Inheritance examples, super, singleton classes, private/protected methods and constant lookup need further lessons.",
-    "experimentCode": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @value = start\n  end\n  def increment\n    @value += 1\n  end\nend\nfirst = Counter.new\nsecond = Counter.new(10)\nfirst.increment\nfirst.increment\nfirst.increment\np first.value\np second.value",
-    "experimentOutput": "3\n10"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare instance values",
+        "task": "Compare this run with Example: why is first.value 3 here, while second.value stays 10?",
+        "code": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @value = start\n  end\n  def increment\n    @value += 1\n  end\nend\nfirst = Counter.new\nsecond = Counter.new(10)\nfirst.increment\nfirst.increment\nfirst.increment\np first.value\np second.value",
+        "output": "3\n10",
+        "answer": "This run increments first three times, so its value is 3; Example increments it once, so it is 1. second is a separate object and remains 10 in both runs."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Keep state per object",
+        "task": "Create another Lamp with \"red\" and print its color.",
+        "code": "class Lamp\n  def initialize(color)\n    @color = color\n  end\n  def color\n    @color\n  end\nend\nputs Lamp.new(\"blue\").color",
+        "output": "blue",
+        "answer": "Each new instance receives its own @color value, so the second lamp reports red."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Update instance state",
+        "task": "Call increment two more times before printing. What is value?",
+        "code": "class Counter\n  def initialize\n    @value = 0\n  end\n  def increment\n    @value += 1\n  end\n  def value\n    @value\n  end\nend\ncounter = Counter.new\ncounter.increment\np counter.value",
+        "output": "1",
+        "answer": "Each call adds one to this counter object, so value becomes 3."
+      }
+    ]
   },
   {
     "slug": "modules",
     "title": "Share behavior with modules",
-    "chapter": "Objects and modules",
+    "chapter": "Modules and Classes",
     "goal": "Include instance behavior and organize names with a module.",
     "paragraphs": [
-      "A module can group related names and define methods for reuse. include makes a module\u2019s instance methods available to instances of the including class. You cannot instantiate a module with new.",
+      "A module can group related names and define methods for reuse. include makes a module’s instance methods available to instances of the including class. You cannot instantiate a module with new.",
       "Modules also provide namespaces. Qualify a nested constant with :: to identify where it belongs. include, extend and prepend serve different purposes; this lesson demonstrates include only."
     ],
     "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"book\"\n  end\nend\nputs Product.new.label",
     "output": "item: book",
-    "task": "Change Product#name to return \"pen\".",
-    "answer": "The output becomes item: pen. The included method calls name on the same Product instance.",
     "pitfall": "Included methods can depend on methods of their receiver. Those dependencies still need to be implemented by the class.",
     "refs": [
       "Modules and Classes"
     ],
     "remaining": "extend, prepend, method lookup order and namespace resolution need dedicated examples.",
-    "experimentCode": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"pen\"\n  end\nend\nputs Product.new.label",
-    "experimentOutput": "item: pen"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare the included method",
+        "task": "Compare this output with Example: which part changes when Product#name returns pen?",
+        "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"pen\"\n  end\nend\nputs Product.new.label",
+        "output": "item: pen",
+        "answer": "The label changes from item: book to item: pen. The included label method calls name on the Product instance."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Include a method",
+        "task": "Change greet to return \"Welcome\". What prints?",
+        "code": "module Greeter\n  def greet\n    \"Hello\"\n  end\nend\nclass Person\n  include Greeter\nend\nputs Person.new.greet",
+        "output": "Hello",
+        "answer": "The included instance method is available to Person instances, and now returns Welcome."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Call an included method",
+        "task": "Change Book#kind to return \"novel\". What does description print?",
+        "code": "module Describable\n  def description\n    \"A #{kind}\"\n  end\nend\nclass Book\n  include Describable\n  def kind\n    \"book\"\n  end\nend\nputs Book.new.description",
+        "output": "A book",
+        "answer": "The included method calls kind on the same Book object, producing A novel."
+      }
+    ]
   },
   {
     "slug": "exceptions",
     "title": "Handle an expected failure",
-    "chapter": "Errors and recovery",
+    "chapter": "Exceptions",
     "goal": "Raise an exception, handle a specific error and run cleanup.",
     "paragraphs": [
       "An exception interrupts normal execution. rescue handles a matching exception so your program can respond. Prefer a specific exception class when you know which failure you can recover from.",
@@ -272,41 +474,85 @@
     ],
     "code": "begin\n  Integer(\"not a number\")\nrescue ArgumentError\n  puts \"Please use digits\"\nensure\n  puts \"Attempt finished\"\nend\nbegin\n  raise ArgumentError, \"score must be positive\"\nrescue ArgumentError => error\n  puts error.message\nend",
     "output": "Please use digits\nAttempt finished\nscore must be positive",
-    "task": "Replace \"not a number\" with \"42\". Which message disappears?",
-    "answer": "Please use digits disappears because conversion succeeds. Attempt finished still prints, and the separate explicit raise is still handled.",
     "pitfall": "A broad rescue can hide programming errors. Handling a failure should have a specific purpose.",
     "refs": [
       "Exceptions"
     ],
     "remaining": "Custom exception classes, else, retry and exception cause chains are not covered yet.",
-    "experimentCode": "begin\n  Integer(\"42\")\nrescue ArgumentError\n  puts \"Please use digits\"\nensure\n  puts \"Attempt finished\"\nend\nbegin\n  raise ArgumentError, \"score must be positive\"\nrescue ArgumentError => error\n  puts error.message\nend",
-    "experimentOutput": "Attempt finished\nscore must be positive"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare handled and successful conversion",
+        "task": "Compare this run with Example: which message disappears, and why does Attempt finished remain?",
+        "code": "begin\n  Integer(\"42\")\nrescue ArgumentError\n  puts \"Please use digits\"\nensure\n  puts \"Attempt finished\"\nend\nbegin\n  raise ArgumentError, \"score must be positive\"\nrescue ArgumentError => error\n  puts error.message\nend",
+        "output": "Attempt finished\nscore must be positive",
+        "answer": "Please use digits disappears because converting 42 succeeds, so rescue does not run. ensure still prints Attempt finished as the protected block ends."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Rescue a specific error",
+        "task": "Replace \"oops\" with \"12\". Does the rescue run?",
+        "code": "begin\n  Integer(\"oops\")\nrescue ArgumentError\n  puts \"invalid number\"\nend",
+        "output": "invalid number",
+        "answer": "Conversion succeeds for 12, so no ArgumentError is raised and nothing prints."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Always run ensure",
+        "task": "Raise an ArgumentError inside begin. Does ensure still print done?",
+        "code": "begin\n  puts \"working\"\nensure\n  puts \"done\"\nend",
+        "output": "working\ndone",
+        "answer": "ensure runs as Ruby leaves the protected block, including while an exception propagates."
+      }
+    ]
   },
   {
     "slug": "pattern-matching",
     "title": "Match structured data",
-    "chapter": "Advanced syntax",
+    "chapter": "Pattern matching",
     "goal": "Select a branch using the shape and values of a Hash.",
     "paragraphs": [
-      "Pattern matching examines a value\u2019s structure. In a case/in expression, a hash pattern can require particular keys and bind values to local variables. This is useful when handling data with several possible shapes.",
+      "Pattern matching examines a value’s structure. In a case/in expression, a hash pattern can require particular keys and bind values to local variables. This is useful when handling data with several possible shapes.",
       "The role value below must equal \"admin\". The name: shorthand binds the associated value to name. The else branch handles a mismatch; without a matching branch or else, case/in raises an error."
     ],
     "code": "user = { name: \"Ruby\", role: \"admin\" }\ncase user\nin { name:, role: \"admin\" }\n  puts \"Welcome, #{name}\"\nelse\n  puts \"Guest\"\nend",
     "output": "Welcome, Ruby",
-    "task": "Change role to \"member\" and run again.",
-    "answer": "The output is Guest because the literal role requirement no longer matches.",
     "pitfall": "A hash pattern can allow extra keys. Use an explicit restrictive pattern when extra keys must be rejected.",
     "refs": [
       "Pattern matching"
     ],
     "remaining": "Array/find patterns, pins, guards, deconstruction and rightward assignment are not covered yet.",
-    "experimentCode": "user = { name: \"Ruby\", role: \"member\" }\ncase user\nin { name:, role: \"admin\" }\n  puts \"Welcome, #{name}\"\nelse\n  puts \"Guest\"\nend",
-    "experimentOutput": "Guest"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare matching roles",
+        "task": "Compare this output with Example: why does this data select Guest?",
+        "code": "user = { name: \"Ruby\", role: \"member\" }\ncase user\nin { name:, role: \"admin\" }\n  puts \"Welcome, #{name}\"\nelse\n  puts \"Guest\"\nend",
+        "output": "Guest",
+        "answer": "The role is member here, so the pattern requiring admin does not match and the else branch prints Guest. Example has role admin and prints Welcome, Ruby."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Match a hash shape",
+        "task": "Change count to 5. Which bound value changes?",
+        "code": "item = { name: \"book\", count: 2 }\ncase item\nin { name:, count: }\n  puts \"#{name}: #{count}\"\nend",
+        "output": "book: 2",
+        "answer": "The hash pattern binds count from the matching key, so the printed count becomes 5."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Choose a matching branch",
+        "task": "Change code to 200. Which branch matches?",
+        "code": "status = { code: 404 }\ncase status\nin { code: 200 }\n  puts \"ok\"\nin { code: 404 }\n  puts \"missing\"\nend",
+        "output": "missing",
+        "answer": "The first hash pattern requires code: 200, so it prints ok."
+      }
+    ]
   },
   {
     "slug": "refinements",
     "title": "Scope a method extension with refinements",
-    "chapter": "Advanced syntax",
+    "chapter": "Refinements",
     "goal": "Activate an extension in a lexical scope.",
     "paragraphs": [
       "Reopening a class changes methods for its users broadly. A refinement can limit where an extension is active. Define the extension inside refine, then activate the containing module with using.",
@@ -314,20 +560,42 @@
     ],
     "code": "module ExcitedText\n  refine String do\n    def excited\n      self + \"!\"\n    end\n  end\nend\nusing ExcitedText\nputs \"Ruby\".excited",
     "output": "Ruby!",
-    "task": "Replace self + \"!\" with upcase + \"!\".",
-    "answer": "The output becomes RUBY!: the refined method calls the existing upcase method and appends punctuation.",
     "pitfall": "using cannot be activated inside a method. Refinements are not a general global extension mechanism.",
     "refs": [
       "Refinements"
     ],
     "remaining": "Refinement method lookup and interactions with inheritance and imports are not covered yet.",
-    "experimentCode": "module ExcitedText\n  refine String do\n    def excited\n      upcase + \"!\"\n    end\n  end\nend\nusing ExcitedText\nputs \"Ruby\".excited",
-    "experimentOutput": "RUBY!"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare refined behavior",
+        "task": "Compare this output with Example: what changes when the refined method uses upcase?",
+        "code": "module ExcitedText\n  refine String do\n    def excited\n      upcase + \"!\"\n    end\n  end\nend\nusing ExcitedText\nputs \"Ruby\".excited",
+        "output": "RUBY!",
+        "answer": "The output changes from Ruby! to RUBY! because upcase converts the receiver to uppercase before appending !."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Activate a refinement",
+        "task": "Change the string to \"Blocks\". What does short return?",
+        "code": "module ShortNames\n  refine String do\n    def short\n      self[0, 3]\n    end\n  end\nend\nusing ShortNames\nputs \"Ruby language\".short",
+        "output": "Rub",
+        "answer": "The refined method slices the first three characters, so it returns Blo."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Limit the refined call",
+        "task": "Change the receiver to \"Ruby\". What is wrapped?",
+        "code": "module Bracketed\n  refine String do\n    def bracket\n      \"[#{self}]\"\n    end\n  end\nend\nusing Bracketed\nputs \"code\".bracket",
+        "output": "[code]",
+        "answer": "The method is active after using and wraps its receiver, producing [Ruby]."
+      }
+    ]
   },
   {
     "slug": "special-forms",
     "title": "Recognize alias, undef, BEGIN and END",
-    "chapter": "Advanced syntax",
+    "chapter": "Miscellaneous",
     "goal": "Identify less common forms and their effect on execution.",
     "paragraphs": [
       "alias introduces another name for an existing method at that point in the program. undef makes a method unavailable through that class. These forms affect an interface, so ordinary method definitions are often clearer when no aliasing is needed.",
@@ -335,14 +603,165 @@
     ],
     "code": "BEGIN { puts \"start\" }\nclass Message\n  def text\n    \"hello\"\n  end\n  alias original_text text\n  undef text\nend\nputs Message.new.original_text\np Message.new.respond_to?(:text)\nEND { puts \"finish\" }",
     "output": "start\nhello\nfalse",
-    "task": "Remove undef text. What changes?",
-    "answer": "respond_to?(:text) becomes true. Both names are available; the printed greeting remains hello.",
     "pitfall": "Do not use END for cleanup in this playground. Its execution lifecycle differs from running a Ruby script as a command-line process.",
     "refs": [
       "Miscellaneous"
     ],
     "remaining": "Multiple END blocks and alias behavior across later method redefinitions need further examples.",
-    "experimentCode": "BEGIN { puts \"start\" }\nclass Message\n  def text\n    \"hello\"\n  end\n  alias original_text text\nend\nputs Message.new.original_text\np Message.new.respond_to?(:text)\nEND { puts \"finish\" }",
-    "experimentOutput": "start\nhello\ntrue"
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare method availability",
+        "task": "Compare respond_to? here with Example: what changed when undef was removed?",
+        "code": "BEGIN { puts \"start\" }\nclass Message\n  def text\n    \"hello\"\n  end\n  alias original_text text\nend\nputs Message.new.original_text\np Message.new.respond_to?(:text)\nEND { puts \"finish\" }",
+        "output": "start\nhello\ntrue",
+        "answer": "respond_to?(:text) changes from false to true. Without undef, the class still exposes text as well as its alias original_text."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Alias a method",
+        "task": "Change text to return \"welcome\" and run again. What does the alias call?",
+        "code": "class Greeting\n  def text\n    \"hello\"\n  end\n  alias message text\nend\nputs Greeting.new.message",
+        "output": "hello",
+        "answer": "Editing the definition before alias changes the body that message refers to, so it prints welcome. The alias is created after that definition when you run the code."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Check method availability",
+        "task": "Remove undef text. What does respond_to? return?",
+        "code": "class Greeting\n  def text\n    \"hello\"\n  end\n  undef text\nend\np Greeting.new.respond_to?(:text)",
+        "output": "false",
+        "answer": "The method is available again, so respond_to? returns true."
+      }
+    ]
+  },
+  {
+    "slug": "code-layout",
+    "title": "Code layout and line breaks",
+    "chapter": "Code Layout",
+    "goal": "Separate Ruby expressions clearly and continue an expression across lines.",
+    "paragraphs": [
+      "Ruby treats a line break as the end of an expression when the expression is complete. A semicolon can separate expressions on one line, though separate lines are usually easier to read. Indentation helps people see structure; it does not replace Ruby's syntax.",
+      "Ruby can continue an expression when the current line is incomplete, such as after +. In that case the next line belongs to the same expression. Use parentheses or a clear line break to show how the parts fit together."
+    ],
+    "code": "first = 2\nsecond = 3\ntotal = first +\n  second\nputs total",
+    "output": "5",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Separate statements",
+        "task": "Predict the two printed lines. Then put the assignments on separate lines without changing their values.",
+        "code": "first = 2; second = 3\nputs first\nputs second",
+        "output": "2\n3",
+        "answer": "The semicolon separates the two assignments, so Ruby prints 2 and then 3. Moving each assignment to its own line keeps the same output and is easier to scan."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Continue an expression",
+        "task": "What does total contain? Change the second addend from 3 to 8 and predict the new output.",
+        "code": "total = 10 +\n  3\nputs total",
+        "output": "13",
+        "answer": "The plus sign leaves the expression incomplete, so the next line supplies its right-hand value. Changing 3 to 8 makes the output 18."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Use parentheses",
+        "task": "This expression continues inside parentheses. Predict the result, then change 4 to 6. Does putting the grouped sum on separate lines change the calculation?",
+        "code": "total = (\n  2 + 4\n) * 3\nputs total",
+        "output": "18",
+        "answer": "The open parenthesis lets the grouped expression continue across lines. The result is 18; changing 4 to 6 makes it 24. Line breaks inside this grouping do not change the arithmetic."
+      }
+    ],
+    "pitfall": "A line break after a complete expression starts a new expression. Put a continuation operator such as + at the end of the unfinished line, or use parentheses to make the grouping clear.",
+    "refs": [
+      "Code Layout"
+    ],
+    "remaining": "Backslash line continuation and optional separators in control structures are not covered."
+  },
+  {
+    "slug": "comments",
+    "title": "Comments",
+    "chapter": "Comments",
+    "goal": "Add notes to Ruby code with comments that Ruby does not execute.",
+    "paragraphs": [
+      "A comment begins with # and continues to the end of that line. You can put it on its own line or after Ruby code. Ruby ignores the comment text, so it does not change the program's output.",
+      "Use comments to explain a reason or intention that the code does not make clear. Keep executable Ruby outside the comment so the interpreter can run it."
+    ],
+    "code": "# Choose a value for the greeting\nname = \"Ruby\" # this is a short comment\nputs \"Hello, #{name}!\"",
+    "output": "Hello, Ruby!",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Comment out a line",
+        "task": "Predict the output. Then remove the # before the first puts and predict both lines.",
+        "code": "# puts \"First line\"\nputs \"Second line\"",
+        "output": "Second line",
+        "answer": "Ruby ignores the first line because it starts with #. Removing that # makes the first puts run too, so both lines print."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Add an end-of-line note",
+        "task": "What prints before the #? Change the number to 9 and predict the result.",
+        "code": "count = 4 # number of tries\nputs count",
+        "output": "4",
+        "answer": "The text after # is a comment, so puts prints the assigned value 4. Changing the number to 9 makes it print 9."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Keep code outside the comment",
+        "task": "Predict the output, then change \"Ready\" to \"Done\". Which text is part of the comment?",
+        "code": "puts \"Ready\" # show the status",
+        "output": "Ready",
+        "answer": "Ruby runs puts and ignores the note after #. Changing the string changes the output to Done; the words after # still have no effect."
+      }
+    ],
+    "pitfall": "Text after # on a line is a comment, including anything that looks like Ruby code. Put the code before # or on a separate line if it should run.",
+    "refs": [
+      "Comments"
+    ],
+    "remaining": "Block comments and magic comments are not covered."
+  },
+  {
+    "slug": "operator-methods",
+    "title": "Operators are methods",
+    "chapter": "Operators",
+    "goal": "Read common operators as methods called on the value to their left.",
+    "paragraphs": [
+      "Many Ruby operators are methods. The expression 2 + 3 can also be written as 2.+(3): the value on the left is the receiver, and the value on the right is passed to its + method.",
+      "The same operator can do different work for different receiver types. Integer + adds numbers, while String + joins text. This lesson uses built-in objects; defining operators for a custom class is a separate topic."
+    ],
+    "code": "p 2 + 3\np 2.+(3)\np \"Ruby\" + \"!\"",
+    "output": "5\n5\n\"Ruby!\"",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare two spellings",
+        "task": "Predict both results. Change the argument in the method-call form from 3 to 8; what changes?",
+        "code": "p 2 + 3\np 2.+(3)",
+        "output": "5\n5",
+        "answer": "Both forms call + on the Integer 2 with 3, so both print 5. Changing the argument to 8 makes the second result 10."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Use plus with strings",
+        "task": "What does + do when its receiver is a String? Change the second string to \" rules\" and predict the output.",
+        "code": "p \"Ruby\" + \"!\"",
+        "output": "\"Ruby!\"",
+        "answer": "Here + is called on the String \"Ruby\" and joins the supplied string to it. With \" rules\", p displays \"Ruby rules\"."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Repeat a string",
+        "task": "Predict the output, then change the receiver from \"ha\" to \"go\". Which value receives *?",
+        "code": "p \"ha\" * 3",
+        "output": "\"hahaha\"",
+        "answer": "The String \"ha\" is the receiver of * and 3 is its argument, so the string repeats three times. With \"go\", p displays \"gogogo\"."
+      }
+    ],
+    "pitfall": "An operator does not have one universal meaning: its receiver determines which method runs. For example, String + joins strings, while Integer + adds numbers.",
+    "refs": [
+      "Operators"
+    ],
+    "remaining": "Custom operator definitions, precedence and logical operators are outside this lesson."
   }
 ]

@@ -1,5 +1,15 @@
 import content from "../content/tutorial.json" with { type: "json" };
+import chapterCatalog from "../content/tutorial-chapters.json" with { type: "json" };
 import catalog from "../content/tutorial-versions.json" with { type: "json" };
+
+export type LessonExperiment = {
+  id: string;
+  title: string;
+  task: string;
+  code: string;
+  output: string;
+  answer: string;
+};
 
 export type LessonContent = {
   slug: string;
@@ -9,19 +19,18 @@ export type LessonContent = {
   paragraphs: string[];
   code: string;
   output: string;
-  experimentCode: string;
-  experimentOutput: string;
-  task: string;
-  answer: string;
+  experiments: LessonExperiment[];
   pitfall: string;
   refs: string[];
   remaining: string;
   versionNote?: string;
 };
 type Lesson = LessonContent & {
-  variants?: Record<
-    string,
-    Partial<Omit<LessonContent, "slug">> & { available?: boolean }
+  variants?: Partial<
+    Record<
+      string,
+      Partial<Omit<LessonContent, "slug" | "chapter">> & { available?: boolean }
+    >
   >;
 };
 const lessons: Lesson[] = content;
@@ -42,9 +51,17 @@ export function resolveLesson(
   const { available = true, ...changes } = variants?.[version] ?? {};
   return available ? { ...shared, ...changes } : undefined;
 }
+export function chaptersForVersion(version: string): string[] {
+  return tutorialVersions.some((item) => item.id === version)
+    ? [...chapterCatalog]
+    : [];
+}
 export function lessonsForVersion(version: string): LessonContent[] {
-  return tutorialSlugs.flatMap((slug) => {
-    const lesson = resolveLesson(slug, version);
-    return lesson ? [lesson] : [];
-  });
+  const chapters = chaptersForVersion(version);
+  return tutorialSlugs
+    .flatMap((slug) => {
+      const lesson = resolveLesson(slug, version);
+      return lesson ? [lesson] : [];
+    })
+    .sort((a, b) => chapters.indexOf(a.chapter) - chapters.indexOf(b.chapter));
 }

@@ -1,3 +1,5 @@
+> Correction: the initial audit below checked relevant content and link availability but missed that Code Layout did not support the output lesson’s main learning goal. That conclusion was insufficient. The retained output material references Kernel#puts and Kernel#p plus Comments. It is now excluded from the syntax course; its old route redirects to the first syntax lesson. Code Layout is taught by its own dedicated lesson. Both method anchors were checked in 3.2, 3.3, 3.4, 4.0 and master.
+
 # Ruby Playground official-reference audit
 
 Target: `/tmp/ruby-playground-seo-pr` working tree. Read-only review of generated tutorial references and `content/tutorial.json`, `content/tutorial-versions.json`, `scripts/generate-tutorial.mjs`.

@@ -3,6 +3,7 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import lessons from "./content/tutorial.json";
+import supplements from "./content/tutorial-supplements.json";
 import catalog from "./content/tutorial-versions.json";
 
 export default defineConfig({
@@ -27,7 +28,7 @@ export default defineConfig({
                 new URL(`./tutorial/${version}/index.html`, import.meta.url)
                   .pathname,
               ],
-              ...lessons.map((lesson) => [
+              ...[...lessons, ...supplements].map((lesson) => [
                 `tutorial-${version}-${lesson.slug}`,
                 new URL(
                   `./tutorial/${version}/${lesson.slug}/index.html`,
@@ -36,7 +37,7 @@ export default defineConfig({
               ]),
             ])
             .concat(
-              lessons.map((lesson) => [
+              [...lessons, ...supplements].map((lesson) => [
                 `tutorial-alias-${lesson.slug}`,
                 new URL(`./tutorial/${lesson.slug}/index.html`, import.meta.url)
                   .pathname,

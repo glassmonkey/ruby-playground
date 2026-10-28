@@ -1,0 +1,93 @@
+[
+  {
+    "slug": "output",
+    "title": "Your first Ruby program",
+    "chapter": "Getting started",
+    "goal": "Print a result and distinguish output from a return value.",
+    "paragraphs": [
+      "A Ruby program evaluates expressions in order. In this lesson, press Run code to execute your changes. Each run starts fresh. The Output panel shows what the program prints; it does not automatically show the value of every expression as an interactive Ruby console would.",
+      "Use puts for a readable line of text and p when you want to inspect a value. Text after # is a comment. Indentation makes nested code easier to read; ordinary statements can start on separate lines."
+    ],
+    "code": "# Print a greeting, then inspect a number.\nputs \"Hello, Ruby!\"\np 2 + 3\np puts(\"One more line\")",
+    "output": "Hello, Ruby!\n5\nOne more line\nnil",
+    "pitfall": "Writing 2 + 3 alone produces no visible output here. Wrap it in p.",
+    "refs": [
+      "Kernel#puts",
+      "Kernel#p",
+      "Comments"
+    ],
+    "remaining": "Line continuation rules, block comments and magic comments are not covered yet.",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Inspect the result",
+        "task": "This version multiplies. Compare it with Example: which number changes, and why is the last line still nil?",
+        "code": "# Print a greeting, then inspect a number.\nputs \"Hello, Ruby!\"\np 2 * 3\np puts(\"One more line\")",
+        "output": "Hello, Ruby!\n6\nOne more line\nnil",
+        "answer": "The inspected calculation changes from 5 to 6. The last line remains nil because puts prints its argument but returns nil, which the outer p displays."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Print a calculation",
+        "task": "What value does Ruby calculate, and how can you make it visible?",
+        "code": "p 8 * 3",
+        "output": "24",
+        "answer": "p writes the value 24 to the output."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Inspect a return value",
+        "task": "Why does the second line print nil?",
+        "code": "result = puts \"Ready\"\np result",
+        "output": "Ready\nnil",
+        "answer": "puts prints Ready and returns nil; p displays that return value."
+      }
+    ]
+  },
+  {
+    "slug": "collections",
+    "title": "Work with arrays, hashes and Enumerable",
+    "chapter": "Core APIs",
+    "goal": "Transform a collection while keeping track of the returned value.",
+    "paragraphs": [
+      "An Array stores ordered values and uses zero-based indexes. A Hash associates keys with values. The colon form ruby: 10 creates a Symbol key, so fetch(:ruby) retrieves it.",
+      "Enumerable methods describe common operations: map builds transformed values, select keeps matching values, and reduce combines values into an accumulator. These are APIs, not special language syntax. They use the blocks introduced in the iteration lesson."
+    ],
+    "code": "numbers = [1, 2, 3, 4]\np numbers.map { |n| n * 2 }\np numbers.select { |n| n.even? }\np numbers.reduce(0) { |sum, n| sum + n }\nscores = { ruby: 10, python: 8 }\np scores.fetch(:ruby)\np scores.fetch(:go, 0)",
+    "output": "[2, 4, 6, 8]\n[2, 4]\n10\n10\n0",
+    "pitfall": "map returns a new array; it does not replace the original array. fetch without a default raises an error for a missing key.",
+    "refs": [
+      "Literals",
+      "Array",
+      "Hash",
+      "Enumerable"
+    ],
+    "remaining": "This is a selection of core APIs, not complete Array, Hash or Enumerable API coverage.",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare selected and reduced values",
+        "task": "Compare select and reduce here with Example. Which values change, and why does the sum become 20?",
+        "code": "numbers = [1, 2, 3, 4]\np numbers.map { |n| n * 2 }\np numbers.select { |n| n.odd? }\np numbers.reduce(10) { |sum, n| sum + n }\nscores = { ruby: 10, python: 8 }\np scores.fetch(:ruby)\np scores.fetch(:go, 0)",
+        "output": "[2, 4, 6, 8]\n[1, 3]\n20\n10\n0",
+        "answer": "select changes from [2, 4] to [1, 3] because the predicate changes from even? to odd?. reduce starts at 10 here, so adding 1, 2, 3, and 4 gives 20 instead of 10."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Transform an array",
+        "task": "Change the block to multiply each number by 2. What array is returned?",
+        "code": "numbers = [2, 4, 6]\np numbers.map { |number| number + 1 }",
+        "output": "[3, 5, 7]",
+        "answer": "map returns a new array containing the block result for each element: [4, 8, 12]."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Select matching values",
+        "task": "Change odd? to even?. Which values remain?",
+        "code": "numbers = [1, 2, 3, 4, 5]\np numbers.select { |number| number.odd? }",
+        "output": "[1, 3, 5]",
+        "answer": "select keeps the elements for which the block returns true: [2, 4]."
+      }
+    ]
+  }
+]

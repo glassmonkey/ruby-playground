@@ -160,11 +160,15 @@ remain recommended follow-up work, not a claim that current builds are patched.
 
 The Ruby tutorial presents a guided lesson sequence with a chapter sidebar and
 visible course progress. Each lesson combines a short explanation, an editable
-Ruby example, an explicit Run control, expected output, a practice task and
-feedback. Lesson text and starter code remain readable without JavaScript.
+Ruby example, an explicit Run control, and three selectable experiments with
+feedback. Expected output stays in the data for validation; learners see actual
+output by running code. Example and each experiment retain independent edits
+while switching samples. Lesson text and starter code remain readable without JavaScript.
 
-The header version selector switches the course, starter code and bundled runtime
-together. It shows concrete Ruby version numbers; the Ruby 4.1 development
+The chapter catalog and lesson order are shared across all Ruby versions. Official
+Syntax documentation informs the content; the course is not labeled as conforming
+to a particular release. The header version selector keeps the current lesson and
+changes its explanation, samples, references and bundled runtime as needed. It shows concrete Ruby version numbers; the Ruby 4.1 development
 course is labeled separately. `/tutorial/` resolves to the internal default
 stable course, while `/tutorial/{version}/{slug}/` preserves version-specific
 lesson URLs. The Light/Dark control shares its saved preference with the main

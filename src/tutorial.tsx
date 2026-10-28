@@ -14,8 +14,7 @@ if (container && lesson && isRubyVersion(version)) {
     <React.StrictMode>
       <TutorialPlayground
         initialCode={lesson.code}
-        experimentCode={lesson.experimentCode}
-        experimentTarget={document.getElementById("experiment-action")}
+        experiments={lesson.experiments}
         version={version}
       />
     </React.StrictMode>,
