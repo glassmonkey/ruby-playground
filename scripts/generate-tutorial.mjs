@@ -11,7 +11,7 @@ const escape = (value) =>
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 const syntax = {
-  "Code Layout": "lexical_structure",
+  "Code Layout": "layout",
   Comments: "comments",
   Literals: "literals",
   Assignment: "assignment",

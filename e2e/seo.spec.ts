@@ -95,6 +95,7 @@ for (const [index, lesson] of lessons.entries()) {
 
 test("tutorial is discoverable, readable without JavaScript and usable on mobile", async ({
   page,
+  browser,
 }) => {
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
@@ -129,8 +130,17 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
       fullPage: true,
     });
   }
-  const response = await page.request.get("/tutorial/output/");
-  expect(await response.text()).toContain("Your first Ruby program");
+  const noScript = await browser.newContext({ javaScriptEnabled: false });
+  const staticPage = await noScript.newPage();
+  await staticPage.goto("/tutorial/output/");
+  await expect(staticPage.getByRole("heading", { level: 1 })).toHaveText(
+    "Your first Ruby program",
+  );
+  await staticPage
+    .getByText("Check your understanding", { exact: true })
+    .click();
+  await expect(staticPage.locator("details p")).toBeVisible();
+  await noScript.close();
   await page.goto("/examples/");
   await expect(page).toHaveURL(/\/tutorial\/$/);
 });

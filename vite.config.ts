@@ -13,7 +13,7 @@ export default defineConfig({
     assetsDir: ".",
     rollupOptions: {
       input: {
-        main: new URL("./index.html", import.meta.url).pathname,
+        index: new URL("./index.html", import.meta.url).pathname,
         examples: new URL("./examples/index.html", import.meta.url).pathname,
         tutorial: new URL("./tutorial/index.html", import.meta.url).pathname,
         ...Object.fromEntries(
