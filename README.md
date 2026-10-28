@@ -34,10 +34,14 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
   and remove stale code parameters; the editor keeps the source.
 
 - Local-bundled Monaco editor with Ruby highlighting; no editor CDN required.
-- Select Ruby 4.0, 3.4 or 3.3. Pinned official ruby.wasm 2.10.1 builds contain
-  **Ruby 4.0.0 / 3.4.1 / 3.3.3**, verified by real `RUBY_VERSION` tests, not
+- Select Ruby 4.0, 3.4, 3.3, 3.2 or 4.1 (development snapshot). Pinned official ruby.wasm 2.10.1 builds contain
+  **Ruby 4.0.0 / 3.4.1 / 3.3.3 / 3.2.4**, verified by real `RUBY_VERSION` tests, not
   the latest Ruby security patch releases. Each selected standard-library WASM
   is served locally (~32 MB); only the selected runtime is downloaded.
+  Ruby 4.1 is pinned separately to `@ruby/head-wasm-wasi@2.10.1-2026-10-28-a`: Ruby
+  **4.1.0dev**, dated 2026-10-28, revision
+  `79de9be7d8bfdf8d573ceda4fdc98a478fabf9e4`. It is an experimental snapshot,
+  not an automatically updated nightly. The selector identifies it as 4.1 with a development label.
   See the security/release limitation below.
 - Live execution after 350 ms without edits, including initial/shared links and
   version changes. There is no Run button; Stop stays available while running.
@@ -47,7 +51,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 - stdout, stderr and exceptions, including partial writes and empty output.
   Expression return values are not printed unless the Ruby code prints them.
 - 20-second run/load timeout, 100 KB captured-output limit, 50,000-character code limit.
-- Compressed `c` / `v` URL state using lz-string (`v=4.0|3.4|3.3`). Empty and
+- Compressed `c` / `v` URL state using lz-string (`v=4.0|3.4|3.3|3.2|4.1`). Empty and
   Unicode source round-trip. Malformed or oversized links fall back with a warning;
   decoding is bounded before expansion. Legacy `f` parameters are ignored and removed
   on the next edit.
@@ -62,7 +66,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
   long runs and after code errors. Switching Ruby versions replaces the metadata;
   cancelled runs cannot update it. Printed HTML and scripts remain plain text.
 - No standard-input interaction, Rails, external gems, multi-file projects or
-  persistent snippets. Ruby 3.2 and development/head builds are not offered.
+  persistent snippets. Ruby versions older than 3.2 are not offered.
 
 A Worker is a responsiveness/isolation boundary, **not a security sandbox for
 hostile Ruby**. Ruby's JS bridge is disabled at the WASM import boundary, so Worker globals,
@@ -109,6 +113,14 @@ the Worker lifecycle. `src/share.ts` bounds compressed URL decoding. `src/editor
 loads Monaco locally; Sandpack remains an installed baseline dependency but does
 not execute/bundle user code. React holds the single-file editor state directly.
 
+The current version policy is to use official prebuilt WASI runtimes for all
+available stable Ruby minor lines plus a pinned 4.1 development snapshot. Historical snapshots
+and Emscripten variants of the same Ruby are not separate version options.
+Future work should build older CRuby versions to WASM, starting with a feasibility
+check for 3.1 and 2.7: they predate upstream WASI support and require porting work.
+Custom builds must preserve output capture, VM metadata, fresh-VM isolation and
+the blocked JS bridge, and pass real-WASM and browser tests before being offered.
+
 Patched WASM builds, gem support and additional editing features are
 deliberately separate decisions. Existing old-architecture PRs are untouched.
 
@@ -130,6 +142,8 @@ packages are 2.10.1. The [official dated WASM release](https://github.com/ruby/r
 also lists Ruby 4.0.0, 3.4.1 and 3.3.3 source tarballs. These lag the
 [2026-10-23 security fixes](https://www.ruby-lang.org/en/news/2026/10/23/regexp-fixes-for-gitlab-cves/)
 in 4.0.9 / 3.4.12 / 3.3.13. The npm wrapper version is not a Ruby patch version.
+The additional pinned `@ruby/3.2-wasm-wasi` 2.10.1 build contains Ruby 3.2.4
+(2024-04-23), also verified by real VM tests.
 The selector and badge disclose exact bundled patches. The JS bridge remains
 blocked for every minor, but that is not a substitute for patched Ruby.
 

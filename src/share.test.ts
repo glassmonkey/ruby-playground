@@ -190,7 +190,7 @@ describe("shared playground URLs", () => {
   });
 });
 
-it.each(["4.0", "3.4", "3.3"] as const)(
+it.each(["4.0", "3.4", "3.3", "3.2", "4.1"] as const)(
   "preserves supported Ruby %s through a share URL",
   (version) => {
     const state = {
