@@ -8,11 +8,9 @@ import { compressToEncodedURIComponent } from "lz-string";
 export const MAX_SOURCE_LENGTH = 50_000;
 export const MAX_COMPRESSED_LENGTH = 100_000;
 export const MAX_SHARE_URL_BYTES = 8_000;
-export type OutputFormat = "console" | "html";
 export type ShareState = {
   code: string;
   version?: RubyVersion;
-  format: OutputFormat;
 };
 export type ParsedShareState = ShareState & {
   version: RubyVersion;
@@ -97,7 +95,6 @@ export function parseShareUrl(
   const state: ParsedShareState = {
     code: fallbackCode,
     version: DEFAULT_RUBY_VERSION,
-    format: "console",
   };
   let parsed: URL;
   try {
@@ -114,11 +111,6 @@ export function parseShareUrl(
   else if (version !== null) {
     warnings.push("Unsupported Ruby version; using Ruby 4.0.");
   }
-  const format = parsed.searchParams.get("f");
-  if (format === "html" || format === "console") state.format = format;
-  else if (format !== null)
-    warnings.push("Unknown output format; using console.");
-
   const compressed = parsed.searchParams.get("c");
   if (compressed !== null) {
     try {
@@ -155,9 +147,6 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   if (state.code.length > MAX_SOURCE_LENGTH) {
     throw new Error("Code exceeds the 50,000-character sharing limit.");
   }
-  if (state.format !== "console" && state.format !== "html") {
-    throw new Error("Unsupported output format.");
-  }
   const compressed = compressToEncodedURIComponent(state.code);
   if (compressed.length > MAX_COMPRESSED_LENGTH) {
     throw new Error("Compressed code exceeds the sharing limit.");
@@ -167,7 +156,8 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   const version = state.version ?? DEFAULT_RUBY_VERSION;
   if (!isRubyVersion(version)) throw new Error("Unsupported Ruby version.");
   result.searchParams.set("v", version);
-  result.searchParams.set("f", state.format);
+  // Ignore legacy HTML-preview settings; all output is now plain text.
+  result.searchParams.delete("f");
   const shareUrl = result.toString();
   if (new TextEncoder().encode(shareUrl).byteLength > MAX_SHARE_URL_BYTES) {
     throw new Error(

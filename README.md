@@ -28,8 +28,7 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 - Full-width workspace: side-by-side editor/output on large
   screens and stacked panes on smaller screens, with an 80vh working area.
 - System-aware light/dark UI and Monaco themes, remembered across reloads.
-  The HTML Preview checkbox switches between console output and sandboxed HTML;
-  edits, version and output format are saved automatically to the address bar
+  Code and version are saved automatically to the address bar
   using compressed, URL-safe parameters. Copy the address to share or reload to
   restore. Updates replace the current history entry. Oversized URLs show a warning
   and remove stale code parameters; the editor keeps the source.
@@ -48,12 +47,20 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
 - stdout, stderr and exceptions, including partial writes and empty output.
   Expression return values are not printed unless the Ruby code prints them.
 - 20-second run/load timeout, 100 KB captured-output limit, 50,000-character code limit.
-- Compressed `c` / `v` / `f` URL sharing using lz-string (`v=4.0|3.4|3.3`,
-  `f=console|html`). Empty and Unicode source round-trip. Malformed or oversized
-  links fall back with a warning; decoding is bounded before expansion.
+- Compressed `c` / `v` URL state using lz-string (`v=4.0|3.4|3.3`). Empty and
+  Unicode source round-trip. Malformed or oversized links fall back with a warning;
+  decoding is bounded before expansion. Legacy `f` parameters are ignored and removed
+  on the next edit.
 - Shared links **execute automatically**. Do not open untrusted shared links.
-- Console output and a sandboxed HTML iframe. HTML scripts, forms, external
-  resources and parent-page access are blocked; stderr stays outside the iframe.
+- The initial sample recursively draws a fractal from `%w[Hello Ruby!]`.
+  Change the words or recursion depth to change the pattern. The default depth is 3.
+- Console output always displays stdout/stderr literally, including the sample.
+  Long lines scroll horizontally to preserve ASCII art and whitespace.
+  A separate environment panel shows the
+  actual VM's version, platform, encoding, release date and revision. The Worker
+  reports these before user code runs, so information remains available during
+  long runs and after code errors. Switching Ruby versions replaces the metadata;
+  cancelled runs cannot update it. Printed HTML and scripts remain plain text.
 - No standard-input interaction, Rails, external gems, multi-file projects or
   persistent snippets. Ruby 3.2 and development/head builds are not offered.
 
@@ -78,7 +85,7 @@ Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
 cancel/timeout, URL validation and UI state. CI runs browser flows:
 real Ruby execution/errors, shared URL direct
-load/reload with auto-run and version preservation, sandboxed HTML, and cancel/recovery. The Ruby
+load/reload with auto-run and version preservation, literal HTML output, and cancel/recovery. The Ruby
 output flow saves a screenshot under `test-results/`.
 
 If browser downloads are unavailable but Chromium is installed:

@@ -65,3 +65,81 @@ it("rejects malformed messages sent by the Ruby JS bridge", async () => {
     expect((await run.promise).error).toContain("不正");
   }
 });
+
+it("reports environment information before the code completes", async () => {
+  // Arrange
+  const worker = mockWorker();
+  const onInfo = vi.fn();
+  const info = {
+    version: "4.0.0",
+    platform: "wasm32-wasi",
+    releaseDate: "2025-12-25",
+    revision: "553f1675f3",
+    encoding: "UTF-8",
+  };
+  const run = startRubyRun("loop {}", () => worker, 20_000, "4.0", onInfo);
+  // Act
+  worker.onmessage?.call(worker, {
+    data: { type: "runtime-info", info },
+  } as MessageEvent);
+  // Assert
+  expect({
+    info: onInfo.mock.calls,
+    terminated: vi.mocked(worker.terminate).mock.calls.length,
+  }).toEqual({ info: [[info]], terminated: 0 });
+  // Clean up the intentionally unfinished run.
+  run.cancel();
+  await run.promise;
+});
+
+it.each([
+  null,
+  {},
+  { version: 4 },
+  {
+    version: "4.0.0",
+    platform: "wasm32-wasi",
+    releaseDate: "today",
+    revision: "a",
+    encoding: "x".repeat(513),
+  },
+])("rejects invalid environment data %j", async (info) => {
+  // Arrange
+  const worker = mockWorker();
+  const onInfo = vi.fn();
+  const run = startRubyRun("", () => worker, 20_000, "4.0", onInfo);
+  // Act
+  worker.onmessage?.call(worker, {
+    data: { type: "runtime-info", info },
+  } as MessageEvent);
+  const result = await run.promise;
+  // Assert
+  expect({ error: result.error, info: onInfo.mock.calls }).toEqual({
+    error: "Ruby Worker の環境情報が不正です。",
+    info: [],
+  });
+});
+
+it("ignores environment messages arriving after cancellation", async () => {
+  // Arrange
+  const worker = mockWorker();
+  const onInfo = vi.fn();
+  const run = startRubyRun("", () => worker, 20_000, "4.0", onInfo);
+  // Act
+  run.cancel();
+  worker.onmessage?.call(worker, {
+    data: {
+      type: "runtime-info",
+      info: {
+        version: "4.0.0",
+        platform: "wasm32-wasi",
+        releaseDate: "2025-12-25",
+        revision: "553f1675f3",
+        encoding: "UTF-8",
+      },
+    },
+  } as MessageEvent);
+  await run.promise;
+  // Assert
+  expect(onInfo.mock.calls).toEqual([]);
+});

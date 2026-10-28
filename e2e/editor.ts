@@ -1,5 +1,24 @@
 import { expect, type Page } from "@playwright/test";
 
+export const INITIAL_OUTPUT = [
+  "                     Hello",
+  "                     Ruby!",
+  "                  Hello Hello",
+  "                  Ruby! Ruby!",
+  "               Hello       Hello",
+  "               Ruby!       Ruby!",
+  "            Hello Hello Hello Hello",
+  "            Ruby! Ruby! Ruby! Ruby!",
+  "         Hello                   Hello",
+  "         Ruby!                   Ruby!",
+  "      Hello Hello             Hello Hello",
+  "      Ruby! Ruby!             Ruby! Ruby!",
+  "   Hello       Hello       Hello       Hello",
+  "   Ruby!       Ruby!       Ruby!       Ruby!",
+  "Hello Hello Hello Hello Hello Hello Hello Hello",
+  "Ruby! Ruby! Ruby! Ruby! Ruby! Ruby! Ruby! Ruby!",
+].join("\n");
+
 /** Edit through Monaco's accessible input, just as a keyboard user would. */
 export async function editRuby(page: Page, code: string) {
   const editor = page.getByRole("textbox", { name: "Ruby source" });
@@ -23,6 +42,28 @@ export async function expectRubyOutput(page: Page, output: string | RegExp) {
   await expect(page.getByTestId("preview-console")).toHaveText(output, {
     timeout: 30_000,
   });
+  await expect(page.getByRole("status")).toHaveText("完了");
+  await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+}
+
+/** Initial source stays plain console output; environment data is independent. */
+export async function expectInitialRuby(page: Page) {
+  await expect(
+    page.getByRole("region", { name: "Ruby の実行環境" }),
+  ).toContainText("wasm32-wasi", { timeout: 30_000 });
+  await expect
+    .poll(
+      async () => {
+        const output = await page.getByTestId("preview-console").textContent();
+        return output
+          ?.trimEnd()
+          .split("\n")
+          .map((row) => row.trimEnd())
+          .join("\n");
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(INITIAL_OUTPUT);
   await expect(page.getByRole("status")).toHaveText("完了");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 }

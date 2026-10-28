@@ -2,7 +2,6 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,
-  Checkbox,
   Flex,
   Heading,
   Icon,
@@ -14,7 +13,7 @@ import {
   Spinner,
   Text,
 } from "@chakra-ui/react";
-import type { RunResult } from "./runtime";
+import type { RunResult, RuntimeInfo } from "./runtime";
 import { startRubyRun, type RunHandle } from "./workers/client";
 import {
   RUBY_VERSIONS,
@@ -23,13 +22,15 @@ import {
 } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 
+import Output from "./output";
+import RuntimeInfoPanel from "./runtime-info";
+import RubyMark from "./ruby-mark";
+
+import { INITIAL_CODE } from "./sample";
+
 const RubyEditor = lazy(() => import("./editor"));
-export const INITIAL_CODE =
-  'puts "Hello, Ruby!"\n3.times { |n| puts "Ruby #{n + 1}" }\n';
 export const LIVE_DELAY_MS = 350;
 const EMPTY_RESULT: RunResult = { stdout: "", stderr: "", output: "" };
-const previewDocument = (html: string) =>
-  `<!doctype html><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'"><meta name="referrer" content="no-referrer">${html}`;
 
 export default function App() {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -39,8 +40,11 @@ export default function App() {
   const [code, setCode] = useState(initial.code);
   const [version, setVersion] = useState(initial.version);
   const [revision, setRevision] = useState(0);
-  const [format, setFormat] = useState(initial.format);
   const [warning, setWarning] = useState(initial.warning ?? "");
+  const [environment, setEnvironment] = useState<{
+    version: RubyVersion;
+    info: RuntimeInfo;
+  }>();
   const [result, setResult] = useState<RunResult>(EMPTY_RESULT);
   const [status, setStatus] = useState<"idle" | "running" | "done">("idle");
   const run = useRef<RunHandle>();
@@ -59,7 +63,15 @@ export default function App() {
     setStatus("idle");
     scheduled.current = setTimeout(async () => {
       setStatus("running");
-      const handle = startRubyRun(code, undefined, undefined, version);
+      const handle = startRubyRun(
+        code,
+        undefined,
+        undefined,
+        version,
+        (info) => {
+          if (current === generation.current) setEnvironment({ version, info });
+        },
+      );
       run.current = handle;
       const next = await handle.promise;
       if (current !== generation.current) return;
@@ -84,7 +96,6 @@ export default function App() {
       setCode(state.code);
       setVersion(state.version);
       setRevision((value) => value + 1);
-      setFormat(state.format);
       setWarning(state.warning ?? "");
       setResult(EMPTY_RESULT);
       setStatus("idle");
@@ -114,17 +125,7 @@ export default function App() {
     >
       <Box as="header" mb={6}>
         <Flex align="center" gap={3} mb={3}>
-          <Icon
-            viewBox="0 0 40 40"
-            boxSize={{ base: 9, md: 12 }}
-            aria-hidden="true"
-          >
-            <path fill="#e62923" d="M10 5h20l8 12-18 20L2 17Z" />
-            <path fill="#f5a9a7" d="m10 5 10 12H2Z" />
-            <path fill="#eb544f" d="M10 5h20L20 17Z" />
-            <path fill="#b8211c" d="m30 5 8 12H20L20 37Z" />
-            <path fill="#8a1915" d="M38 17 20 37 20 17Z" />
-          </Icon>
+          <RubyMark boxSize={{ base: 9, md: 12 }} />
           <Heading
             as="h1"
             fontWeight="800"
@@ -210,7 +211,7 @@ export default function App() {
                   stop();
                   const next = event.target.value as RubyVersion;
                   setVersion(next);
-                  updateUrl({ code, version: next, format });
+                  updateUrl({ code, version: next });
                 }}
               >
                 {RUBY_VERSIONS.map((value) => (
@@ -233,19 +234,12 @@ export default function App() {
                 onChange={toggleColorMode}
               />
             </Flex>
-            <Checkbox
-              data-testid="checkbox-format"
-              isChecked={format === "html"}
-              onChange={(event) => {
-                const next = event.target.checked ? "html" : "console";
-                setFormat(next);
-                updateUrl({ code, version, format: next });
-              }}
-            >
-              HTML Preview
-            </Checkbox>
           </Flex>
         </Flex>
+        <RuntimeInfoPanel
+          info={environment?.version === version ? environment.info : undefined}
+          isLoading={status !== "done"}
+        />
         <Flex
           direction={{ base: "column", lg: "row" }}
           bg="frameBg"
@@ -295,7 +289,7 @@ export default function App() {
                     if (next === code) return;
                     stop();
                     setCode(next);
-                    updateUrl({ code: next, version, format });
+                    updateUrl({ code: next, version });
                   }}
                 />
               </Suspense>
@@ -305,8 +299,7 @@ export default function App() {
             as="section"
             aria-labelledby="output-heading"
             tabIndex={0}
-            bg={format === "html" ? "white" : "panelBg"}
-            color={format === "html" ? "gray.800" : "inherit"}
+            bg="panelBg"
             display="flex"
             flexDirection="column"
             flex={1}
@@ -371,40 +364,7 @@ export default function App() {
                 {result.error}
               </Box>
             )}
-            {format === "console" ? (
-              <Box
-                as="pre"
-                data-testid="preview-console"
-                whiteSpace="pre-wrap"
-                overflowWrap="anywhere"
-                flex={1}
-                p={3}
-                overflow="auto"
-              >
-                {result.output}
-              </Box>
-            ) : (
-              <>
-                {result.stderr && (
-                  <Box
-                    as="pre"
-                    data-testid="preview-stderr"
-                    whiteSpace="pre-wrap"
-                    color="red.800"
-                  >
-                    {result.stderr}
-                  </Box>
-                )}
-                <iframe
-                  title="HTML preview"
-                  sandbox=""
-                  referrerPolicy="no-referrer"
-                  srcDoc={previewDocument(result.stdout)}
-                  data-testid="preview-html"
-                  style={{ width: "100%", flex: 1, minHeight: 0, border: 0 }}
-                />
-              </>
-            )}
+            <Output text={result.output} />
             {status === "done" && !result.output && !result.error && (
               <Text color="gray.500">出力なし</Text>
             )}
@@ -416,7 +376,7 @@ export default function App() {
           </Heading>
           <Text mb={3}>
             コードを編集すると、自動で結果が変わります。Version で Ruby
-            を選び、HTML Preview で表示形式を切り替えられます。
+            を選べます。
           </Text>
           <Text fontSize="sm" color="mutedText" mb={3}>
             編集内容は URL
