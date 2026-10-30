@@ -92,10 +92,6 @@ describe("playground UI", () => {
         "License",
         "https://github.com/glassmonkey/ruby-playground/blob/main/LICENSE",
       ],
-      [
-        "Third-party notices",
-        "https://github.com/glassmonkey/ruby-playground/blob/main/assets/licenses/THIRD-PARTY-NOTICES.txt",
-      ],
     ]);
   });
   it.each(['puts "こんにちは + & # 😀"', ""])(

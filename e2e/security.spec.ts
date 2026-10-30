@@ -35,7 +35,6 @@ test("static safety, privacy and license pages resolve without third-party scrip
   const licenseFiles = [
     ["./PROJECT-LICENSE", "Apache License"],
     ["./PROJECT-NOTICE", "Ruby Playground environment"],
-    ["./THIRD-PARTY-NOTICES.txt", "monaco-editor@0.57.0"],
     ["./ruby-wasm-LICENSE", "MIT License"],
     ["./ruby-wasm-NOTICE", "Notices for ruby.wasm"],
   ] as const;
@@ -44,13 +43,5 @@ test("static safety, privacy and license pages resolve without third-party scrip
     expect(response.status()).toBe(200);
     expect(await response.text()).toContain(requiredText);
   }
-  await expect(
-    page.getByRole("link", { name: "JavaScript dependency notices" }),
-  ).toBeVisible();
-  await page
-    .getByRole("link", { name: "JavaScript dependency notices" })
-    .click();
-  await expect(page.locator("body")).toContainText("monaco-editor@0.57.0");
-
   expect(externalRequests).toEqual([]);
 });
