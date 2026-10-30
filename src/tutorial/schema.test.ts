@@ -53,25 +53,27 @@ it.each([
   };
   expect(() => parseTutorialData(data, RUBY_VERSIONS)).toThrow(error);
 });
-it("rejects duplicate chapters", () => {
-  expect(() =>
-    parseTutorialData(
-      { lessons, chapters: [...chapters, chapters[0]], redirects },
-      RUBY_VERSIONS,
-    ),
-  ).toThrow(/Duplicate chapter/);
-});
-it("rejects an unresolved successor", () => {
-  expect(() =>
-    parseTutorialData(
-      {
-        lessons,
-        chapters,
-        redirects: [{ slug: "old", redirectTo: "missing" }],
-      },
-      RUBY_VERSIONS,
-    ),
-  ).toThrow(/Invalid successor/);
+it.each([
+  {
+    name: "duplicate chapter identities",
+    input: {
+      lessons: [validLesson()],
+      chapters: ["Basics", "Basics"],
+      redirects: [],
+    },
+    error: /Duplicate chapter/,
+  },
+  {
+    name: "unresolved successor identity",
+    input: {
+      lessons: [validLesson()],
+      chapters: ["Basics"],
+      redirects: [{ slug: "old", redirectTo: "missing" }],
+    },
+    error: /Invalid successor/,
+  },
+])("rejects $name", ({ input, error }) => {
+  expect(() => parseTutorialData(input, RUBY_VERSIONS)).toThrow(error);
 });
 
 it("preserves code whitespace and line numbers", () => {

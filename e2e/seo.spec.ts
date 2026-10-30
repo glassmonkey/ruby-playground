@@ -47,53 +47,105 @@ for (const [alias, destination] of [
   });
 }
 
-for (const [path, title, description] of [
-  [
-    "4.0/",
-    "Ruby 4.0 Tutorial — Ruby Playground",
-    "Learn Ruby 4.0 step by step with runnable examples, practice tasks, and explanations.",
-  ],
-  [
-    "4.1/",
-    "Ruby 4.1 development Tutorial — Ruby Playground",
-    "Learn Ruby 4.1 development step by step with runnable examples, practice tasks, and explanations.",
-  ],
-  [
-    "4.1/output/",
-    "Run Ruby and inspect values — Ruby 4.1 development Tutorial",
-    "Ruby 4.1 development: " + lessons[0].goal,
-  ],
-]) {
-  test(`search and social metadata identify the release at ${path}`, async ({
-    page,
-    request,
-  }) => {
-    const response = await request.get(`/tutorial/${path}`);
-    const got = await page.evaluate(
-      (html) => {
-        const doc = new DOMParser().parseFromString(html, "text/html");
-        return {
-          title: doc.title,
-          titles: [
-            ...doc.querySelectorAll(
-              'meta[property="og:title"], meta[name="twitter:title"], meta[property="og:image:alt"], meta[name="twitter:image:alt"]',
-            ),
-          ].map((el) => el.getAttribute("content")),
-          descriptions: [
-            ...doc.querySelectorAll(
-              'meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]',
-            ),
-          ].map((el) => el.getAttribute("content")),
-        };
-      },
-      await response.text(),
-    );
-    expect(got).toEqual({
-      title,
-      titles: [title, title, title, title],
-      descriptions: [description, description, description],
+const releasePresentationCases = [
+  {
+    id: "4.0",
+    label: "Ruby 4.0",
+    namespace: "4.0",
+    lessonDescription:
+      "Run a short Ruby program and choose how to display its values.",
+  },
+  {
+    id: "3.4",
+    label: "Ruby 3.4",
+    namespace: "3.4",
+    lessonDescription:
+      "Run a short Ruby program and choose how to display its values.",
+  },
+  {
+    id: "3.3",
+    label: "Ruby 3.3",
+    namespace: "3.3",
+    lessonDescription:
+      "Run a short Ruby program and choose how to display its values.",
+  },
+  {
+    id: "3.2",
+    label: "Ruby 3.2",
+    namespace: "3.2",
+    lessonDescription:
+      "Run a short Ruby program and choose how to display its values.",
+  },
+  {
+    id: "4.1",
+    label: "Ruby 4.1 development",
+    namespace: "master",
+    lessonDescription:
+      "Ruby 4.1 development: Run a short Ruby program and choose how to display its values.",
+  },
+];
+if (
+  JSON.stringify(releasePresentationCases.map((item) => item.id).sort()) !==
+  JSON.stringify(tutorialVersions.map((item) => item.id).sort())
+)
+  throw new Error(
+    "Every registered release needs explicit presentation expectations",
+  );
+
+for (const release of releasePresentationCases) {
+  for (const { path, title, description, referenceUrl } of [
+    {
+      path: `${release.id}/`,
+      title: `${release.label} Tutorial — Ruby Playground`,
+      description: `Learn ${release.label} step by step with runnable examples, practice tasks, and explanations.`,
+      referenceUrl: undefined,
+    },
+    {
+      path: `${release.id}/output/`,
+      title: `Run Ruby and inspect values — ${release.label} Tutorial`,
+      description: release.lessonDescription,
+      referenceUrl: `https://docs.ruby-lang.org/en/${release.namespace}/Kernel.html#method-i-puts`,
+    },
+  ]) {
+    test(`search and social metadata identify the release at ${path}`, async ({
+      page,
+      request,
+    }) => {
+      const response = await request.get(`/tutorial/${path}`);
+      const got = await page.evaluate(
+        (html) => {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          return {
+            title: doc.title,
+            versionLabel: doc.querySelector(
+              "#tutorial-version option[selected]",
+            )?.textContent,
+            referenceUrl: doc
+              .querySelector('a[href*="Kernel.html#method-i-puts"]')
+              ?.getAttribute("href"),
+            titles: [
+              ...doc.querySelectorAll(
+                'meta[property="og:title"], meta[name="twitter:title"], meta[property="og:image:alt"], meta[name="twitter:image:alt"]',
+              ),
+            ].map((el) => el.getAttribute("content")),
+            descriptions: [
+              ...doc.querySelectorAll(
+                'meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]',
+              ),
+            ].map((el) => el.getAttribute("content")),
+          };
+        },
+        await response.text(),
+      );
+      expect(got).toEqual({
+        title,
+        versionLabel: release.label,
+        referenceUrl,
+        titles: [title, title, title, title],
+        descriptions: [description, description, description],
+      });
     });
-  });
+  }
 }
 
 test("initial HTML and share URLs expose the intended indexing signals", async ({
@@ -729,8 +781,16 @@ test("every tutorial article has its own canonical and a generated social PNG", 
       expect(image.ok()).toBe(true);
       expect(image.headers()["content-type"]).toContain("image/png");
       const png = await image.body();
-      expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
-      expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
+      // PNG signature: https://www.w3.org/TR/png-3/#5PNG-file-signature
+      const PNG_SIGNATURE = "89504e470d0a1a0a";
+      expect(png.subarray(0, 8).toString("hex")).toBe(PNG_SIGNATURE);
+      const dimensions = await page.evaluate(async (base64) => {
+        const image = new Image();
+        image.src = `data:image/png;base64,${base64}`;
+        await image.decode();
+        return { width: image.naturalWidth, height: image.naturalHeight };
+      }, png.toString("base64"));
+      expect(dimensions).toEqual({ width: 1200, height: 630 });
     }
   }
 });

@@ -63,33 +63,56 @@ it("orders by chapter catalog then preserves lesson order within each chapter", 
     "application",
   ]);
 });
-it("inherits shared fields and samples when no variant is defined", () => {
-  const lesson = resolveLesson("first", "3.2")!;
-  expect({
+it.each([
+  {
+    name: "inherits shared fields without a variant",
+    slug: "first",
+    version: "3.2",
+    expected: {
+      title: "Begin",
+      code: "puts 1",
+      paragraphs: ["Begin here"],
+      experiments: ["larger", "sum"],
+    },
+  },
+  {
+    name: "replaces variant arrays and inherits other fields",
+    slug: "application",
+    version: "3.2",
+    expected: {
+      title: "Apply",
+      code: "puts 3",
+      paragraphs: ["Older explanation"],
+      experiments: ["older-a", "older-b"],
+    },
+  },
+  {
+    name: "omits an unavailable lesson",
+    slug: "second",
+    version: "3.2",
+    expected: undefined,
+  },
+  {
+    name: "rejects an unknown identity",
+    slug: "missing",
+    version: "4.0",
+    expected: undefined,
+  },
+  {
+    name: "rejects an unsupported version",
+    slug: "first",
+    version: "unknown",
+    expected: undefined,
+  },
+])("$name", ({ slug, version, expected }) => {
+  const lesson = resolveLesson(slug, version);
+  const got = lesson && {
     title: lesson.title,
     code: lesson.code,
     paragraphs: lesson.paragraphs,
     experiments: lesson.experiments.map((sample) => sample.id),
-  }).toEqual({
-    title: "Begin",
-    code: "puts 1",
-    paragraphs: ["Begin here"],
-    experiments: ["larger", "sum"],
-  });
-});
-it("replaces variant arrays completely while inheriting unspecified fields", () => {
-  const lesson = resolveLesson("application", "3.2")!;
-  expect({
-    title: lesson.title,
-    code: lesson.code,
-    paragraphs: lesson.paragraphs,
-    experiments: lesson.experiments.map((sample) => sample.id),
-  }).toEqual({
-    title: "Apply",
-    code: "puts 3",
-    paragraphs: ["Older explanation"],
-    experiments: ["older-a", "older-b"],
-  });
+  };
+  expect(got).toEqual(expected);
 });
 it("excludes unavailable lessons while retaining inherited ones", () => {
   expect({
