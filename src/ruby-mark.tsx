@@ -1,12 +1,18 @@
 import { designTokens } from "./design-tokens";
 
-export default function RubyMark({ boxSize = 12 }: { boxSize?: number }) {
+export default function RubyMark({
+  boxSize = 12,
+  sizePx,
+}: {
+  boxSize?: number;
+  sizePx?: number;
+}) {
   const ruby = designTokens.ruby;
   return (
     <svg
       viewBox="0 0 40 40"
-      width={`${boxSize / 4}rem`}
-      height={`${boxSize / 4}rem`}
+      width={sizePx ?? `${boxSize / 4}rem`}
+      height={sizePx ?? `${boxSize / 4}rem`}
       aria-hidden="true"
       focusable="false"
     >

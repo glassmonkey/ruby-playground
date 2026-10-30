@@ -9,3 +9,9 @@ Inputs are `src/tutorial/data/lessons.json`, the shared chapter and redirect dat
 5. Report source changes, actual runtime versions/output, content/reference findings, checks and remaining limits. Commit or publish only when authorized; do not track build output or patch generated HTML.
 
 The common renderer owns layout, escaping, header controls, sidebar, references and previous/next links. Render basic Example and named application Experiments, with results obtained only by Run. Omit answer disclosures, author-only completeness notes and progress controls. SEO metadata and JSON-LD must derive from the same source and describe visible content. A content-only change should not fork shared UI per lesson.
+
+## Social images
+
+Every available course and lesson gets a 1200×630 PNG at its canonical path plus `og.png`. `src/tutorial/social-image.tsx` uses resolved JSON (`title`, `code`), the concrete Ruby version, the shared Ruby mark/design tokens and bundled font. Version overrides must be resolved before rendering. The normal Vite build writes the PNGs; development serves them from the same renderer. The card prominently labels RUBY TUTORIAL and depicts a code editor with a Run button to communicate browser-based practice. Show the basic Example code, visibly truncate excerpts, and do not print execution results. No manually authored per-lesson image or extra JSON image field is needed.
+
+After changing image content or rendering, run the social-image unit tests and the `every tutorial article` SEO browser test in both dev and production. Check each canonical is unique and self-referencing, `og:image` and `twitter:image` are absolute URLs to a valid PNG, and `twitter:card` has a single large-image value. Inspect representative PNGs visually, including the longest title/code and a version variant; ensure wrapping/truncation keeps text clear of the footer. Keep image files in build output only.

@@ -32,14 +32,17 @@ export function renderTutorialDocument(
     lesson?.goal ??
     `Learn Ruby ${route.version} step by step with runnable examples, practice tasks, and explanations.`;
   const canonical = `${origin}/tutorial/${route.version}/${route.slug ? `${route.slug}/` : ""}`;
-  const metadata = `<title>${escape(title)}</title>\n<meta name="description" content="${escape(description)}">\n<link rel="canonical" href="${escape(canonical)}">\n<meta property="og:title" content="${escape(title)}">\n<meta property="og:description" content="${escape(description)}">\n<meta property="og:url" content="${escape(canonical)}">\n<meta name="twitter:title" content="${escape(title)}">\n<meta name="twitter:description" content="${escape(description)}">\n${unavailable ? '<meta name="robots" content="noindex">' : ""}\n<link rel="stylesheet" href="/tutorial.css">`;
+  const image = unavailable
+    ? `${origin}/tutorial/${route.version}/og.png`
+    : `${canonical}og.png`;
+  const metadata = `<title>${escape(title)}</title>\n<meta name="description" content="${escape(description)}">\n<link rel="canonical" href="${escape(canonical)}">\n<meta property="og:title" content="${escape(title)}">\n<meta property="og:description" content="${escape(description)}">\n<meta property="og:url" content="${escape(canonical)}">\n<meta property="og:image" content="${escape(image)}">\n<meta property="og:image:type" content="image/png">\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">\n<meta property="og:image:alt" content="${escape(title)}">\n<meta name="twitter:card" content="summary_large_image">\n<meta name="twitter:image" content="${escape(image)}">\n<meta name="twitter:image:alt" content="${escape(title)}">\n<meta name="twitter:title" content="${escape(title)}">\n<meta name="twitter:description" content="${escape(description)}">\n${unavailable ? '<meta name="robots" content="noindex">' : ""}\n<link rel="stylesheet" href="/tutorial.css">`;
   const markup = renderToString(
     <TutorialApp version={route.version} slug={route.slug} />,
   );
   return shell
     .replace(/<title>[\s\S]*?<\/title>/gi, "")
     .replace(
-      /<meta\s+(?:name="(?:description|twitter:title|twitter:description)"|property="og:(?:title|description|url)")[^>]*>/gi,
+      /<meta\s+(?:name="(?:description|twitter:title|twitter:description|twitter:card|twitter:image(?::alt)?)"|property="og:(?:title|description|url|image(?::[a-z]+)?)")[^>]*>/gi,
       "",
     )
     .replace(/<link\s+rel="canonical"[^>]*>/gi, "")

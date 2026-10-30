@@ -578,3 +578,52 @@ test("sitemap is served as XML and lists canonical tutorial URLs", async ({
     expect(canonicals).toEqual([`https://ruby-play.dev${path}`]);
   }
 });
+
+test("every tutorial article has its own canonical and a generated social PNG", async ({
+  page,
+  request,
+}) => {
+  test.setTimeout(120_000);
+  for (const version of tutorialVersions) {
+    for (const slug of [
+      undefined,
+      ...lessonsForVersion(version.id).map((lesson) => lesson.slug),
+    ]) {
+      const path = `/tutorial/${version.id}/${slug ? `${slug}/` : ""}`;
+      const response = await request.get(path);
+      expect(response.ok(), path).toBe(true);
+      const metadata = await page.evaluate(
+        (html) => {
+          const doc = new DOMParser().parseFromString(html, "text/html");
+          return {
+            canonical: [...doc.querySelectorAll('link[rel="canonical"]')].map(
+              (el) => el.getAttribute("href"),
+            ),
+            images: [...doc.querySelectorAll('meta[property="og:image"]')].map(
+              (el) => el.getAttribute("content"),
+            ),
+            twitter: [
+              ...doc.querySelectorAll('meta[name="twitter:image"]'),
+            ].map((el) => el.getAttribute("content")),
+            card: [...doc.querySelectorAll('meta[name="twitter:card"]')].map(
+              (el) => el.getAttribute("content"),
+            ),
+          };
+        },
+        await response.text(),
+      );
+      expect(metadata, path).toEqual({
+        canonical: [`https://ruby-play.dev${path}`],
+        images: [`https://ruby-play.dev${path}og.png`],
+        twitter: [`https://ruby-play.dev${path}og.png`],
+        card: ["summary_large_image"],
+      });
+      const image = await request.get(`${path}og.png`);
+      expect(image.ok()).toBe(true);
+      expect(image.headers()["content-type"]).toContain("image/png");
+      const png = await image.body();
+      expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
+      expect([png.readUInt32BE(16), png.readUInt32BE(20)]).toEqual([1200, 630]);
+    }
+  }
+});

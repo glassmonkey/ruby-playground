@@ -16,7 +16,11 @@ async function tutorialStyles(root: string): Promise<string> {
 import { createServer, type Plugin, type ResolvedConfig } from "vite";
 import { resolveTutorialRoute, tutorialRoutes } from "../tutorial/routes";
 import { renderSitemap } from "../tutorial/sitemap";
+import { resolveLesson } from "../tutorial/content";
+import type { renderSocialImage } from "../tutorial/social-image";
 import type { renderTutorialDocument } from "../tutorial/render";
+
+type ImageRenderer = { renderSocialImage: typeof renderSocialImage };
 
 type Renderer = { renderTutorialDocument: typeof renderTutorialDocument };
 
@@ -34,6 +38,34 @@ export function tutorialPlugin(): Plugin {
           if (pathname === "/sitemap.xml") {
             res.setHeader("Content-Type", "application/xml; charset=utf-8");
             res.end(renderSitemap());
+            return;
+          }
+          if (
+            pathname.startsWith("/tutorial/") &&
+            pathname.endsWith("/og.png")
+          ) {
+            const route = resolveTutorialRoute(pathname.slice(0, -6));
+            const lesson =
+              route.kind === "page" && route.slug
+                ? resolveLesson(route.slug, route.version)
+                : undefined;
+            if (route.kind !== "page" || (route.slug && !lesson)) {
+              res.statusCode = 404;
+              res.end("Tutorial image not found");
+              return;
+            }
+            const renderer = (await server.ssrLoadModule(
+              "/src/tutorial/social-image.tsx",
+            )) as ImageRenderer;
+            res.setHeader("Content-Type", "image/png");
+            res.setHeader("Cache-Control", "no-cache");
+            res.end(
+              renderer.renderSocialImage(
+                route.version,
+                lesson,
+                path.join(config.root, "assets/fonts/plus-jakarta-sans.ttf"),
+              ),
+            );
             return;
           }
           if (pathname === "/tutorial.css") {
@@ -94,10 +126,28 @@ export function tutorialPlugin(): Plugin {
         const renderer = (await rendererServer.ssrLoadModule(
           "/src/tutorial/render.tsx",
         )) as Renderer;
+        const imageRenderer = (await rendererServer.ssrLoadModule(
+          "/src/tutorial/social-image.tsx",
+        )) as ImageRenderer;
         const routes = tutorialRoutes();
         for (const route of routes) {
           const directory = path.join(output, route.path);
           await mkdir(directory, { recursive: true });
+          if (route.kind === "page") {
+            const lesson = route.slug
+              ? resolveLesson(route.slug, route.version)
+              : undefined;
+            if (!route.slug || lesson) {
+              await writeFile(
+                path.join(directory, "og.png"),
+                imageRenderer.renderSocialImage(
+                  route.version,
+                  lesson,
+                  path.join(config.root, "assets/fonts/plus-jakarta-sans.ttf"),
+                ),
+              );
+            }
+          }
           await writeFile(
             path.join(directory, "index.html"),
             renderer.renderTutorialDocument(shell, route),
