@@ -21,6 +21,7 @@ import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
 import Brand from "./brand";
+import About from "./about";
 
 import { INITIAL_CODE } from "./sample";
 
@@ -364,69 +365,7 @@ export default function App() {
             )}
           </Box>
         </Flex>
-        <Box as="section" id="about" aria-labelledby="about-heading" mt={6}>
-          <Heading as="h2" id="about-heading" size="md" mb={3}>
-            About Ruby Playground
-          </Heading>
-          <Heading as="h3" size="sm" mb={2}>
-            Run Ruby online without installation
-          </Heading>
-          <Text mb={4}>
-            Ruby Playground lets you write and run Ruby directly in your browser
-            using WebAssembly. Try language features, experiment with small
-            programs, and share examples without installing Ruby or creating an
-            account.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            How to use the online Ruby editor
-          </Heading>
-          <Text mb={3}>
-            Enter code in the editor to run it automatically. Standard output
-            and errors appear in the Output panel as plain text. Choose a Ruby
-            version from Version to compare behavior while keeping your code.
-          </Text>
-          <Text mb={4}>
-            Your code and selected version are saved in the address bar as you
-            edit. Copy the URL to share an example or bookmark it for later.
-            Anyone with the URL can read and run the code, so do not include
-            secrets or personal information.
-          </Text>
-          <Box
-            as="section"
-            aria-labelledby="tutorial-introduction-heading"
-            mb={4}
-          >
-            <Heading
-              as="h3"
-              id="tutorial-introduction-heading"
-              size="sm"
-              mb={2}
-            >
-              Learn Ruby step by step
-            </Heading>
-            <Text>
-              Learn Ruby from the basics with the{" "}
-              <Link href="/tutorial/" color="accent">
-                Ruby Tutorial
-              </Link>
-              . Follow step-by-step explanations, edit and run each Example,
-              then try Experiments to explore how changes to the code affect the
-              result.
-            </Text>
-          </Box>
-          <Heading as="h3" size="sm" mb={2}>
-            Notes
-          </Heading>
-          <Text mb={3}>
-            The playground is designed for trying small Ruby programs. Behavior
-            and available features may differ from a local Ruby installation.
-          </Text>
-          <Text mb={4}>
-            Loading and execution may take longer depending on your connection
-            and device. Follow any messages shown in the playground if a program
-            cannot run or a link cannot be shared.
-          </Text>
-        </Box>
+        <About />
         <Box as="section" aria-labelledby="faq-heading" mt={6}>
           <Heading as="h2" id="faq-heading" size="md" mb={3}>
             Ruby Playground FAQ
