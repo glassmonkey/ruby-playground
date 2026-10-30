@@ -131,7 +131,7 @@ export default function App() {
             About Ruby Playground?
           </Link>
           <Link href="/tutorial/" fontSize="sm" color="accent">
-            Ruby tutorial
+            Want to learn Ruby?
           </Link>
         </Flex>
       </Box>
@@ -391,15 +391,29 @@ export default function App() {
             Anyone with the URL can read and run the code, so do not include
             secrets or personal information.
           </Text>
-          <Text mb={4}>
-            Start with our{" "}
-            <Link href="/tutorial/" color="accent">
-              Ruby Tutorial
-            </Link>{" "}
-            to learn step by step, from your first output to classes and
-            advanced syntax. Each lesson includes an explanation, runnable code
-            and a practice task.
-          </Text>
+          <Box
+            as="section"
+            aria-labelledby="tutorial-introduction-heading"
+            mb={4}
+          >
+            <Heading
+              as="h3"
+              id="tutorial-introduction-heading"
+              size="sm"
+              mb={2}
+            >
+              Learn Ruby step by step
+            </Heading>
+            <Text>
+              Learn Ruby from the basics with the{" "}
+              <Link href="/tutorial/" color="accent">
+                Ruby Tutorial
+              </Link>
+              . Follow step-by-step explanations, edit and run each Example,
+              then try Experiments to explore how changes to the code affect the
+              result.
+            </Text>
+          </Box>
           <Heading as="h3" size="sm" mb={2}>
             Notes
           </Heading>
