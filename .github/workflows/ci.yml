@@ -5,7 +5,8 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # Production and development each run the versioned WASM lesson matrix.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -18,3 +19,4 @@ jobs:
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: E2E_DEV_SERVER=1 npx playwright test e2e/seo.spec.ts

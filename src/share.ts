@@ -3,7 +3,8 @@ import {
   isRubyVersion,
   type RubyVersion,
 } from "./versions";
-import { compressToEncodedURIComponent } from "lz-string";
+import LZString from "lz-string";
+const { compressToEncodedURIComponent } = LZString;
 
 export const MAX_SOURCE_LENGTH = 50_000;
 export const MAX_COMPRESSED_LENGTH = 100_000;

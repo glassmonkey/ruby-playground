@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ruby Tutorial Authoring"
+  short_description: "Create and revise Ruby tutorial lessons"
+  default_prompt: "Use $ruby-tutorial-authoring for the requested Ruby tutorial task."

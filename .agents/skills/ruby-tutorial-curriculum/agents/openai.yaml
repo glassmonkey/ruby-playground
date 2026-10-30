@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ruby Tutorial Curriculum"
+  short_description: "Design chapter placement and learning sequence"
+  default_prompt: "Use $ruby-tutorial-curriculum for the requested Ruby tutorial task."

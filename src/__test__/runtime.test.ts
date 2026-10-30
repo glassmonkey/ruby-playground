@@ -2,9 +2,10 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
-import { INITIAL_CODE } from "./sample";
-import { RUBY_PATCH_VERSIONS } from "./versions";
-import { executeRuby, type RuntimeInfo } from "./runtime";
+import { INITIAL_CODE } from "../sample";
+import { RUBY_VERSIONS, RUBY_PATCH_VERSIONS } from "../versions";
+import { runtimeCases } from "./fixtures/runtime-cases";
+import { executeRuby, type RuntimeInfo } from "../runtime";
 
 let module: WebAssembly.Module;
 beforeAll(async () => {
@@ -73,49 +74,42 @@ it("disables Ruby access to the JavaScript host", async () => {
   ).toContain("JavaScript bridge is disabled");
 });
 
-for (const version of ["4.0", "3.4", "3.3", "3.2", "4.1"] as const) {
+it("has an independent runtime identity case for every selectable version", () => {
+  expect(runtimeCases.map((testCase) => testCase.version).sort()).toEqual(
+    [...RUBY_VERSIONS].sort(),
+  );
+});
+it("declares the independently verified patch identities in the registry", () => {
+  expect(RUBY_PATCH_VERSIONS).toEqual(
+    Object.fromEntries(
+      runtimeCases.map((testCase) => [testCase.version, testCase.patch]),
+    ),
+  );
+});
+for (const {
+  version,
+  patch,
+  package: packageName,
+  releaseDate,
+  revision,
+} of runtimeCases) {
   it(`executes the actual pinned Ruby ${version} build with host bridge blocked`, async () => {
     const require = createRequire(import.meta.url);
     const compiled = await WebAssembly.compile(
-      await readFile(
-        require.resolve(
-          `@ruby/${version === "4.1" ? "head" : version}-wasm-wasi/dist/ruby+stdlib.wasm`,
-        ),
-      ),
+      await readFile(require.resolve(`${packageName}/dist/ruby+stdlib.wasm`)),
     );
     let info: RuntimeInfo | undefined;
     const result = await executeRuby(compiled, "puts RUBY_VERSION", (next) => {
       info = next;
     });
-    const expected = {
-      "4.0": {
-        releaseDate: "2025-12-25",
-        revision: "553f1675f3a9cece340b90f374a4245dccac2272",
-      },
-      "3.4": {
-        releaseDate: "2024-12-25",
-        revision: "48d4efcb85000e1ebae42004e963b5d0cedddcf2",
-      },
-      "3.3": {
-        releaseDate: "2024-06-12",
-        revision: "f1c7b6f435f1167a0514b39a5f72f55cec4d1426",
-      },
-      "3.2": {
-        releaseDate: "2024-04-23",
-        revision: "af471c0e0127eea0cafa6f308c0425bbfab0acf5",
-      },
-      "4.1": {
-        releaseDate: "2026-10-28",
-        revision: "79de9be7d8bfdf8d573ceda4fdc98a478fabf9e4",
-      },
-    };
     expect(info).toEqual({
-      version: RUBY_PATCH_VERSIONS[version],
+      version: patch,
       platform: "wasm32-wasi",
       encoding: "UTF-8",
-      ...expected[version],
+      releaseDate,
+      revision,
     });
-    expect(result.output).toBe(`${RUBY_PATCH_VERSIONS[version]}\n`);
+    expect(result.output).toBe(`${patch}\n`);
     expect(result.error).toBeUndefined();
     expect(
       (await executeRuby(compiled, `require 'js'; JS.global`)).error,

@@ -8,11 +8,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import { parseShareUrl, buildShareUrl } from "./share";
-import type { startRubyRun } from "./workers/client";
-import App from "./app";
-import { INITIAL_CODE } from "./sample";
-vi.mock("./editor", () => ({
+import { parseShareUrl, buildShareUrl } from "../share";
+import type { startRubyRun } from "../workers/client";
+import App from "../app";
+import { INITIAL_CODE } from "../sample";
+vi.mock("../editor", () => ({
   default: ({
     code,
     onChange,
@@ -33,7 +33,7 @@ const start = vi.hoisted(() =>
     cancel: vi.fn(),
   })),
 );
-vi.mock("./workers/client", () => ({ startRubyRun: start }));
+vi.mock("../workers/client", () => ({ startRubyRun: start }));
 afterEach(() => {
   cleanup();
   start.mockClear();

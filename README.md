@@ -56,8 +56,8 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
   decoding is bounded before expansion. Legacy `f` parameters are ignored and removed
   on the next edit.
 - Shared links **execute automatically**. Do not open untrusted shared links.
-- The initial sample recursively draws a fractal from `%w[Hello Ruby!]`.
-  Change the words or recursion depth to change the pattern. The default depth is 3.
+- The initial sample draws the word ruby using repeated `ruby` text.
+  Change the letter patterns or printed text to experiment with the output.
 - Console output always displays stdout/stderr literally, including the sample.
   Long lines scroll horizontally to preserve ASCII art and whitespace.
   A separate environment panel shows the
@@ -84,6 +84,11 @@ npx playwright install chromium  # Linux may require --with-deps
 npm run test:e2e     # production preview + Chromium tests
 npm audit
 ```
+
+Unit tests live in feature-level `src/**/__test__/` directories, with test-only
+fixtures and approved image snapshots alongside them. Browser tests remain in
+`e2e/`. These files are outside the shipped bundle, but remain part of the build's
+TypeScript checking; unit execution is a separate step of `npm run check`.
 
 Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
@@ -155,3 +160,15 @@ RCE is not evidence of browser/host RCE in this configuration. Run timeout and
 source limits do not fix regexp compilation bugs. Shared links automatically
 execute; do not open untrusted links or enter secrets. Patched trusted builds
 remain recommended follow-up work, not a claim that current builds are patched.
+
+## Ruby tutorial
+
+The tutorial uses the same application entry, build output, Ruby releases, brand
+and theme tokens as the Playground. Lessons provide a basic Example and two or
+three selectable Experiments, with execution on demand. Static lesson HTML uses
+the same React components as the interactive page.
+
+Tutorial work has four [repository skill entry points](docs/tutorial-authoring.md): authoring, curriculum, versioning, and read-only review.
+Edit structured JSON in `src/tutorial/data/`, run `npm run tutorial:validate`,
+then use the normal `npm run build`. Rendering components and build integration
+are in `src/tutorial/` and `src/build/`; generated pages stay in `public/`.

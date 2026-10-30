@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { RUBY_PATCH_VERSIONS } from "../src/versions";
+import { RUBY_VERSIONS } from "../src/versions";
+import { runtimeCases } from "../src/__test__/fixtures/runtime-cases";
 import {
   editRuby as edit,
   expectRubyOutput,
@@ -141,7 +142,9 @@ test("shared code and version automatically restore on direct load and reload", 
       '<h1>Hello HTML 3.4.1</h1>\n<script>parent.document.title="unsafe"</script>\n',
     );
     await expect(page.locator("iframe")).toHaveCount(0);
-    await expect(page).toHaveTitle("Ruby Playground");
+    await expect(page).toHaveTitle(
+      "Ruby Playground – Run Ruby Online in Your Browser",
+    );
   }
 });
 
@@ -158,10 +161,13 @@ test("each selected minor version executes its own real Ruby VM", async ({
       .evaluateAll((options) =>
         options.map((option) => (option as HTMLOptionElement).value),
       ),
-  ).toEqual(["4.0", "3.4", "3.3", "3.2", "4.1"]);
-  for (const version of ["4.0", "3.4", "3.3", "3.2", "4.1", "4.0"] as const) {
+  ).toEqual([...RUBY_VERSIONS]);
+  expect(runtimeCases.map((testCase) => testCase.version).sort()).toEqual(
+    [...RUBY_VERSIONS].sort(),
+  );
+  for (const { version, patch } of [...runtimeCases, runtimeCases[0]]) {
     await selector.selectOption(version);
-    await expectRubyOutput(page, `${RUBY_PATCH_VERSIONS[version]}\n`);
+    await expectRubyOutput(page, `${patch}\n`);
     const sharedUrl = page.url();
     expect(new URL(sharedUrl).searchParams.get("v")).toBe(version);
     if (version === "4.1") {

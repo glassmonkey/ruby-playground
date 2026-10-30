@@ -15,16 +15,12 @@ import {
 } from "@chakra-ui/react";
 import type { RunResult, RuntimeInfo } from "./runtime";
 import { startRubyRun, type RunHandle } from "./workers/client";
-import {
-  RUBY_VERSIONS,
-  RUBY_PATCH_VERSIONS,
-  type RubyVersion,
-} from "./versions";
+import { RUBY_RELEASES, type RubyVersion } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
-import RubyMark from "./ruby-mark";
+import Brand from "./brand";
 
 import { INITIAL_CODE } from "./sample";
 
@@ -125,31 +121,19 @@ export default function App() {
     >
       <Box as="header" mb={6}>
         <Flex align="center" gap={3} mb={3}>
-          <RubyMark boxSize={{ base: 9, md: 12 }} />
-          <Heading
-            as="h1"
-            fontWeight="800"
-            letterSpacing="-0.05em"
-            fontSize={{ base: "2xl", md: "4xl" }}
-          >
-            <Box as="span" color="accent">
-              Ruby
-            </Box>{" "}
-            Playground
-          </Heading>
+          <Brand heading />
         </Flex>
         <Text color="mutedText" fontSize="sm">
-          Write Ruby and see the result instantly in your browser.
+          Run Ruby online in your browser. No installation or account required.
         </Text>
-        <Link
-          href="#about"
-          display="inline-block"
-          mt={2}
-          fontSize="sm"
-          color="accent"
-        >
-          About Ruby Playground?
-        </Link>
+        <Flex as="nav" aria-label="Introduction" gap={4} mt={2} wrap="wrap">
+          <Link href="#about" fontSize="sm" color="accent">
+            About Ruby Playground?
+          </Link>
+          <Link href="/tutorial/" fontSize="sm" color="accent">
+            Ruby tutorial
+          </Link>
+        </Flex>
       </Box>
       <Box as="main">
         {warning && (
@@ -214,11 +198,9 @@ export default function App() {
                   updateUrl({ code, version: next });
                 }}
               >
-                {RUBY_VERSIONS.map((value) => (
-                  <option key={value} value={value}>
-                    {value === "4.1"
-                      ? `Ruby 4.1 (${RUBY_PATCH_VERSIONS[value]}-dev)`
-                      : `Ruby ${value} (${RUBY_PATCH_VERSIONS[value]})`}
+                {RUBY_RELEASES.map((release) => (
+                  <option key={release.id} value={release.id}>
+                    {`Ruby ${release.id} (${release.patch}${release.channel === "development" ? "-dev" : ""})`}
                   </option>
                 ))}
               </Select>
@@ -387,7 +369,7 @@ export default function App() {
             About Ruby Playground
           </Heading>
           <Heading as="h3" size="sm" mb={2}>
-            Description
+            Run Ruby online without installation
           </Heading>
           <Text mb={4}>
             Ruby Playground lets you write and run Ruby directly in your browser
@@ -396,7 +378,7 @@ export default function App() {
             account.
           </Text>
           <Heading as="h3" size="sm" mb={2}>
-            Usage
+            How to use the online Ruby editor
           </Heading>
           <Text mb={3}>
             Enter code in the editor to run it automatically. Standard output
@@ -409,6 +391,15 @@ export default function App() {
             Anyone with the URL can read and run the code, so do not include
             secrets or personal information.
           </Text>
+          <Text mb={4}>
+            Start with our{" "}
+            <Link href="/tutorial/" color="accent">
+              Ruby Tutorial
+            </Link>{" "}
+            to learn step by step, from your first output to classes and
+            advanced syntax. Each lesson includes an explanation, runnable code
+            and a practice task.
+          </Text>
           <Heading as="h3" size="sm" mb={2}>
             Notes
           </Heading>
@@ -420,6 +411,50 @@ export default function App() {
             Loading and execution may take longer depending on your connection
             and device. Follow any messages shown in the playground if a program
             cannot run or a link cannot be shared.
+          </Text>
+        </Box>
+        <Box as="section" aria-labelledby="faq-heading" mt={6}>
+          <Heading as="h2" id="faq-heading" size="md" mb={3}>
+            Ruby Playground FAQ
+          </Heading>
+          <Heading as="h3" size="sm" mb={2}>
+            Is Ruby Playground free?
+          </Heading>
+          <Text mb={4}>
+            Yes. You can write, run and share small Ruby programs without an
+            account or a local Ruby installation.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Why is there no output?
+          </Heading>
+          <Text mb={4}>
+            Code runs automatically after you edit it. Use puts to print text or
+            p to inspect a value. Expression return values are not displayed
+            automatically. The first run may take longer while Ruby loads.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Can I compare Ruby versions?
+          </Heading>
+          <Text mb={4}>
+            Choose a version above the editor to rerun the same code. The
+            selector shows the exact bundled versions. Each run starts with a
+            fresh environment.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Can I use Rails, extra gems or standard input?
+          </Heading>
+          <Text mb={4}>
+            This playground is for single-file Ruby examples. Rails, installing
+            extra gems and interactive standard input are not supported. Use
+            values in your code instead of gets.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            How do I save and share my code?
+          </Heading>
+          <Text>
+            Copy or bookmark the address after editing. The URL contains your
+            code and selected version, and runs automatically when opened.
+            Anyone with the link can read the source.
           </Text>
         </Box>
         <Box as="section" aria-labelledby="safety-heading" mt={6}>
