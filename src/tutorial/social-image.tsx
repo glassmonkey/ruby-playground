@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import RubyMark from "../ruby-mark";
 import { designTokens } from "../design-tokens";
 import type { LessonContent } from "./content";
+import { RUBY_RELEASES, type RubyVersion } from "../versions";
 
 export const socialImageSize = { width: 1200, height: 630 };
 
@@ -45,11 +46,13 @@ function Title({ text }: { text: string }) {
 }
 
 export function renderSocialImage(
-  version: string,
+  version: RubyVersion,
   lesson: LessonContent | undefined,
   fontFile: string,
 ): Buffer {
   const { colors, ruby } = designTokens;
+  const release = RUBY_RELEASES.find((item) => item.id === version)!;
+  const badgeWidth = release.channel === "development" ? 336 : 152;
   const svg = renderToStaticMarkup(
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -61,9 +64,22 @@ export function renderSocialImage(
       <text x="64" y="108" fontSize="61" fontWeight="700" fill={ruby[700]}>
         RUBY TUTORIAL
       </text>
-      <rect x="976" y="62" width="152" height="46" rx="23" fill={ruby[100]} />
-      <text x="1052" y="93" textAnchor="middle" fontSize="23" fill={ruby[800]}>
-        Ruby {version}
+      <rect
+        x={1128 - badgeWidth}
+        y="62"
+        width={badgeWidth}
+        height="46"
+        rx="23"
+        fill={ruby[100]}
+      />
+      <text
+        x={1128 - badgeWidth / 2}
+        y="93"
+        textAnchor="middle"
+        fontSize="23"
+        fill={ruby[800]}
+      >
+        {release.label}
       </text>
       <Title text={lesson?.title ?? "Learn Ruby in your browser"} />
       <text x="64" y="451" fontSize="27" fill={colors.mutedText.default}>

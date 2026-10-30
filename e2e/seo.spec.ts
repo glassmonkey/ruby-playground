@@ -7,6 +7,73 @@ import {
 import { RUBY_PATCH_VERSIONS } from "../src/versions";
 const lessons = lessonsForVersion(latestTutorialVersion);
 
+for (const [alias, destination] of [
+  ["latest/output", "4.0/output"],
+  ["output", "4.0/output"],
+  ["3.2/comments", "3.2/output"],
+]) {
+  test(`alias ${alias} preserves query parameters and section anchors`, async ({
+    page,
+  }) => {
+    await page.goto(
+      `/tutorial/${alias}/?utm_source=review&value=a%26b#practice`,
+    );
+    await expect(page).toHaveURL(
+      `/tutorial/${destination}/?utm_source=review&value=a%26b#practice`,
+    );
+    await expect(page.locator("#practice")).toBeInViewport();
+  });
+}
+
+for (const [path, title, description] of [
+  [
+    "4.0/",
+    "Ruby 4.0 Tutorial — Ruby Playground",
+    "Learn Ruby 4.0 step by step with runnable examples, practice tasks, and explanations.",
+  ],
+  [
+    "4.1/",
+    "Ruby 4.1 development Tutorial — Ruby Playground",
+    "Learn Ruby 4.1 development step by step with runnable examples, practice tasks, and explanations.",
+  ],
+  [
+    "4.1/output/",
+    "Run Ruby and inspect values — Ruby 4.1 development Tutorial",
+    "Ruby 4.1 development: " + lessons[0].goal,
+  ],
+]) {
+  test(`search and social metadata identify the release at ${path}`, async ({
+    page,
+    request,
+  }) => {
+    const response = await request.get(`/tutorial/${path}`);
+    const got = await page.evaluate(
+      (html) => {
+        const doc = new DOMParser().parseFromString(html, "text/html");
+        return {
+          title: doc.title,
+          titles: [
+            ...doc.querySelectorAll(
+              'meta[property="og:title"], meta[name="twitter:title"], meta[property="og:image:alt"], meta[name="twitter:image:alt"]',
+            ),
+          ].map((el) => el.getAttribute("content")),
+          descriptions: [
+            ...doc.querySelectorAll(
+              'meta[name="description"], meta[property="og:description"], meta[name="twitter:description"]',
+            ),
+          ].map((el) => el.getAttribute("content")),
+        };
+      },
+      await response.text(),
+    );
+    expect(got).toEqual({
+      title,
+      titles: [title, title, title, title],
+      descriptions: [description, description, description],
+    });
+  });
+}
+
 test("initial HTML and share URLs expose the intended indexing signals", async ({
   page,
 }) => {

@@ -3,6 +3,7 @@ import TutorialApp from "./app";
 import { validateTutorialData } from "./validation";
 import { resolveLesson } from "./content";
 import type { TutorialRoute } from "./routes";
+import { RUBY_RELEASES } from "../versions";
 
 validateTutorialData();
 
@@ -19,18 +20,23 @@ export function renderTutorialDocument(
   route: Exclude<TutorialRoute, { kind: "not-found" }>,
 ): string {
   if (route.kind === "redirect") {
-    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Ruby Tutorial</title><meta name="robots" content="noindex"><link rel="canonical" href="${origin}${escape(route.destination)}"><meta http-equiv="refresh" content="0;url=${escape(route.destination)}"></head><body><p>Continue to <a href="${escape(route.destination)}">Ruby Tutorial</a>.</p></body></html>`;
+    const destination = JSON.stringify(route.destination).replaceAll(
+      "<",
+      "\\u003c",
+    );
+    return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Ruby Tutorial</title><meta name="robots" content="noindex"><link rel="canonical" href="${origin}${escape(route.destination)}"><script>location.replace(${destination} + location.search + location.hash);</script><noscript><meta http-equiv="refresh" content="0;url=${escape(route.destination)}"></noscript></head><body><p>Continue to <a href="${escape(route.destination)}">Ruby Tutorial</a>.</p></body></html>`;
   }
+  const release = RUBY_RELEASES.find((item) => item.id === route.version)!;
   const lesson = route.slug
     ? resolveLesson(route.slug, route.version)
     : undefined;
   const unavailable = Boolean(route.slug && !lesson);
   const title = lesson
-    ? `${lesson.title} — Ruby ${route.version} Tutorial`
-    : `Ruby ${route.version} Tutorial — Ruby Playground`;
-  const description =
-    lesson?.goal ??
-    `Learn Ruby ${route.version} step by step with runnable examples, practice tasks, and explanations.`;
+    ? `${lesson.title} — ${release.label} Tutorial`
+    : `${release.label} Tutorial — Ruby Playground`;
+  const description = lesson
+    ? `${release.channel === "development" ? `${release.label}: ` : ""}${lesson.goal}`
+    : `Learn ${release.label} step by step with runnable examples, practice tasks, and explanations.`;
   const canonical = `${origin}/tutorial/${route.version}/${route.slug ? `${route.slug}/` : ""}`;
   const image = unavailable
     ? `${origin}/tutorial/${route.version}/og.png`
