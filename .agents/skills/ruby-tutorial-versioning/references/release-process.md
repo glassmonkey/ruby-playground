@@ -1,4 +1,4 @@
-# Releases and official references
+# Runtime and course release process
 
 ## Discover runtime and publication policy
 
@@ -14,15 +14,3 @@ For a release review:
 4. Check that registry, selectors, course entry/default and runtime handoff agree. Preserve fixed URLs and alias query/fragment behavior. Verify generated metadata and images match the resolved lesson and clearly expose development or other material release status.
 
 Keep runtime evidence, readiness gaps and default/publication consequences distinct in the report. Do not claim a new course ready solely because the registry accepts its entry or the build emits pages.
-
-## Match references to learning goals
-
-Inspect the explanation, Example and each Experiment before choosing links. Read the destination's actual content. HTTP success proves reachability only; it does not prove that a page supports the lesson's claims.
-
-- Use syntax chapters for language constructs and class/module API pages for method behavior. A page named Operators is not necessarily a comparison-operator reference; Integer documents integer comparisons.
-- Prefer direct method anchors for focused API behavior, such as Kernel#puts, Class#new invoking initialize, and Module#attr_reader. Inspect `src/tutorial/references.ts` for supported reference identifiers before authoring a new one; update its mapping when needed.
-- Verify version-specific paths and anchor existence. Older manuals may group the same construct elsewhere; update both URL and visible label without changing the tutorial chapter.
-- Link release notes for introduction dates. A link to a named release can intentionally differ from the selected runtime's manual version when it supports a historical introduction claim; label it explicitly.
-- Distinguish Ruby guarantees from host behavior. Worker termination, filesystem limitations and browser execution require implementation/runtime evidence, not only the Ruby manual.
-
-For a reference audit, report semantic correspondence, reachability/anchors and version coverage separately. Report dated findings with the task; keep reusable rules here instead of accumulating historical reports in `docs/`. Do not declare all references correct from status codes alone.

@@ -32,7 +32,7 @@ Distinguish observed failures from evidence gaps. A failed runtime or route chec
 
 After blockers, assess these dimensions and recommend only improvements that materially help the learner:
 
-- **Goal and sequence:** The learner-visible Example and Experiments actually enable the stated outcome; author-only answers or checks cannot substitute for that experience. The lesson teaches one usable outcome, names needed concepts before relying on them, and follows naturally from prerequisites. Apply the placement decisions in `learning-sequence.md` to actual prerequisites and learning outcomes. Check Experiment prerequisites too.
+- **Goal and sequence:** The learner-visible Example and Experiments actually enable the stated outcome; author-only answers or checks cannot substitute for that experience. The lesson teaches one usable outcome, names needed concepts before relying on them, and follows naturally from prerequisites. Apply the placement decisions in [chapter placement](../../ruby-tutorial-curriculum/references/placement.md) to actual prerequisites and learning outcomes. Check Experiment prerequisites too.
 - **Explanation:** The prose explains what the learner needs to understand to predict the example. It avoids incidental API catalogs and unsupported generalizations.
 - **Experiment:** Example teaches the representative basic form; experiments apply that concept with meaningful variations rather than unrelated snippets. Code runs in the inline editor on demand and makes behavior visible. The task asks for a purposeful edit or prediction.
 - **Feedback:** The answer explains why the result occurs and addresses the task. The pitfall identifies a plausible learner error and gives a correction.

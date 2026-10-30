@@ -1,11 +1,20 @@
 ---
 name: ruby-tutorial-authoring
-description: Author, update, and evaluate versioned Ruby tutorial lessons in this repository, including release reviews.
+description: Create or revise Ruby tutorial lesson JSON, explanations, Examples and Experiments within the established curriculum. Use for lesson editing and generation; use curriculum for course restructuring, versioning for release rollout, and review for read-only evaluation.
 ---
 
 # Ruby tutorial authoring
 
-Use this skill to create or update course content, roll the course forward for a Ruby release, or evaluate existing lessons. Read [the evaluation rubric](references/evaluation.md) for review requests and for the quality pass after authoring. Treat the user's requested scope and publication permissions as authoritative; do not publish, commit, or push unless asked.
+Use this skill for lesson creation and editing within established course goals. Respect the user's editing and publication scope. Do not publish, commit or push without authorization.
+
+## Select and combine responsibilities
+
+- Routine lesson additions and revisions stay here. Apply the existing [placement criteria](../ruby-tutorial-curriculum/references/placement.md); do not redesign chapters merely because a lesson is new.
+- Changing chapter purpose, boundaries or prerequisite order uses [curriculum](../ruby-tutorial-curriculum/SKILL.md).
+- Adding runtime/course support uses [versioning](../ruby-tutorial-versioning/SKILL.md).
+- A read-only evaluation uses [review](../ruby-tutorial-review/SKILL.md). For an authorized review-and-fix request, identify findings first, then perform edits under the relevant editing responsibility.
+
+Use only responsibilities needed by the request. A combined request can pass placement decisions and release constraints into authoring without repeating completed checks or inventing new approval steps.
 
 ## Two-stage workflow
 
@@ -25,17 +34,9 @@ The course is versioned at `/tutorial/{version}/{slug}/`. Discover the course en
 
 Discover the shared theme preference and its storage implementation. Check that Light/Dark mode stays synchronized across both surfaces and lesson/version navigation, and that changing theme preserves edited code. Follow the existing tutorial UI patterns, including any local PHP tutorial reference if present; do not assume that reference exists or change UI implementation as part of a content-only request.
 
-## Release and reference policy
+## Placement and evidence
 
-Read [release and reference rules](references/releases-and-references.md) when adding a runtime, changing official links or reviewing compatibility. This repository skill is authoritative for authoring rules; `docs/tutorial-authoring.md` is only an entry link, not a second policy definition.
-
-## Shared course structure
-
-Read [the learning sequence](references/learning-sequence.md) when adding, splitting or reorganizing lessons. Start with what the learner can do next and its prerequisites. Do not turn reference-manual headings into lessons or preserve existing lesson boundaries merely to reuse content.
-
-Use one chapter order and stable lesson IDs across all Ruby versions. Treat the official Syntax pages as source material, not a version-specific course blueprint or a public compliance label. Do not present a reference version as a curriculum-compliance label. Keep learners on the same lesson when changing version; change explanations, sample code, experiments and reference URLs where necessary. Use [chapter placement decisions](references/learning-sequence.md) rather than a fixed table of contents.
-
-The course has an original learning sequence. The publisher’s public overview of [独習Ruby 新版](https://www.shoeisha.co.jp/book/detail/9784798168845) can inform broad prerequisite progression, but do not reproduce its table of contents, detailed chapter structure, prose or examples. Use official Ruby sources for factual/version claims. User-facing pages should not describe this authoring methodology.
+Use [placement criteria](../ruby-tutorial-curriculum/references/placement.md) for the lesson's prerequisites and chapter fit. Follow [source standards](references/sources.md) for official references and independent examples. These references own their respective criteria; do not duplicate them as current chapter or version tables.
 
 ## Author or update content
 
@@ -43,11 +44,11 @@ The course has an original learning sequence. The publisher’s public overview 
 2. Verify version-sensitive statements against the official Ruby documentation and NEWS for each affected version. Check syntax and API introduction/behavior in the specific version's sources; section names and URLs can differ for older versions. Prefer linked primary sources. If a source cannot be checked, say so instead of presenting a guess as fact.
 3. Run examples in the actual bundled WASM runtime selected by the course version. Inspect its actual `RUBY_VERSION`; a minor label or npm wrapper version does not establish the bundled patch release. Capture the real output and make the expected output match exactly. Run the same code on each version variant it claims to support.
 4. Discover the executable data contract and consumers using [data editing](references/data-contract.md). Do not copy the current field list or merge semantics into authoring policy. Keep syntax, core API and standard-library claims distinct.
-5. Resolve every affected version after editing; verify inherited explanations, code, experiments and availability as a whole. Follow [release review](references/releases-and-references.md) for runtime registration and publication effects.
+5. Resolve every affected version after editing; verify inherited explanations, code, experiments and availability as a whole. Follow [versioning](../ruby-tutorial-versioning/SKILL.md) for runtime registration and publication effects.
 6. Make a learner's experiment meaningful and easy to run in the on-page editor. The task should target the stated goal, invite a prediction or concrete edit, and have an answer that explains the observed result. Identify a likely misconception with a specific correction. Keep official references useful to that lesson and version. Scope simplified explanations to the example when broader Ruby behavior differs. Use concrete executable syntax in prose rather than placeholders that are themselves Ruby syntax (for example, explain super(text) using that exact call).
 
 ## Verify and report
 
 Use the project's relevant checks and browser preview, but do not treat a green test suite as evidence that explanations teach well or that version-specific claims are true. Verify rendered content and routes in the actual preview. Exercise the lesson's Run button, version selector, full Playground handoff, theme toggle and theme persistence where relevant. Check that lesson text and code still read without JavaScript.
 
-Do not expose author-side completeness tracking in learner-facing copy: omit coverage/completeness claims, lists of remaining topics, and descriptions of the author's methodology. Keep the public lesson focused on the learner's goal, explanation, code experiment and hands-on application. Do not add completion counters, progress storage or mark-complete controls. Use the evaluation rubric to identify content defects and actionable improvements. Report changed files, official evidence, actual runtime versions/output, checks performed, unresolved uncertainties and prioritized findings. Do not claim a check that was not run.
+Do not expose author-side completeness tracking in learner-facing copy: omit coverage/completeness claims, lists of remaining topics, and descriptions of the author's methodology. Keep the public lesson focused on the learner's goal, explanation, code experiment and hands-on application. Do not add completion counters, progress storage or mark-complete controls. Use the [evaluation rubric](../ruby-tutorial-review/references/evaluation.md) to identify content defects and actionable improvements. Report changed files, official evidence, actual runtime versions/output, checks performed, unresolved uncertainties and prioritized findings. Do not claim a check that was not run.

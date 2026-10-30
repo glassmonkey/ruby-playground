@@ -17,4 +17,4 @@ Optional material still needs a specific purpose and boundary. Do not create “
 
 Use one learning order and stable lesson identities across versions. Adapt content and availability where necessary. For a move, split or merge, check prerequisite reachability, actual navigation order, version availability and existing URL/successor behavior. A skill-maintenance request does not itself authorize reorganizing published lessons.
 
-Books may inform broad progression; do not reproduce their distinctive table of contents, explanations or examples. Use official documentation for factual claims and author independent examples for the browser environment. Keep this rationale out of learner-facing copy.
+For source use and independent examples, follow [the shared source standards](../../ruby-tutorial-authoring/references/sources.md).

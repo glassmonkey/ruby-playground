@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ruby Tutorial Review"
+  short_description: "Review tutorial quality without modifying targets"
+  default_prompt: "Use $ruby-tutorial-review for the requested Ruby tutorial task."

@@ -12,8 +12,8 @@ Keep runtime labels/default rules in shared runtime configuration, chapter names
 
 ## Data-stage handoff
 
-- Explain the learning outcome and placement using `learning-sequence.md`.
+- Explain the learning outcome and placement using [chapter placement](../../ruby-tutorial-curriculum/references/placement.md).
 - Verify main claims and tasks against semantically relevant version-specific official sources, including anchors. Report evidence without inventing unrecognized data fields.
-- Run exact Example and Experiment code in the affected bundled WASM runtimes; record runtime identity and observed output. Use `evaluation.md` for teaching quality as a separate check.
+- Run exact Example and Experiment code in the affected bundled WASM runtimes; record runtime identity and observed output. Use [evaluation](../../ruby-tutorial-review/references/evaluation.md) for teaching quality as a separate check.
 - Run current data validation and report the data diff, affected versions and unresolved findings. Generation must not silently supply missing teaching content.
 - Protect existing identities and explicit successors when changing organization; inspect the current redirect contract. Official-documentation regrouping alone is not a reason to mark a lesson unavailable.

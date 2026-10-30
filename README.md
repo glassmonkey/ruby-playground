@@ -163,7 +163,7 @@ and theme tokens as the Playground. Lessons provide a basic Example and two or
 three selectable Experiments, with execution on demand. Static lesson HTML uses
 the same React components as the interactive page.
 
-Authoring rules live in the [repository skill](.agents/skills/ruby-tutorial-authoring/SKILL.md).
+Tutorial work has four [repository skill entry points](docs/tutorial-authoring.md): authoring, curriculum, versioning, and read-only review.
 Edit structured JSON in `src/tutorial/data/`, run `npm run tutorial:validate`,
 then use the normal `npm run build`. Rendering components and build integration
 are in `src/tutorial/` and `src/build/`; generated pages stay in `public/`.

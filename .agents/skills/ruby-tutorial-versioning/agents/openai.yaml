@@ -1,0 +1,4 @@
+interface:
+  display_name: "Ruby Tutorial Versioning"
+  short_description: "Verify and add runtime release support"
+  default_prompt: "Use $ruby-tutorial-versioning for the requested Ruby tutorial task."
