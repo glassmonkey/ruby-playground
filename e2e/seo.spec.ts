@@ -18,6 +18,17 @@ function publishedSlugs(version: string): string[] {
     })
     .map((lesson) => lesson.slug);
 }
+function publishedExperimentIds(slug: string, version: string): string[] {
+  const source = rawLessons.find((item) => item.slug === slug)!;
+  const variant = (
+    source.variants as
+      Record<string, { experiments?: { id: string }[] }> | undefined
+  )?.[version];
+  // A supplied variant array replaces the base; an absent array inherits it.
+  return (variant?.experiments ?? source.experiments)
+    .map((sample) => sample.id)
+    .sort();
+}
 for (const version of tutorialVersions) {
   const expectedIds = publishedSlugs(version.id).sort();
   const actualIds = lessonsForVersion(version.id)
@@ -27,6 +38,14 @@ for (const version of tutorialVersions) {
     throw new Error(
       `Tutorial test discovery lost catalog identities for ${version.id}`,
     );
+  for (const lesson of lessonsForVersion(version.id)) {
+    const expectedSamples = publishedExperimentIds(lesson.slug, version.id);
+    const actualSamples = lesson.experiments.map((sample) => sample.id).sort();
+    if (JSON.stringify(actualSamples) !== JSON.stringify(expectedSamples))
+      throw new Error(
+        `Tutorial test discovery lost experiment identities for ${version.id}/${lesson.slug}`,
+      );
+  }
 }
 
 for (const [alias, destination] of [
@@ -212,6 +231,7 @@ for (const version of tutorialVersions) {
       await expect(page.getByTestId("lesson-output")).toHaveText(
         lesson.output + "\n",
       );
+      const executedExperiments: string[] = [];
       for (const experiment of lesson.experiments) {
         await page
           .getByRole("button", {
@@ -232,7 +252,11 @@ for (const version of tutorialVersions) {
         await expect(page.getByTestId("lesson-output")).toHaveText(
           experiment.output + "\n",
         );
+        executedExperiments.push(experiment.id);
       }
+      expect(executedExperiments.sort()).toEqual(
+        publishedExperimentIds(lesson.slug, version.id),
+      );
       const navigation = page.getByRole("navigation", {
         name: "Lesson navigation",
       });

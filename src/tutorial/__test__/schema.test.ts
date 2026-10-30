@@ -1,12 +1,12 @@
 // @vitest-environment node
 import { ZodError } from "zod";
-import { validLesson } from "./testing/lesson-fixture";
+import { validLesson } from "./fixtures/lesson-fixture";
 import { expect, it } from "vitest";
-import { parseTutorialData, validateReferenceCatalog } from "./schema";
-import lessons from "./data/lessons.json";
-import chapters from "./data/chapters.json";
-import redirects from "./data/redirects.json";
-import { RUBY_VERSIONS } from "../versions";
+import { parseTutorialData, validateReferenceCatalog } from "../schema";
+import lessons from "../data/lessons.json";
+import chapters from "../data/chapters.json";
+import redirects from "../data/redirects.json";
+import { RUBY_VERSIONS } from "../../versions";
 
 it("accepts the published data without changing its meaning", () => {
   const data = { lessons, chapters, redirects };

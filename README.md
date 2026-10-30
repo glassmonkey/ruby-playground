@@ -85,6 +85,11 @@ npm run test:e2e     # production preview + Chromium tests
 npm audit
 ```
 
+Unit tests live in feature-level `src/**/__test__/` directories, with test-only
+fixtures and approved image snapshots alongside them. Browser tests remain in
+`e2e/`. These files are outside the shipped bundle, but remain part of the build's
+TypeScript checking; unit execution is a separate step of `npm run check`.
+
 Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
 output, state reset and output caps. Unit/component tests cover worker settlement,
 cancel/timeout, URL validation and UI state. CI runs browser flows:

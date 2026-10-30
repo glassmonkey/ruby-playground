@@ -6,7 +6,7 @@ import {
   MAX_SHARE_URL_BYTES,
   MAX_SOURCE_LENGTH,
   parseShareUrl,
-} from "./share";
+} from "../share";
 
 const base = "https://ruby.example/playground?theme=dark#editor";
 const fallback = 'puts "Fallback"';

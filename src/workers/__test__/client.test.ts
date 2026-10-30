@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { startRubyRun } from "./client";
+import { startRubyRun } from "../client";
 const empty = { stdout: "", stderr: "", output: "" };
 const mockWorker = () =>
   ({

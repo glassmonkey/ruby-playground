@@ -1,8 +1,8 @@
 import { afterEach, expect, it } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
-import RuntimeInfoPanel from "./runtime-info";
-import type { RuntimeInfo } from "./runtime";
+import RuntimeInfoPanel from "../runtime-info";
+import type { RuntimeInfo } from "../runtime";
 
 afterEach(cleanup);
 

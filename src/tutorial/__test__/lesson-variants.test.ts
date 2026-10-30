@@ -1,8 +1,11 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
-import { resolveLesson } from "./content";
-import { RUBY_VERSIONS } from "../versions";
+import { resolveLesson } from "../content";
+import { RUBY_VERSIONS } from "../../versions";
 
+// Introduction evidence: https://docs.ruby-lang.org/en/3.4/NEWS_md.html
+// Language details: https://docs.ruby-lang.org/en/3.4/syntax/calling_methods_rdoc.html
+// These expectations audit the lesson; real WASM execution is in seo.spec.ts.
 const explicitExplanation =
   "Calling select and then map lets you filter entries before transforming them. Each method receives its own block. Name each block parameter explicitly, such as |count|. The final experiment uses a separate parameter in each block.";
 const implicitExplanation =

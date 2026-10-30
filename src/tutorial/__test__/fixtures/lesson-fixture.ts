@@ -1,4 +1,4 @@
-import type { Lesson } from "../schema";
+import type { Lesson } from "../../schema";
 
 /** Fresh, valid data; scenario-specific inputs stay in each test. */
 export function validLesson(overrides: Partial<Lesson> = {}): Lesson {

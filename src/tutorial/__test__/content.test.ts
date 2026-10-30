@@ -1,11 +1,11 @@
 // @vitest-environment node
 import { expect, it, vi } from "vitest";
 
-vi.mock("./data/chapters.json", () => ({
+vi.mock("../data/chapters.json", () => ({
   default: ["Basics", "Applications"],
 }));
-vi.mock("./data/lessons.json", async () => {
-  const { validLesson } = await import("./testing/lesson-fixture");
+vi.mock("../data/lessons.json", async () => {
+  const { validLesson } = await import("./fixtures/lesson-fixture");
   return {
     default: [
       validLesson({
@@ -54,7 +54,7 @@ vi.mock("./data/lessons.json", async () => {
     ],
   };
 });
-import { lessonsForVersion, resolveLesson } from "./content";
+import { lessonsForVersion, resolveLesson } from "../content";
 
 it("orders by chapter catalog then preserves lesson order within each chapter", () => {
   expect(lessonsForVersion("4.0").map((lesson) => lesson.slug)).toEqual([

@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { RUBY_VERSIONS } from "../src/versions";
-import { runtimeCases } from "../src/testing/runtime-cases";
+import { runtimeCases } from "../src/__test__/fixtures/runtime-cases";
 import {
   editRuby as edit,
   expectRubyOutput,

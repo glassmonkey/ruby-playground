@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { hasShareParameters, syncRobotsMeta } from "./indexing";
+import { hasShareParameters, syncRobotsMeta } from "../indexing";
 
 describe("shared URL indexing policy", () => {
   afterEach(() => {

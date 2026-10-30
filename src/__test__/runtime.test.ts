@@ -2,10 +2,10 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
-import { INITIAL_CODE } from "./sample";
-import { RUBY_VERSIONS, RUBY_PATCH_VERSIONS } from "./versions";
-import { runtimeCases } from "./testing/runtime-cases";
-import { executeRuby, type RuntimeInfo } from "./runtime";
+import { INITIAL_CODE } from "../sample";
+import { RUBY_VERSIONS, RUBY_PATCH_VERSIONS } from "../versions";
+import { runtimeCases } from "./fixtures/runtime-cases";
+import { executeRuby, type RuntimeInfo } from "../runtime";
 
 let module: WebAssembly.Module;
 beforeAll(async () => {

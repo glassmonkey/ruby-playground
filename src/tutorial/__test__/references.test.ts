@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { expect, it } from "vitest";
-import { officialReferences } from "./references";
-import { RUBY_RELEASES, RUBY_VERSIONS } from "../versions";
+import { officialReferences } from "../references";
+import { RUBY_RELEASES, RUBY_VERSIONS } from "../../versions";
 
 it.each(["toString", "constructor", "__proto__", "Kernel#puts#extra"])(
   "rejects unknown reference %s",
@@ -15,6 +15,54 @@ it.each(["toString", "constructor", "__proto__", "Kernel#puts#extra"])(
   },
 );
 const referenceCases = [
+  {
+    version: "4.0",
+    name: "Methods",
+    label: "Official Ruby 4.0 documentation: Methods",
+    url: "https://docs.ruby-lang.org/en/4.0/syntax/methods_rdoc.html",
+  },
+  {
+    version: "3.4",
+    name: "Methods",
+    label: "Official Ruby 3.4 documentation: Methods",
+    url: "https://docs.ruby-lang.org/en/3.4/syntax/methods_rdoc.html",
+  },
+  {
+    version: "3.3",
+    name: "Methods",
+    label: "Official Ruby 3.3 documentation: Methods",
+    url: "https://docs.ruby-lang.org/en/3.3/syntax/methods_rdoc.html",
+  },
+  {
+    version: "3.2",
+    name: "Methods",
+    label: "Official Ruby 3.2 documentation: Methods",
+    url: "https://docs.ruby-lang.org/en/3.2/syntax/methods_rdoc.html",
+  },
+  {
+    version: "3.4",
+    name: "Ruby 3.4 release notes",
+    label: "Ruby 3.4 release notes: introduction of the it block parameter",
+    url: "https://docs.ruby-lang.org/en/3.4/NEWS_md.html",
+  },
+  {
+    version: "3.3",
+    name: "Ruby 3.4 release notes",
+    label: "Ruby 3.4 release notes: introduction of the it block parameter",
+    url: "https://docs.ruby-lang.org/en/3.4/NEWS_md.html",
+  },
+  {
+    version: "3.2",
+    name: "Ruby 3.4 release notes",
+    label: "Ruby 3.4 release notes: introduction of the it block parameter",
+    url: "https://docs.ruby-lang.org/en/3.4/NEWS_md.html",
+  },
+  {
+    version: "4.1",
+    name: "Ruby 3.4 release notes",
+    label: "Ruby 3.4 release notes: introduction of the it block parameter",
+    url: "https://docs.ruby-lang.org/en/3.4/NEWS_md.html",
+  },
   {
     version: "4.0",
     name: "Kernel#puts",
@@ -91,14 +139,17 @@ const referenceCases = [
     url: "https://docs.ruby-lang.org/en/3.4/NEWS_md.html",
   },
 ];
-it("covers ordinary API links for every registered version", () => {
-  expect(
-    referenceCases
-      .filter((testCase) => testCase.name === "Kernel#puts")
-      .map((testCase) => testCase.version)
-      .sort(),
-  ).toEqual([...RUBY_VERSIONS].sort());
-});
+it.each(["Kernel#puts", "Methods", "Ruby 3.4 release notes"])(
+  "has explicit %s expectations for every registered version",
+  (name) => {
+    expect(
+      referenceCases
+        .filter((testCase) => testCase.name === name)
+        .map((testCase) => testCase.version)
+        .sort(),
+    ).toEqual([...RUBY_VERSIONS].sort());
+  },
+);
 it.each(referenceCases)(
   "resolves $version $name with its documented version semantics",
   ({ version, name, label, url }) => {
