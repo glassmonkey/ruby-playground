@@ -187,7 +187,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
         .querySelector("#static-description code")?.textContent,
     html,
   );
-  expect(staticCode).toBe("Hello Ruby!");
+  expect(staticCode).toBe("ruby");
   expect(html).toMatch(
     /<link\s+rel="canonical"\s+href="https:\/\/ruby-play\.dev\/"\s*\/>/,
   );

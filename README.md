@@ -56,8 +56,8 @@ If your npm cache is not writable, set `npm_config_cache` to a writable director
   decoding is bounded before expansion. Legacy `f` parameters are ignored and removed
   on the next edit.
 - Shared links **execute automatically**. Do not open untrusted shared links.
-- The initial sample recursively draws a fractal from `%w[Hello Ruby!]`.
-  Change the words or recursion depth to change the pattern. The default depth is 3.
+- The initial sample draws the word ruby using repeated `ruby` text.
+  Change the letter patterns or printed text to experiment with the output.
 - Console output always displays stdout/stderr literally, including the sample.
   Long lines scroll horizontally to preserve ASCII art and whitespace.
   A separate environment panel shows the
