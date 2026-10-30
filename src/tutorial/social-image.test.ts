@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 import path from "node:path";
+import { readFileSync } from "node:fs";
 import { resolveLesson } from "./content";
 import { renderSocialImage } from "./social-image";
 
@@ -28,4 +29,14 @@ describe("lesson social images", () => {
       ),
     ).toBe(false);
   });
+});
+
+it("renders the approved card with a visible development release badge", () => {
+  // Review this representative PNG visually when the font or renderer changes.
+  // A fixed course card avoids snapshot churn when lessons are added or revised.
+  const want = readFileSync(
+    new URL("./__snapshots__/development-card.png", import.meta.url),
+  );
+  const got = renderSocialImage("4.1", undefined, fontFile);
+  expect(got.equals(want)).toBe(true);
 });

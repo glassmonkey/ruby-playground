@@ -1,4 +1,6 @@
 // @vitest-environment node
+import { ZodError } from "zod";
+import { validLesson } from "./testing/lesson-fixture";
 import { expect, it } from "vitest";
 import { parseTutorialData, validateReferenceCatalog } from "./schema";
 import lessons from "./data/lessons.json";
@@ -8,7 +10,9 @@ import { RUBY_VERSIONS } from "../versions";
 
 it("accepts the published data without changing its meaning", () => {
   const data = { lessons, chapters, redirects };
-  expect(parseTutorialData(data, RUBY_VERSIONS)).toEqual(data);
+  const want = structuredClone(data);
+  const got = parseTutorialData(data, RUBY_VERSIONS);
+  expect({ got, inputAfter: data }).toEqual({ got: want, inputAfter: want });
 });
 it.each([
   {
@@ -35,16 +39,16 @@ it.each([
     name: "empty task",
     change: {
       experiments: [
-        { ...lessons[0].experiments[0], task: "" },
-        lessons[0].experiments[1],
+        { ...validLesson().experiments[0], task: "" },
+        validLesson().experiments[1],
       ],
     },
     error: /Text must not be blank/,
   },
 ])("rejects $name before resolving versions", ({ change, error }) => {
   const data = {
-    lessons: [{ ...lessons[0], ...change }],
-    chapters,
+    lessons: [{ ...validLesson(), ...change }],
+    chapters: ["Basics"],
     redirects: [],
   };
   expect(() => parseTutorialData(data, RUBY_VERSIONS)).toThrow(error);
@@ -72,23 +76,25 @@ it("rejects an unresolved successor", () => {
 
 it("preserves code whitespace and line numbers", () => {
   const data = {
-    lessons: [{ ...lessons[0], code: "\nputs __LINE__\n" }],
-    chapters,
+    lessons: [{ ...validLesson(), code: "\nputs __LINE__\n" }],
+    chapters: ["Basics"],
     redirects: [],
   };
-  expect(parseTutorialData(data, RUBY_VERSIONS)).toEqual(data);
+  const want = structuredClone(data);
+  const got = parseTutorialData(data, RUBY_VERSIONS);
+  expect({ got, inputAfter: data }).toEqual({ got: want, inputAfter: want });
 });
 it("rejects whitespace in a URL identity", () => {
   expect(() =>
     parseTutorialData(
       {
-        lessons: [{ ...lessons[0], slug: " output " }],
-        chapters,
+        lessons: [{ ...validLesson(), slug: " output " }],
+        chapters: ["Basics"],
         redirects: [],
       },
       RUBY_VERSIONS,
     ),
-  ).toThrow();
+  ).toThrow(ZodError);
 });
 
 it.each([

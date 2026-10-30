@@ -1,3 +1,4 @@
+import rawLessons from "../src/tutorial/data/lessons.json" with { type: "json" };
 import { expect, test } from "@playwright/test";
 import {
   tutorialVersions,
@@ -6,6 +7,27 @@ import {
 } from "../src/tutorial/content";
 import { RUBY_PATCH_VERSIONS } from "../src/versions";
 const lessons = lessonsForVersion(latestTutorialVersion);
+
+// Membership comes from raw publication data, not the resolver under test.
+function publishedSlugs(version: string): string[] {
+  return rawLessons
+    .filter((lesson) => {
+      const variants = lesson.variants as
+        Record<string, { available?: boolean }> | undefined;
+      return variants?.[version]?.available !== false;
+    })
+    .map((lesson) => lesson.slug);
+}
+for (const version of tutorialVersions) {
+  const expectedIds = publishedSlugs(version.id).sort();
+  const actualIds = lessonsForVersion(version.id)
+    .map((lesson) => lesson.slug)
+    .sort();
+  if (JSON.stringify(actualIds) !== JSON.stringify(expectedIds))
+    throw new Error(
+      `Tutorial test discovery lost catalog identities for ${version.id}`,
+    );
+}
 
 for (const [alias, destination] of [
   ["latest/output", "4.0/output"],
@@ -124,7 +146,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
 for (const version of tutorialVersions) {
   const versionLessons = lessonsForVersion(version.id);
   for (const [index, lesson] of versionLessons.entries()) {
-    test(`tutorial ${version.id}: ${lesson.slug} teaches and runs the documented program`, async ({
+    test(`tutorial ${version.id}: ${lesson.slug} displays and runs the documented program`, async ({
       page,
     }) => {
       await page.goto(`/tutorial/${version.id}/${lesson.slug}/`);
@@ -232,9 +254,8 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
   await expect(page).toHaveURL(/\/tutorial\/$/);
 });
 
-test("embedded playground supports experimentation, cancellation and versioned handoff", async ({
+test("embedded playground runs edits on demand and displays Ruby errors", async ({
   page,
-  context,
 }) => {
   test.setTimeout(90000);
   const wasmRequests: string[] = [];
@@ -253,6 +274,14 @@ test("embedded playground supports experimentation, cancellation and versioned h
   await editor.fill('raise "Try another approach"');
   await run.click();
   await expect(page.getByRole("alert")).toContainText("Try another approach");
+});
+
+test("embedded playground stops runs on request, sample change and version change", async ({
+  page,
+}) => {
+  await page.goto("/tutorial/4.0/output/");
+  const editor = page.getByRole("textbox", { name: "Ruby code" });
+  const run = page.getByRole("button", { name: "Run code", exact: true });
   await editor.fill("loop {}");
   await run.click();
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -275,6 +304,16 @@ test("embedded playground supports experimentation, cancellation and versioned h
   await expect(
     page.getByRole("button", { name: "Stop", exact: true }),
   ).toHaveCount(0);
+});
+
+test("full Playground receives edited code and the selected Ruby version", async ({
+  page,
+  context,
+}) => {
+  test.setTimeout(90000);
+  await page.goto("/tutorial/3.3/output/");
+  const editor = page.getByRole("textbox", { name: "Ruby code" });
+  const run = page.getByRole("button", { name: "Run code", exact: true });
   await editor.fill("puts RUBY_VERSION");
   await run.click();
   await expect(page.getByTestId("lesson-output")).toHaveText(
@@ -306,6 +345,11 @@ test("embedded playground supports experimentation, cancellation and versioned h
       timeout: 25000,
     },
   );
+});
+
+test("lesson editor fits desktop and mobile viewports", async ({ page }) => {
+  await page.goto("/tutorial/4.0/output/");
+  await expect(page.getByRole("textbox", { name: "Ruby code" })).toBeVisible();
   await page.screenshot({
     path: "test-results/tutorial-interactive-desktop.png",
     fullPage: true,
@@ -619,9 +663,8 @@ test("sitemap is served as XML and lists canonical tutorial URLs", async ({
     "https://ruby-play.dev/",
     ...tutorialVersions.flatMap((version) => [
       `https://ruby-play.dev/tutorial/${version.id}/`,
-      ...lessonsForVersion(version.id).map(
-        (lesson) =>
-          `https://ruby-play.dev/tutorial/${version.id}/${lesson.slug}/`,
+      ...publishedSlugs(version.id).map(
+        (slug) => `https://ruby-play.dev/tutorial/${version.id}/${slug}/`,
       ),
     ]),
   ];
@@ -652,10 +695,7 @@ test("every tutorial article has its own canonical and a generated social PNG", 
 }) => {
   test.setTimeout(120_000);
   for (const version of tutorialVersions) {
-    for (const slug of [
-      undefined,
-      ...lessonsForVersion(version.id).map((lesson) => lesson.slug),
-    ]) {
+    for (const slug of [undefined, ...publishedSlugs(version.id)]) {
       const path = `/tutorial/${version.id}/${slug ? `${slug}/` : ""}`;
       const response = await request.get(path);
       expect(response.ok(), path).toBe(true);
