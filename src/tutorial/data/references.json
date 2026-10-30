@@ -1,0 +1,56 @@
+{
+  "syntax": {
+    "Code Layout": "layout",
+    "Comments": "comments",
+    "Literals": "literals",
+    "Assignment": "assignment",
+    "Operators": "operators",
+    "Precedence": "precedence",
+    "Control Expressions": "control_expressions",
+    "Methods": "methods",
+    "Calling Methods": "calling_methods",
+    "Modules and Classes": "modules_and_classes",
+    "Exceptions": "exceptions",
+    "Pattern matching": "pattern_matching",
+    "Refinements": "refinements",
+    "Miscellaneous": "miscellaneous"
+  },
+  "overrides": {
+    "3.2": {
+      "Code Layout": "miscellaneous",
+      "Operators": "methods"
+    },
+    "3.3": {
+      "Code Layout": "miscellaneous"
+    },
+    "3.4": {
+      "Code Layout": "miscellaneous"
+    }
+  },
+  "api": [
+    "Array",
+    "BasicObject",
+    "Class",
+    "Enumerable",
+    "FalseClass",
+    "Float",
+    "Hash",
+    "Integer",
+    "Kernel",
+    "Module",
+    "NilClass",
+    "Numeric",
+    "Object",
+    "Proc",
+    "Range",
+    "String",
+    "Symbol",
+    "TrueClass"
+  ],
+  "external": {
+    "Ruby 3.4 release notes": {
+      "label": "Ruby 3.4 release notes: introduction of the it block parameter",
+      "url": "https://docs.ruby-lang.org/en/3.4/NEWS_md.html"
+    }
+  }
+}

@@ -1,23 +1,20 @@
-# Learning sequence
+# Chapter placement and learning sequence
 
-The shared catalog in `src/tutorial/data/chapters.json` defines the published order. Plan a lesson around something a learner can do, then identify concepts needed to understand its Example and Experiments. Existing slugs and page counts are not curriculum requirements: split overloaded lessons, add missing foundations and preserve retired URLs through explicit successor redirects.
+Discover the current chapter catalog, lesson associations and actual ordering resolver in the implementation. Inspect rendered navigation as well as source order: they need not be identical. Do not duplicate the current table of contents here.
 
-The main course progresses through:
+Keep four independent axes clear: learning classification groups outcomes; learning order follows prerequisites; official references substantiate claims; version/runtime availability determines where a lesson works. One manual chapter may support several lessons, and one lesson may cite several manual categories. A reference move does not require a curriculum move.
 
-| Chapter                  | Learning purpose and boundaries                                                                                                                                                                         |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Running Ruby             | Execute values and expressions, display them, assign and reuse variables. Introduce comments and ordinary line breaks in context. Avoid return-value subtleties and object identity at the entry point. |
-| Basic Data               | Work with numbers, strings, booleans, nil and symbols. Introduce basic operations where they are useful.                                                                                                |
-| Decisions and Loops      | Compare values, branch and repeat. Explain each control construct before using it; do not depend on collection transformations or blocks yet.                                                           |
-| Working with Collections | Store and retrieve values using arrays and hashes, describe intervals with ranges. Keep Enumerable transformations for later.                                                                           |
-| Methods and Blocks       | Define reusable methods, pass arguments, return values and yield to blocks. Reserve stored Proc/lambda behavior for later.                                                                              |
-| Using Collections        | Apply already-introduced blocks to iteration, mapping and filtering.                                                                                                                                    |
-| Creating Objects         | Define classes and instance state, use inheritance and modules, then define operators when meaningful for an object.                                                                                    |
-| Handling Errors          | Handle specific failures, raise exceptions and perform cleanup. This is a practical part of the main course.                                                                                            |
-| Expressive Ruby          | Apply foundations to pattern matching and stored callable behavior such as Proc and lambda.                                                                                                             |
+Before placement, state what the learner can do or predict afterward, what knowledge the Example and Experiments require, and what later practice they enable. Check both earlier and later lessons, including small API calls that an application silently assumes.
 
-Refinements and unusual forms such as `BEGIN`/`END` belong in Supplementary Topics, after the main course. Do not treat every syntax-reference heading as an equally important course milestone.
+| Decision | Evidence required |
+| --- | --- |
+| Extend an existing chapter | Its learning goal, prerequisite stage and surrounding progression fit the new outcome. Similar names alone are insufficient. |
+| Add a chapter | Existing placement would obscure a chapter's purpose or require a prerequisite leap. State the new goal, included/excluded scope, required prior lessons and relation to the next stage. |
+| Split or merge | Goals or prerequisite levels are mixed, purposes overlap, or explanations repeat. Judge cohesion rather than a target chapter/lesson count. |
+| Defer | A meaningful goal, prerequisite material, runnable environment or verification method is missing. Report the missing condition; do not hide the topic in a catch-all chapter. |
 
-For additions, check both directions: what earlier material this lesson assumes, and what later material it enables. An application should deepen the lesson's basic example without silently requiring a later chapter. Explain small necessary API calls locally, or move the application later. Keep this prerequisite order identical across supported versions; adapt code and factual references where behavior differs.
+Optional material still needs a specific purpose and boundary. Do not create “Other” or “Supplementary” chapters merely as containers for unclassified topics. Adding a runtime alone is not grounds for a new chapter: first consider whether the same learning outcome can use a version-specific explanation or example.
 
-Reference books may inform broad progression. Do not reproduce a book's table of contents, distinctive chapter organization, explanations or examples. Author independent examples for this browser environment and use official Ruby documentation to verify syntax/API facts. Keep this authoring rationale out of learner-facing copy.
+Use one learning order and stable lesson identities across versions. Adapt content and availability where necessary. For a move, split or merge, check prerequisite reachability, actual navigation order, version availability and existing URL/successor behavior. A skill-maintenance request does not itself authorize reorganizing published lessons.
+
+Books may inform broad progression; do not reproduce their distinctive table of contents, explanations or examples. Use official documentation for factual claims and author independent examples for the browser environment. Keep this rationale out of learner-facing copy.

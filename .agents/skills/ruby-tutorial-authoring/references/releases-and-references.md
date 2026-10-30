@@ -1,15 +1,19 @@
 # Releases and official references
 
-## One runtime catalog
+## Discover runtime and publication policy
 
-`src/versions.ts` is the executable source of truth for supported Ruby minor IDs, actual bundled patch versions, stable/development channels and official-documentation namespaces. The application selector, tutorial selector, default course, page generation and build inputs consume that catalog. Do not create a tutorial-only version list or separately maintained default. Both surfaces choose the newest supported stable entry; development builds remain selectable but do not become the default. Use concrete version labels rather than a visible “latest” label.
+Find the shared runtime registry, runtime loader/dependency mapping, default-selection rule and tutorial resolver. Current entry points include `src/versions.ts`, `src/workers/ruby-worker.ts` and `src/tutorial/content.ts`; confirm these against the working tree. Implementation owns the supported list and selection rules. Do not maintain a tutorial-only registry or copy another project's default policy.
 
-When adding a release:
+Treat runtime registration, course readiness and default selection as separate decisions. Before registration, trace whether adding an entry automatically publishes inherited lessons, routes, sitemap entries and social images or changes the default. Explain that impact before making the entry selectable. Preserve the existing default policy unless changing it is explicitly in scope.
 
-1. Pin its bundled WASM dependency and add its Worker URL to the `Record<RubyVersion, string>` map in `src/workers/ruby-worker.ts`. The typed map must cover every selectable version.
-2. Verify `RUBY_VERSION` from the bundled runtime. Update the shared release metadata; a package name or minor label is not proof of the patch version. Stable references normally use their version namespace; a development release may use `master`, explicitly labeled development.
-3. Review every inherited lesson and Experiment for that version. Use complete field overrides where syntax or behavior differs. Keep chapter order and stable lesson IDs shared across versions. A documentation move does not make a lesson unavailable.
-4. Regenerate routes and sitemap, run type/build checks, and verify both selectors expose the same IDs and default. Test tutorial-to-Playground handoff and actual execution for the new version. Do not publish a selectable course without a bundled runnable version.
+For a release review:
+
+1. Verify the bundled WASM dependency and loader coverage. Execute it and record concrete runtime identity; package/minor labels alone do not prove the bundled release.
+2. Audit every inherited lesson's claims, Example, Experiments, expected outputs, references and required standard libraries in the real environment. Determine needed overrides or unavailability from evidence; generation success is not compatibility evidence.
+3. Read actual inheritance/override/availability behavior before editing. Verify older versions after shared changes. Keep shared learning order and stable identities; a documentation move is not lost runtime support.
+4. Check that registry, selectors, course entry/default and runtime handoff agree. Preserve fixed URLs and alias query/fragment behavior. Verify generated metadata and images match the resolved lesson and clearly expose development or other material release status.
+
+Keep runtime evidence, readiness gaps and default/publication consequences distinct in the report. Do not claim a new course ready solely because the registry accepts its entry or the build emits pages.
 
 ## Match references to learning goals
 

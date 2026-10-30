@@ -2,37 +2,8 @@ import content from "./data/lessons.json" with { type: "json" };
 import chapterCatalog from "./data/chapters.json" with { type: "json" };
 import { DEFAULT_RUBY_VERSION, RUBY_RELEASES } from "../versions.ts";
 
-export type LessonExperiment = {
-  id: string;
-  title: string;
-  task: string;
-  code: string;
-  output: string;
-  answer: string;
-};
-
-export type LessonContent = {
-  slug: string;
-  title: string;
-  chapter: string;
-  goal: string;
-  paragraphs: string[];
-  code: string;
-  output: string;
-  experiments: LessonExperiment[];
-  pitfall: string;
-  refs: string[];
-  remaining: string;
-  versionNote?: string;
-};
-type Lesson = LessonContent & {
-  variants?: Partial<
-    Record<
-      string,
-      Partial<Omit<LessonContent, "slug" | "chapter">> & { available?: boolean }
-    >
-  >;
-};
+import type { Lesson, LessonContent } from "./schema.ts";
+export type { LessonContent, LessonExperiment } from "./schema.ts";
 const lessons: Lesson[] = content;
 export const tutorialVersions = RUBY_RELEASES;
 export const latestTutorialVersion = DEFAULT_RUBY_VERSION;

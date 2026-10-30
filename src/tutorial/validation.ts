@@ -5,19 +5,22 @@ import {
   tutorialVersions,
   resolveLesson,
 } from "./content.ts";
+import catalog from "./data/references.json" with { type: "json" };
+import { parseTutorialData, validateReferenceCatalog } from "./schema.ts";
+import rawLessons from "./data/lessons.json" with { type: "json" };
+import rawChapters from "./data/chapters.json" with { type: "json" };
 import redirects from "./data/redirects.json" with { type: "json" };
 import { officialReferences } from "./references.ts";
 
 export function validateTutorialData(): void {
-  if (
-    new Set(tutorialSlugs).size !== tutorialSlugs.length ||
-    tutorialSlugs.some((slug) => !/^[a-z0-9-]+$/.test(slug))
-  )
-    throw new Error("Lesson IDs must be unique URL-safe identifiers");
-  for (const { slug, redirectTo } of redirects) {
-    if (tutorialSlugs.includes(slug) || !tutorialSlugs.includes(redirectTo))
-      throw new Error(`Invalid successor for ${slug}`);
-  }
+  validateReferenceCatalog(
+    catalog,
+    tutorialVersions.map((version) => version.id),
+  );
+  parseTutorialData(
+    { lessons: rawLessons, chapters: rawChapters, redirects },
+    tutorialVersions.map((version) => version.id),
+  );
   for (const version of tutorialVersions) {
     const chapters = chaptersForVersion(version.id);
     if (!lessonsForVersion(version.id).length)
@@ -28,39 +31,6 @@ export function validateTutorialData(): void {
       const where = `${version.id}/${slug}`;
       if (!chapters.includes(lesson.chapter))
         throw new Error(`Unknown chapter: ${where}`);
-      for (const field of ["title", "goal", "code"] as const)
-        if (typeof lesson[field] !== "string" || !lesson[field].length)
-          throw new Error(`Missing ${field}: ${where}`);
-      if (typeof lesson.output !== "string")
-        throw new Error(`Missing output: ${where}`);
-      if (
-        !lesson.paragraphs.length ||
-        lesson.paragraphs.some(
-          (text) => typeof text !== "string" || !text.trim(),
-        )
-      )
-        throw new Error(`Invalid explanation: ${where}`);
-      if (
-        lesson.experiments.length < 2 ||
-        lesson.experiments.length > 3 ||
-        new Set(lesson.experiments.map((e) => e.id)).size !==
-          lesson.experiments.length
-      )
-        throw new Error(`Expected two or three distinct experiments: ${where}`);
-      for (const experiment of lesson.experiments) {
-        if (!/^[a-z0-9-]+$/.test(experiment.id))
-          throw new Error(`Invalid experiment ID: ${where}`);
-        for (const field of [
-          "title",
-          "task",
-          "code",
-          "output",
-          "answer",
-        ] as const)
-          if (typeof experiment[field] !== "string")
-            throw new Error(`Missing experiment ${field}: ${where}`);
-      }
-      if (!lesson.refs.length) throw new Error(`Missing references: ${where}`);
       officialReferences(lesson, version);
     }
   }

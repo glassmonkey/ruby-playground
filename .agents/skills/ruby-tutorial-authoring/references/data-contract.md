@@ -1,36 +1,19 @@
-# Structured lesson data
+# Discover and edit structured lesson data
 
-Read `src/tutorial/data/chapters.json` for the shared tutorial chapter catalog and `src/tutorial/content.ts` for the current TypeScript contract and resolver, and `src/versions.ts` for supported versions. This document explains field meaning; it does not replace the executable contract. If the model changes, update the type, consumers and this reference together.
+The executable schema/types, validator, resolver and consumers own the data contract. Inspect them before editing; do not maintain a second field list or cardinality table in the skill. Current discovery entry points are `src/tutorial/schema.ts`, `src/tutorial/content.ts`, `src/tutorial/validation.ts`, `src/tutorial/data/` and `src/tutorial/references.ts`; verify their locations and responsibilities at task time. Confirm validation commands in `package.json`.
 
-`src/tutorial/data/lessons.json` is an ordered array. `src/tutorial/data/chapters.json` defines a single chapter order shared by every version, using a learner-first sequence rather than reference-manual headings; array order defines lesson order within a chapter. The resolver produces previous/next navigation and sidebar numbering from that order. Each entry describes one lesson; `slug` is its stable identity across versions. Do not rename an existing slug casually: URLs use it.
+Trace a representative lesson from stored data through version resolution, rendered text, Example/Experiment selection, runtime execution, metadata and social image generation. Identify stable URL identity, chapter membership, actual ordering, learner-visible fields and author-only evidence. Read neighboring entries for conventions, but prefer the executable contract when examples disagree.
 
-| Fields | Meaning |
-| --- | --- |
-| `slug`, `title`, `chapter` | URL-safe unique identity, learner-facing title and course grouping |
-| `goal` | A concrete outcome the lesson enables; also used as page description |
-| `paragraphs` | Ordered explanation paragraphs, stored as plain text |
-| `code`, `output` | Runnable Ruby starter and its observed standard output; current fixtures omit the final newline |
-| `experiments` | Two or three independent experiments, each with stable `id`, short `title`, `task`, runnable `code`, observed `output`, and explanatory `answer` |
-| `pitfall` | A likely misconception and its correction |
-| `refs` | Official reference identifiers resolved by `src/tutorial/references.ts`; inspect its mapping and version overrides before adding an identifier |
-| `versionNote` | Optional learner-relevant difference or limitation |
-| `remaining` | Author-only notes; never render these as learner content |
-| `variants` | Overrides keyed by supported version ID |
+Before a variant edit, inspect how inheritance, overrides, array merging/replacement and availability actually resolve. Resolve the complete result for every affected version. Keep explanation, starter code, tasks, observed outputs and feedback mutually consistent; ensure new syntax does not leak into inheriting older versions. Absence of an override does not prove compatibility.
 
-Variants are shallow overrides of content fields, excluding stable `slug` and `chapter`. Arrays replace the entire field. `available: false` excludes a lesson from that version's path. A shared lesson must work on every version that inherits it. Override the entire experiments array when a variant changes supported syntax; a newer shared experiment must not leak into an older version. Keep starter code/output and each experiment’s task/code/output/answer mutually consistent after each override. Never infer support just because no override exists.
+Use structured data for lesson meaning and code; shared components own layout, escaping and navigation. Retain observed outputs and explanatory answers for author validation without displaying results or answers to the learner. Example demonstrates the representative basic form; Experiments apply the same concept through purposeful variations. Respect current executable constraints on their shape and count.
 
-Use plain text and real newlines in code; do not store HTML, CSS, sidebar labels, completion state or rendered navigation. The renderer owns layout and escaping. The version catalog owns version labels and the internal default stable version; the UI displays concrete version numbers.
+Keep runtime labels/default rules in shared runtime configuration, chapter names/order in the course catalog and ordering resolver, and official-link resolution in its mapping. Do not introduce another list in lesson prose or skill references. When adding a field, update its executable contract, validation and affected consumers; change skill guidance only if authoring judgment, discovery or verification changes.
 
-## Data-stage acceptance
+## Data-stage handoff
 
-- Inspect neighboring entries so prerequisites precede their use. Do not add a topic merely to increase a completeness count.
-- Check official version-specific sources and record evidence in the review, without inventing unrecognized JSON fields for the report.
-- Run starter code and the proposed exercise in the relevant WASM versions. Apply the teaching-quality rubric in `evaluation.md` to the goal, explanation, task and feedback together.
-- Run `npm run tutorial:validate` for data structure and integration checks before rendering. This does not establish Ruby behavior or teaching quality.
-- Hand off the JSON diff, affected versions, actual observed output and unresolved findings. Page generation must not silently fill in missing teaching content.
-
-The UI selects Example and named Experiments as parallel states, with choice buttons beside the relevant explanation. Example is the basic form; experiments are applications of that same concept. Each sample keeps its own draft during page navigation within the selector; selection never runs code. There is no apply/undo/reset workflow. Expected outputs and answers are author-side verification data, not rendered disclosures. There is no learner progress management. Choose distinct experiments that demonstrate the lesson’s goal rather than three arbitrary parameter tweaks.
-
-References must directly support the main learning goal and task, not merely a side remark. For output, link to Kernel#puts and Kernel#p, not just Code Layout. Verify anchors as well as HTTP status and version.
-
-Use the shared tutorial chapter names and ordering. Official Syntax documentation informs content; it is not a compliance claim or a requirement to mirror each version’s table of contents. Do not add a “4.0-based” or “latest-based” label. The course includes appropriate core APIs in its learning progression; it is not restricted to reproducing the syntax reference. `src/tutorial/data/redirects.json` preserves retired lesson URLs through explicit active successors. Inspect its current schema before editing. Optional published lessons remain in `src/tutorial/data/lessons.json` under Supplementary Topics. Keep the chapter and lesson identity fixed even if older official documentation groups the topic differently; adapt its reference URL instead. Do not use available:false merely because a reference chapter moved.
+- Explain the learning outcome and placement using `learning-sequence.md`.
+- Verify main claims and tasks against semantically relevant version-specific official sources, including anchors. Report evidence without inventing unrecognized data fields.
+- Run exact Example and Experiment code in the affected bundled WASM runtimes; record runtime identity and observed output. Use `evaluation.md` for teaching quality as a separate check.
+- Run current data validation and report the data diff, affected versions and unresolved findings. Generation must not silently supply missing teaching content.
+- Protect existing identities and explicit successors when changing organization; inspect the current redirect contract. Official-documentation regrouping alone is not a reason to mark a lesson unavailable.
