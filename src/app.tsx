@@ -126,25 +126,14 @@ export default function App() {
         <Text color="mutedText" fontSize="sm">
           Run Ruby online in your browser. No installation or account required.
         </Text>
-        <Button
-          as="a"
-          href="/tutorial/"
-          colorScheme="ruby"
-          size="sm"
-          mt={3}
-          mr={4}
-        >
-          Start Ruby tutorial
-        </Button>
-        <Link
-          href="#about"
-          display="inline-block"
-          mt={2}
-          fontSize="sm"
-          color="accent"
-        >
-          About Ruby Playground?
-        </Link>
+        <Flex as="nav" aria-label="Introduction" gap={4} mt={2} wrap="wrap">
+          <Link href="#about" fontSize="sm" color="accent">
+            About Ruby Playground?
+          </Link>
+          <Link href="/tutorial/" fontSize="sm" color="accent">
+            Ruby tutorial
+          </Link>
+        </Flex>
       </Box>
       <Box as="main">
         {warning && (

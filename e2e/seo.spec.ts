@@ -121,7 +121,7 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
     await page.goto("/");
     const link = page
       .getByRole("banner")
-      .getByRole("link", { name: "Start Ruby tutorial" });
+      .getByRole("link", { name: "Ruby tutorial" });
     await expect(link).toBeInViewport();
     await link.click();
     await expect(page).toHaveURL(/\/tutorial\/$/);
@@ -507,9 +507,7 @@ test("application and tutorial expose the same versions and stable default", asy
     .evaluateAll((options) =>
       options.map((option) => (option as HTMLOptionElement).value),
     );
-  await page
-    .getByRole("link", { name: "Start Ruby tutorial", exact: true })
-    .click();
+  await page.getByRole("link", { name: "Ruby tutorial", exact: true }).click();
   const tutorialSelector = page.getByLabel("Ruby version", { exact: true });
   await expect(tutorialSelector).toHaveValue(applicationDefault);
   expect(
@@ -525,4 +523,58 @@ test("application and tutorial expose the same versions and stable default", asy
   await expect(page).toHaveURL(
     new RegExp(`/tutorial/${applicationDefault}/output/$`),
   );
+});
+
+test("sitemap is served as XML and lists canonical tutorial URLs", async ({
+  page,
+  request,
+}) => {
+  const response = await request.get("/sitemap.xml");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toMatch(
+    /(?:application|text)\/xml/,
+  );
+  const sitemap = await page.evaluate(
+    (xml) => {
+      const document = new DOMParser().parseFromString(xml, "application/xml");
+      return {
+        root: document.documentElement.localName,
+        errors: document.querySelectorAll("parsererror").length,
+        urls: Array.from(
+          document.querySelectorAll("loc"),
+          (node) => node.textContent,
+        ),
+      };
+    },
+    await response.text(),
+  );
+  const expected = [
+    "https://ruby-play.dev/",
+    ...tutorialVersions.flatMap((version) => [
+      `https://ruby-play.dev/tutorial/${version.id}/`,
+      ...lessonsForVersion(version.id).map(
+        (lesson) =>
+          `https://ruby-play.dev/tutorial/${version.id}/${lesson.slug}/`,
+      ),
+    ]),
+  ];
+  expect(sitemap.root).toBe("urlset");
+  expect(sitemap.errors).toBe(0);
+  expect(sitemap.urls.sort()).toEqual(expected.sort());
+  for (const version of tutorialVersions) {
+    const path = `/tutorial/${version.id}/output/`;
+    const lessonResponse = await request.get(path);
+    const canonicals = await page.evaluate(
+      (html) =>
+        Array.from(
+          new DOMParser()
+            .parseFromString(html, "text/html")
+            .querySelectorAll('link[rel="canonical"]'),
+          (node) => node.getAttribute("href"),
+        ),
+      await lessonResponse.text(),
+    );
+    expect(lessonResponse.status()).toBe(200);
+    expect(canonicals).toEqual([`https://ruby-play.dev${path}`]);
+  }
 });

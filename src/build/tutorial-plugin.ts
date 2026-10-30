@@ -15,7 +15,7 @@ async function tutorialStyles(root: string): Promise<string> {
 }
 import { createServer, type Plugin, type ResolvedConfig } from "vite";
 import { resolveTutorialRoute, tutorialRoutes } from "../tutorial/routes";
-import { resolveLesson } from "../tutorial/content";
+import { renderSitemap } from "../tutorial/sitemap";
 import type { renderTutorialDocument } from "../tutorial/render";
 
 type Renderer = { renderTutorialDocument: typeof renderTutorialDocument };
@@ -31,6 +31,11 @@ export function tutorialPlugin(): Plugin {
       server.middlewares.use(async (req, res, next) => {
         const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
         try {
+          if (pathname === "/sitemap.xml") {
+            res.setHeader("Content-Type", "application/xml; charset=utf-8");
+            res.end(renderSitemap());
+            return;
+          }
           if (pathname === "/tutorial.css") {
             res.setHeader("Content-Type", "text/css");
             res.end(await tutorialStyles(server.config.root));
@@ -102,20 +107,7 @@ export function tutorialPlugin(): Plugin {
           path.join(output, "tutorial.css"),
           await tutorialStyles(config.root),
         );
-        const urls = [
-          "https://ruby-play.dev/",
-          ...routes.flatMap((route) =>
-            route.kind === "page" &&
-            route.path !== "/tutorial/" &&
-            (!route.slug || resolveLesson(route.slug, route.version))
-              ? [`https://ruby-play.dev${route.path}`]
-              : [],
-          ),
-        ];
-        await writeFile(
-          path.join(output, "sitemap.xml"),
-          `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls.map((url) => `<url><loc>${url}</loc></url>`).join("")}</urlset>\n`,
-        );
+        await writeFile(path.join(output, "sitemap.xml"), renderSitemap());
       } finally {
         await rendererServer.close();
       }
