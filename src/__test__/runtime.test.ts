@@ -150,7 +150,7 @@ it("reports real VM information before user code prints or raises", async () => 
   });
 });
 
-it("executes the initial fractal sample with aligned plain-text output", async () => {
+it("executes the initial ruby word-art sample with aligned plain-text output", async () => {
   // Act
   const result = await executeRuby(module, INITIAL_CODE);
   // Assert
@@ -167,23 +167,14 @@ it("executes the initial fractal sample with aligned plain-text output", async (
     error: undefined,
     stderr: "",
     rows: [
-      "                     Hello",
-      "                     Ruby!",
-      "                  Hello Hello",
-      "                  Ruby! Ruby!",
-      "               Hello       Hello",
-      "               Ruby!       Ruby!",
-      "            Hello Hello Hello Hello",
-      "            Ruby! Ruby! Ruby! Ruby!",
-      "         Hello                   Hello",
-      "         Ruby!                   Ruby!",
-      "      Hello Hello             Hello Hello",
-      "      Ruby! Ruby!             Ruby! Ruby!",
-      "   Hello       Hello       Hello       Hello",
-      "   Ruby!       Ruby!       Ruby!       Ruby!",
-      "Hello Hello Hello Hello Hello Hello Hello Hello",
-      "Ruby! Ruby! Ruby! Ruby! Ruby! Ruby! Ruby! Ruby!",
+      "                                ruby",
+      "                                ruby",
+      "rubyruby        ruby    ruby    rubyruby        ruby    ruby",
+      "ruby    ruby    ruby    ruby    ruby    ruby    ruby    ruby",
+      "ruby            ruby    ruby    ruby    ruby        rubyruby",
+      "ruby            ruby    ruby    ruby    ruby            ruby",
+      "ruby                rubyruby    rubyruby        rubyruby",
     ],
-    widths: [47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47, 47],
+    widths: [60, 60, 60, 60, 60, 60, 60],
   });
 });
