@@ -21,6 +21,7 @@ import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
 import Brand from "./brand";
+import About from "./about";
 
 import { INITIAL_CODE } from "./sample";
 
@@ -131,7 +132,7 @@ export default function App() {
             About Ruby Playground?
           </Link>
           <Link href="/tutorial/" fontSize="sm" color="accent">
-            Ruby tutorial
+            Want to learn Ruby?
           </Link>
         </Flex>
       </Box>
@@ -364,99 +365,7 @@ export default function App() {
             )}
           </Box>
         </Flex>
-        <Box as="section" id="about" aria-labelledby="about-heading" mt={6}>
-          <Heading as="h2" id="about-heading" size="md" mb={3}>
-            About Ruby Playground
-          </Heading>
-          <Heading as="h3" size="sm" mb={2}>
-            Run Ruby online without installation
-          </Heading>
-          <Text mb={4}>
-            Ruby Playground lets you write and run Ruby directly in your browser
-            using WebAssembly. Try language features, experiment with small
-            programs, and share examples without installing Ruby or creating an
-            account.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            How to use the online Ruby editor
-          </Heading>
-          <Text mb={3}>
-            Enter code in the editor to run it automatically. Standard output
-            and errors appear in the Output panel as plain text. Choose a Ruby
-            version from Version to compare behavior while keeping your code.
-          </Text>
-          <Text mb={4}>
-            Your code and selected version are saved in the address bar as you
-            edit. Copy the URL to share an example or bookmark it for later.
-            Anyone with the URL can read and run the code, so do not include
-            secrets or personal information.
-          </Text>
-          <Text mb={4}>
-            Start with our{" "}
-            <Link href="/tutorial/" color="accent">
-              Ruby Tutorial
-            </Link>{" "}
-            to learn step by step, from your first output to classes and
-            advanced syntax. Each lesson includes an explanation, runnable code
-            and a practice task.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            Notes
-          </Heading>
-          <Text mb={3}>
-            The playground is designed for trying small Ruby programs. Behavior
-            and available features may differ from a local Ruby installation.
-          </Text>
-          <Text mb={4}>
-            Loading and execution may take longer depending on your connection
-            and device. Follow any messages shown in the playground if a program
-            cannot run or a link cannot be shared.
-          </Text>
-        </Box>
-        <Box as="section" aria-labelledby="faq-heading" mt={6}>
-          <Heading as="h2" id="faq-heading" size="md" mb={3}>
-            Ruby Playground FAQ
-          </Heading>
-          <Heading as="h3" size="sm" mb={2}>
-            Is Ruby Playground free?
-          </Heading>
-          <Text mb={4}>
-            Yes. You can write, run and share small Ruby programs without an
-            account or a local Ruby installation.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            Why is there no output?
-          </Heading>
-          <Text mb={4}>
-            Code runs automatically after you edit it. Use puts to print text or
-            p to inspect a value. Expression return values are not displayed
-            automatically. The first run may take longer while Ruby loads.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            Can I compare Ruby versions?
-          </Heading>
-          <Text mb={4}>
-            Choose a version above the editor to rerun the same code. The
-            selector shows the exact bundled versions. Each run starts with a
-            fresh environment.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            Can I use Rails, extra gems or standard input?
-          </Heading>
-          <Text mb={4}>
-            This playground is for single-file Ruby examples. Rails, installing
-            extra gems and interactive standard input are not supported. Use
-            values in your code instead of gets.
-          </Text>
-          <Heading as="h3" size="sm" mb={2}>
-            How do I save and share my code?
-          </Heading>
-          <Text>
-            Copy or bookmark the address after editing. The URL contains your
-            code and selected version, and runs automatically when opened.
-            Anyone with the link can read the source.
-          </Text>
-        </Box>
+        <About />
         <Box as="section" aria-labelledby="safety-heading" mt={6}>
           <Heading as="h2" id="safety-heading" size="sm" mb={3}>
             Security
@@ -485,8 +394,15 @@ export default function App() {
             >
               issue on GitHub
             </Link>{" "}
-            with the steps to reproduce it. Check that your example contains no
-            private information before sharing it.
+            or send a{" "}
+            <Link
+              href="https://twitter.com/glassmonekey"
+              isExternal
+              color="accent"
+            >
+              DM
+            </Link>
+            . Keep private information out of shared examples.
           </Text>
         </Box>
         <Flex
@@ -511,12 +427,6 @@ export default function App() {
               isExternal
             >
               License
-            </Link>
-            <Link
-              href="https://github.com/glassmonkey/ruby-playground/blob/main/assets/licenses/THIRD-PARTY-NOTICES.txt"
-              isExternal
-            >
-              Third-party notices
             </Link>
           </Flex>
           <Text as="small">

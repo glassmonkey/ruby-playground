@@ -286,7 +286,7 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
     await page.goto("/");
     const link = page
       .getByRole("banner")
-      .getByRole("link", { name: "Ruby tutorial" });
+      .getByRole("link", { name: "Want to learn Ruby?" });
     await expect(link).toBeInViewport();
     await link.click();
     await expect(page).toHaveURL(/\/tutorial\/$/);
@@ -694,7 +694,9 @@ test("application and tutorial expose the same versions and stable default", asy
     .evaluateAll((options) =>
       options.map((option) => (option as HTMLOptionElement).value),
     );
-  await page.getByRole("link", { name: "Ruby tutorial", exact: true }).click();
+  await page
+    .getByRole("link", { name: "Want to learn Ruby?", exact: true })
+    .click();
   const tutorialSelector = page.getByLabel("Ruby version", { exact: true });
   await expect(tutorialSelector).toHaveValue(applicationDefault);
   expect(
