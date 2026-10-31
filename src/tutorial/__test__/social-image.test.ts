@@ -4,7 +4,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import { resolveLesson } from "../content";
 import { RUBY_VERSIONS } from "../../versions";
-import { renderSocialImage } from "../social-image";
+import { renderHomeSocialImage, renderSocialImage } from "../social-image";
 
 const fontFile = path.resolve("assets/fonts/plus-jakarta-sans.ttf");
 
@@ -45,6 +45,12 @@ it("has a visually approved image expectation for every registered release", () 
   expect(approvedCards.map((card) => card.version).sort()).toEqual(
     [...RUBY_VERSIONS].sort(),
   );
+});
+it("renders the approved top page card without a release badge", () => {
+  const want = readFileSync(
+    new URL("./__snapshots__/home-card.png", import.meta.url),
+  );
+  expect(renderHomeSocialImage(fontFile).equals(want)).toBe(true);
 });
 it.each(approvedCards)(
   "renders the approved Ruby $version course card and release badge",
