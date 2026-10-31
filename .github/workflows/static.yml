@@ -31,7 +31,7 @@ jobs:
       - run: npm install --global npm@11.17.0
       - run: npm ci
       - run: npm run build
-      - uses: actions/upload-pages-artifact@v4
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: public
       - id: deployment
