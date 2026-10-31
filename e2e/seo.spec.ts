@@ -169,6 +169,7 @@ for (const release of releasePresentationCases) {
 
 test("initial HTML and share URLs expose the intended indexing signals", async ({
   page,
+  request,
 }) => {
   const response = await page.goto("./");
   if (!response) throw new Error("The initial document response is missing.");
@@ -178,7 +179,26 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   expect(html).toContain("<h1>Try Ruby in your browser</h1>");
   expect(html.match(/<h1\b/g)).toHaveLength(1);
   expect(html).toContain('property="og:title" content="Ruby Playground"');
-  expect(html).toContain('name="twitter:card" content="summary"');
+  expect(html).toContain('name="twitter:card" content="summary_large_image"');
+  expect(html).toContain(
+    'property="og:image" content="https://ruby-play.dev/og.png"',
+  );
+  expect(html).toContain(
+    'name="twitter:image" content="https://ruby-play.dev/og.png"',
+  );
+  const image = await request.get("/og.png");
+  expect(image.ok()).toBe(true);
+  expect(image.headers()["content-type"]).toContain("image/png");
+  const dimensions = await page.evaluate(
+    async (base64) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${base64}`;
+      await image.decode();
+      return { width: image.naturalWidth, height: image.naturalHeight };
+    },
+    (await image.body()).toString("base64"),
+  );
+  expect(dimensions).toEqual({ width: 1200, height: 630 });
   expect(html).toContain("No installation or account required.");
   const staticCode = await page.evaluate(
     (source) =>
@@ -201,7 +221,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
     .evaluateAll((elements) =>
       elements.map((element) => element.getAttribute("content") ?? ""),
     );
-  expect(socialMetadata).toHaveLength(7);
+  expect(socialMetadata).toHaveLength(14);
   expect(socialMetadata.join(" ")).not.toMatch(/[?&](?:c|v|f)=/);
   await expect(page.locator("h2", { hasText: "Editor" })).toHaveCount(1);
 

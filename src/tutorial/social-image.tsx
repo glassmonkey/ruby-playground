@@ -45,14 +45,60 @@ function Title({ text }: { text: string }) {
   );
 }
 
+type SocialCard = {
+  kicker: string;
+  badge?: { label: string; width: number };
+  title: string;
+  lead: [string, string];
+  code: string;
+  note: string;
+  runButton: boolean;
+};
+
 export function renderSocialImage(
   version: RubyVersion,
   lesson: LessonContent | undefined,
   fontFile: string,
 ): Buffer {
-  const { colors, ruby } = designTokens;
   const release = RUBY_RELEASES.find((item) => item.id === version)!;
-  const badgeWidth = release.channel === "development" ? 336 : 152;
+  const code = lesson?.code ?? 'name = "Ruby"\nputs "Hello, #{name}!"';
+  return renderCard(
+    {
+      kicker: "RUBY TUTORIAL",
+      badge: {
+        label: release.label,
+        width: release.channel === "development" ? 336 : 152,
+      },
+      title: lesson?.title ?? "Learn Ruby in your browser",
+      lead: ["Learn by running code", "in your browser."],
+      code,
+      note:
+        code.split("\n").length > 5
+          ? "… Explore the full example"
+          : "Edit. Run. Explore.",
+      runButton: true,
+    },
+    fontFile,
+  );
+}
+
+/** The top page card names no Ruby version, so adding a release does not change it. */
+export function renderHomeSocialImage(fontFile: string): Buffer {
+  return renderCard(
+    {
+      kicker: "RUBY PLAYGROUND",
+      title: "Run Ruby online in your browser",
+      lead: ["No installation or", "account required."],
+      code: 'name = "Ruby"\nputs "Hello, #{name}!"\nputs RUBY_VERSION',
+      note: "Output updates as you type.",
+      runButton: false,
+    },
+    fontFile,
+  );
+}
+
+function renderCard(card: SocialCard, fontFile: string): Buffer {
+  const { colors, ruby } = designTokens;
   const svg = renderToStaticMarkup(
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -62,31 +108,35 @@ export function renderSocialImage(
     >
       <rect width="1200" height="630" fill={colors.pageBg.default} />
       <text x="64" y="108" fontSize="61" fontWeight="700" fill={ruby[700]}>
-        RUBY TUTORIAL
+        {card.kicker}
       </text>
-      <rect
-        x={1128 - badgeWidth}
-        y="62"
-        width={badgeWidth}
-        height="46"
-        rx="23"
-        fill={ruby[100]}
-      />
-      <text
-        x={1128 - badgeWidth / 2}
-        y="93"
-        textAnchor="middle"
-        fontSize="23"
-        fill={ruby[800]}
-      >
-        {release.label}
-      </text>
-      <Title text={lesson?.title ?? "Learn Ruby in your browser"} />
+      {card.badge && (
+        <>
+          <rect
+            x={1128 - card.badge.width}
+            y="62"
+            width={card.badge.width}
+            height="46"
+            rx="23"
+            fill={ruby[100]}
+          />
+          <text
+            x={1128 - card.badge.width / 2}
+            y="93"
+            textAnchor="middle"
+            fontSize="23"
+            fill={ruby[800]}
+          >
+            {card.badge.label}
+          </text>
+        </>
+      )}
+      <Title text={card.title} />
       <text x="64" y="451" fontSize="27" fill={colors.mutedText.default}>
-        Learn by running code
+        {card.lead[0]}
       </text>
       <text x="64" y="492" fontSize="27" fill={colors.mutedText.default}>
-        in your browser.
+        {card.lead[1]}
       </text>
       <rect
         x="568"
@@ -110,7 +160,7 @@ export function renderSocialImage(
       <text x="690" y="216" fontSize="21" fill={colors.text._dark}>
         Try it yourself
       </text>
-      {(lesson?.code ?? 'name = "Ruby"\nputs "Hello, #{name}!"')
+      {card.code
         .split("\n")
         .slice(0, 5)
         .map((line, index) => (
@@ -135,14 +185,23 @@ export function renderSocialImage(
           </g>
         ))}
       <text x="598" y="477" fontSize="20" fill={colors.mutedText._dark}>
-        {(lesson?.code.split("\n").length ?? 2) > 5
-          ? "… Explore the full example"
-          : "Edit. Run. Explore."}
+        {card.note}
       </text>
-      <rect x="972" y="441" width="132" height="48" rx="10" fill={ruby[600]} />
-      <text x="996" y="474" fontSize="24" fill="#ffffff">
-        ▶ Run
-      </text>
+      {card.runButton && (
+        <>
+          <rect
+            x="972"
+            y="441"
+            width="132"
+            height="48"
+            rx="10"
+            fill={ruby[600]}
+          />
+          <text x="996" y="474" fontSize="24" fill="#ffffff">
+            ▶ Run
+          </text>
+        </>
+      )}
       <g transform="translate(64 558)">
         <RubyMark sizePx={40} />
       </g>

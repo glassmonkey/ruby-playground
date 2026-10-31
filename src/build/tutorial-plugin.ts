@@ -17,10 +17,16 @@ import { createServer, type Plugin, type ResolvedConfig } from "vite";
 import { resolveTutorialRoute, tutorialRoutes } from "../tutorial/routes";
 import { renderSitemap } from "../tutorial/sitemap";
 import { resolveLesson } from "../tutorial/content";
-import type { renderSocialImage } from "../tutorial/social-image";
+import type {
+  renderHomeSocialImage,
+  renderSocialImage,
+} from "../tutorial/social-image";
 import type { renderTutorialDocument } from "../tutorial/render";
 
-type ImageRenderer = { renderSocialImage: typeof renderSocialImage };
+type ImageRenderer = {
+  renderSocialImage: typeof renderSocialImage;
+  renderHomeSocialImage: typeof renderHomeSocialImage;
+};
 
 type Renderer = { renderTutorialDocument: typeof renderTutorialDocument };
 
@@ -38,6 +44,19 @@ export function tutorialPlugin(): Plugin {
           if (pathname === "/sitemap.xml") {
             res.setHeader("Content-Type", "application/xml; charset=utf-8");
             res.end(renderSitemap());
+            return;
+          }
+          if (pathname === "/og.png") {
+            const renderer = (await server.ssrLoadModule(
+              "/src/tutorial/social-image.tsx",
+            )) as ImageRenderer;
+            res.setHeader("Content-Type", "image/png");
+            res.setHeader("Cache-Control", "no-cache");
+            res.end(
+              renderer.renderHomeSocialImage(
+                path.join(config.root, "assets/fonts/plus-jakarta-sans.ttf"),
+              ),
+            );
             return;
           }
           if (
@@ -158,6 +177,12 @@ export function tutorialPlugin(): Plugin {
           await tutorialStyles(config.root),
         );
         await writeFile(path.join(output, "sitemap.xml"), renderSitemap());
+        await writeFile(
+          path.join(output, "og.png"),
+          imageRenderer.renderHomeSocialImage(
+            path.join(config.root, "assets/fonts/plus-jakarta-sans.ttf"),
+          ),
+        );
       } finally {
         await rendererServer.close();
       }
