@@ -1,143 +1,96 @@
 # Ruby Playground
 
-A browser-based Ruby learning playground built on the React 18, TypeScript,
-Vite 7 and Chakra UI 2 foundation used by
-[php-playground](https://github.com/glassmonkey/php-playground).
-It is published at <https://ruby-play.dev/>.
-The former Rails app remains available in Git history.
+Ruby Playground is a free website for writing and running Ruby in your browser:
+<https://ruby-play.dev/>. Type Ruby in the editor and the output updates as you
+edit. You can switch between Ruby versions and share code by copying the URL.
+No installation or account is required. Ruby runs inside the browser with
+[ruby.wasm](https://github.com/ruby/ruby.wasm), so your code is not sent to a
+server to be executed.
 
-## Run locally
+![Ruby Playground running the sample program, with the editor on the left and its output on the right](docs/images/playground.png)
 
-Use Node **24.19.0** and npm **11.17.0**. No Ruby, Rails, database or Docker
-is required.
+The site also includes a step-by-step [Ruby tutorial](https://ruby-play.dev/tutorial/)
+whose lessons run code in the page.
 
-```sh
-npm ci
-npm run dev
-```
+![A Ruby tutorial lesson with the explanation on the left and runnable code on the right](docs/images/tutorial.png)
 
-Open http://127.0.0.1:18888 on the **machine running Vite**. When running on an
-assistant's cloud machine, this is not the user's PC localhost. The dev server
-binds loopback and uses a fixed port.
-If your npm cache is not writable, set `npm_config_cache` to a writable directory.
+## Features
 
-## Features and limits
+- Live execution. Code runs 350 ms after you stop typing. Standard output,
+  standard error and exceptions appear in the Output panel as plain text. Use
+  `puts` or `p` to print values; expression return values are not shown
+  automatically.
+- Ruby versions. Choose Ruby 4.0, 3.4, 3.3, 3.2 or a 4.1 development snapshot.
+  A panel shows the running VM's version, platform, encoding, release date and
+  revision.
+- Sharing by URL. The code and selected version are saved in the address bar as
+  you edit. Copy the URL to share an example or bookmark it. Opening a shared
+  link restores the code and runs it.
+- Ruby tutorial. 23 lessons in 10 chapters, from printing values to classes,
+  exceptions and pattern matching. Each lesson has an explanation, an example
+  and two or three experiments to run and edit. Each Ruby version has its own
+  course at `/tutorial/{version}/`.
+- Light and dark themes. The theme follows your system setting, and a theme you
+  choose is remembered across reloads.
 
-- Ruby-red accents, warm neutral surfaces and locally hosted Plus Jakarta Sans.
+## Ruby versions
 
-- Full-width workspace: side-by-side editor/output on large
-  screens and stacked panes on smaller screens, with an 80vh working area.
-- System-aware light/dark UI and Monaco themes, remembered across reloads.
-  Code and version are saved automatically to the address bar
-  using compressed, URL-safe parameters. Copy the address to share or reload to
-  restore. Updates replace the current history entry. Oversized URLs show a warning
-  and remove stale code parameters; the editor keeps the source.
+The selector offers these bundled runtimes. Only the selected runtime is
+downloaded, about 30 to 36 MB each.
 
-- Local-bundled Monaco editor with Ruby highlighting; no editor CDN required.
-- Select Ruby 4.0, 3.4 or 3.3. Pinned official ruby.wasm 2.10.1 builds contain
-  **Ruby 4.0.0 / 3.4.1 / 3.3.3**, verified by real `RUBY_VERSION` tests, not
-  the latest Ruby security patch releases. Each selected standard-library WASM
-  is served locally (~32 MB); only the selected runtime is downloaded.
-  See the security/release limitation below.
-- Live execution after 350 ms without edits, including initial/shared links and
-  version changes. There is no Run button; Stop stays available while running.
-  Edits/switches terminate old work immediately and ignore stale results.
-  Stop/timeout do not loop or retry; edit code or change version to resume. Every run creates and terminates a new Worker/VM;
-  global variables, constants and virtual files are not retained.
-- stdout, stderr and exceptions, including partial writes and empty output.
-  Expression return values are not printed unless the Ruby code prints them.
-- 20-second run/load timeout, 100 KB captured-output limit, 50,000-character code limit.
-- Compressed `c` / `v` URL state using lz-string (`v=4.0|3.4|3.3`). Empty and
-  Unicode source round-trip. Malformed or oversized links fall back with a warning;
-  decoding is bounded before expansion. Legacy `f` parameters are ignored and removed
-  on the next edit.
-- Shared links **execute automatically**. Do not open untrusted shared links.
-- The initial sample recursively draws a fractal from `%w[Hello Ruby!]`.
-  Change the words or recursion depth to change the pattern. The default depth is 3.
-- Console output always displays stdout/stderr literally, including the sample.
-  Long lines scroll horizontally to preserve ASCII art and whitespace.
-  A separate environment panel shows the
-  actual VM's version, platform, encoding, release date and revision. The Worker
-  reports these before user code runs, so information remains available during
-  long runs and after code errors. Switching Ruby versions replaces the metadata;
-  cancelled runs cannot update it. Printed HTML and scripts remain plain text.
-- No standard-input interaction, Rails, external gems, multi-file projects or
-  persistent snippets. Ruby 3.2 and development/head builds are not offered.
+- Ruby 4.0 (default): Ruby 4.0.0 from `@ruby/4.0-wasm-wasi` 2.10.1
+- Ruby 3.4: Ruby 3.4.1 from `@ruby/3.4-wasm-wasi` 2.10.1
+- Ruby 3.3: Ruby 3.3.3 from `@ruby/3.3-wasm-wasi` 2.10.1
+- Ruby 3.2: Ruby 3.2.4 from `@ruby/3.2-wasm-wasi` 2.10.1
+- Ruby 4.1 development: Ruby 4.1.0dev from `@ruby/head-wasm-wasi`
+  2.10.1-2026-10-28-a (revision `79de9be7d8`). This snapshot is pinned and is
+  not updated nightly.
 
-A Worker is a responsiveness/isolation boundary, **not a security sandbox for
-hostile Ruby**. Ruby's JS bridge is disabled at the WASM import boundary, so Worker globals,
-network and storage APIs are not intentionally exposed to Ruby.
-Do not run untrusted code or input secrets. Shared URLs contain the complete
-source; anyone receiving the URL can read it. URLs may also appear in browser
-history or server access logs. There is no account/authenticated data in this app.
-The output cap limits captured output, not arbitrary Ruby memory allocations.
+These are the official ruby.wasm builds, and they are not the latest Ruby patch
+releases. Ruby 4.0.0, 3.4.1 and 3.3.3 do not include the
+[regexp security fixes released on 2026-10-23](https://www.ruby-lang.org/en/news/2026/10/23/regexp-fixes-for-gitlab-cves/)
+in 4.0.9, 3.4.12 and 3.3.13.
 
-## Verification
+## Limitations
 
-```sh
-npm run check        # ESLint, TypeScript, unit/component/real-WASM tests, build
-npx playwright install chromium  # Linux may require --with-deps
-npm run test:e2e     # production preview + Chromium tests
-npm audit
-```
+- Programs are single files. Standard input (`gets`), Rails, additional gems and
+  saved snippets are not supported.
+- Each run starts in a new Ruby VM, so variables, constants and files from
+  earlier runs are not kept.
+- A run, including loading Ruby, stops after 20 seconds. Captured output is
+  limited to 100 KB and code to 50,000 characters. A share URL is limited to
+  8,000 bytes; longer code still runs but is not saved in the URL.
+- The first run downloads the selected runtime and can be slow on a slow
+  connection.
 
-Real-WASM tests cover stdout/stderr/Unicode, exceptions/syntax errors, empty
-output, state reset and output caps. Unit/component tests cover worker settlement,
-cancel/timeout, URL validation and UI state. CI runs browser flows:
-real Ruby execution/errors, shared URL direct
-load/reload with auto-run and version preservation, literal HTML output, and cancel/recovery. The Ruby
-output flow saves a screenshot under `test-results/`.
+## Security and privacy
 
-If browser downloads are unavailable but Chromium is installed:
+- Code runs in your browser in a Web Worker. Each run uses a new Worker and
+  Ruby VM, and Ruby's JavaScript bridge is disabled. The Worker keeps the page
+  responsive and separates runs, but it is not a security sandbox for hostile
+  code. Run only code you trust.
+- Shared links run automatically when opened, and the URL contains the full
+  source code. Do not open links from sources you do not trust, and keep
+  passwords and personal information out of your code. Because the code is part
+  of the URL, it can remain in browser history and in hosting request logs.
+- The site is a static site on GitHub Pages. There are no accounts and no
+  application backend, and the site uses no analytics or advertising. See the
+  [privacy policy](https://ruby-play.dev/privacy.html).
 
-```sh
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npm run test:e2e
-```
+## Feedback and contributing
 
-CI installs managed Chromium. The assistant cloud process sandbox prevents local
-Chromium sockets; GitHub CI is the browser verification route in that environment.
+Report bugs and request features in
+[GitHub issues](https://github.com/glassmonkey/ruby-playground/issues). For
+local setup, tests, deployment and tutorial authoring, see
+[docs/contributing.md](docs/contributing.md).
 
-`npm run build` outputs `public/`; `npm run preview` serves it on port 8888.
-Source static assets live in `assets/`. Build and preview do not publish
-anything. Pushes to `main` publish the site to GitHub Pages; see
-[the Pages deployment notes](docs/pages-release.md).
+You can support the project through
+[GitHub Sponsors](https://github.com/sponsors/glassmonkey).
 
-## Architecture / next decisions
+## License
 
-`src/runtime.ts` creates a Ruby VM and captures WASI writes. `src/workers/` owns
-the Worker lifecycle. `src/share.ts` bounds compressed URL decoding. `src/editor.tsx`
-loads Monaco locally; Sandpack remains an installed baseline dependency but does
-not execute/bundle user code. React holds the single-file editor state directly.
-
-Patched WASM builds, gem support and additional editing features are
-deliberately separate decisions. Existing old-architecture PRs are untouched.
-
-## Attribution and dependencies
-
-The Vite directory/port conventions and dependency baseline derive from
-`glassmonkey/php-playground` (Apache-2.0); see `LICENSE` and `NOTICE`.
-Ruby WASM redistribution notices are copied to `assets/licenses/` and included in
-the static build. Other packages retain their own licenses.
-
-Vite/Vitest and TypeScript ESLint use security-patched versions rather than the
-older PHP pins. DOMPurify is overridden to 3.4.17 while Monaco pins an affected
-version; revisit that override when Monaco updates its dependency.
-
-## Runtime patch-level limitations
-
-As checked on 2026-10-25, npm's latest official `@ruby/{4.0,3.4,3.3}-wasm-wasi`
-packages are 2.10.1. The [official dated WASM release](https://github.com/ruby/ruby.wasm/releases/tag/2026-10-25-a)
-also lists Ruby 4.0.0, 3.4.1 and 3.3.3 source tarballs. These lag the
-[2026-10-23 security fixes](https://www.ruby-lang.org/en/news/2026/10/23/regexp-fixes-for-gitlab-cves/)
-in 4.0.9 / 3.4.12 / 3.3.13. The npm wrapper version is not a Ruby patch version.
-The selector and badge disclose exact bundled patches. The JS bridge remains
-blocked for every minor, but that is not a substitute for patched Ruby.
-
-The owner accepted browser-only execution with these disclosed patch levels.
-The blocked JS host bridge and fresh Worker/VM reduce exposure, but a Worker is
-not a guaranteed separate OS process or a hard memory budget. Ruby VM corruption,
-crashes and browser resource exhaustion remain possible. Native GitLab server
-RCE is not evidence of browser/host RCE in this configuration. Run timeout and
-source limits do not fix regexp compilation bugs. Shared links automatically
-execute; do not open untrusted links or enter secrets. Patched trusted builds
-remain recommended follow-up work, not a claim that current builds are patched.
+Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). The build
+configuration is adapted from
+[php-playground](https://github.com/glassmonkey/php-playground). License
+notices for Ruby, ruby.wasm and other bundled packages are in
+[assets/licenses/](assets/licenses/).

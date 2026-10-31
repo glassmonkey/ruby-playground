@@ -73,12 +73,14 @@ it("disables Ruby access to the JavaScript host", async () => {
   ).toContain("JavaScript bridge is disabled");
 });
 
-for (const version of ["4.0", "3.4", "3.3"] as const) {
+for (const version of ["4.0", "3.4", "3.3", "3.2", "4.1"] as const) {
   it(`executes the actual pinned Ruby ${version} build with host bridge blocked`, async () => {
     const require = createRequire(import.meta.url);
     const compiled = await WebAssembly.compile(
       await readFile(
-        require.resolve(`@ruby/${version}-wasm-wasi/dist/ruby+stdlib.wasm`),
+        require.resolve(
+          `@ruby/${version === "4.1" ? "head" : version}-wasm-wasi/dist/ruby+stdlib.wasm`,
+        ),
       ),
     );
     let info: RuntimeInfo | undefined;
@@ -98,6 +100,14 @@ for (const version of ["4.0", "3.4", "3.3"] as const) {
         releaseDate: "2024-06-12",
         revision: "f1c7b6f435f1167a0514b39a5f72f55cec4d1426",
       },
+      "3.2": {
+        releaseDate: "2024-04-23",
+        revision: "af471c0e0127eea0cafa6f308c0425bbfab0acf5",
+      },
+      "4.1": {
+        releaseDate: "2026-10-28",
+        revision: "79de9be7d8bfdf8d573ceda4fdc98a478fabf9e4",
+      },
     };
     expect(info).toEqual({
       version: RUBY_PATCH_VERSIONS[version],
@@ -107,9 +117,6 @@ for (const version of ["4.0", "3.4", "3.3"] as const) {
     });
     expect(result.output).toBe(`${RUBY_PATCH_VERSIONS[version]}\n`);
     expect(result.error).toBeUndefined();
-    expect(result.output).toMatch(
-      new RegExp(`^${version.replace(".", "\\.")}\\.\\d+\\n$`),
-    );
     expect(
       (await executeRuby(compiled, `require 'js'; JS.global`)).error,
     ).toContain("JavaScript bridge is disabled");

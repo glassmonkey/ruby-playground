@@ -42,14 +42,14 @@ export async function expectRubyOutput(page: Page, output: string | RegExp) {
   await expect(page.getByTestId("preview-console")).toHaveText(output, {
     timeout: 30_000,
   });
-  await expect(page.getByRole("status")).toHaveText("完了");
+  await expect(page.getByRole("status")).toHaveText("Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 }
 
 /** Initial source stays plain console output; environment data is independent. */
 export async function expectInitialRuby(page: Page) {
   await expect(
-    page.getByRole("region", { name: "Ruby の実行環境" }),
+    page.getByRole("region", { name: "Ruby runtime environment" }),
   ).toContainText("wasm32-wasi", { timeout: 30_000 });
   await expect
     .poll(
@@ -64,6 +64,6 @@ export async function expectInitialRuby(page: Page) {
       { timeout: 30_000 },
     )
     .toBe(INITIAL_OUTPUT);
-  await expect(page.getByRole("status")).toHaveText("完了");
+  await expect(page.getByRole("status")).toHaveText("Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 }

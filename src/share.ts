@@ -3,7 +3,8 @@ import {
   isRubyVersion,
   type RubyVersion,
 } from "./versions";
-import { compressToEncodedURIComponent } from "lz-string";
+import LZString from "lz-string";
+const { compressToEncodedURIComponent } = LZString;
 
 export const MAX_SOURCE_LENGTH = 50_000;
 export const MAX_COMPRESSED_LENGTH = 100_000;
@@ -161,7 +162,7 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   const shareUrl = result.toString();
   if (new TextEncoder().encode(shareUrl).byteLength > MAX_SHARE_URL_BYTES) {
     throw new Error(
-      "URL に保存できません。コードが長すぎるため、短くしてください。",
+      "The code is too long to save in the URL. Please shorten it.",
     );
   }
   return shareUrl;

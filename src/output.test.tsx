@@ -22,8 +22,9 @@ it.each([
   // Assert
   expect({
     output: screen.getByTestId("preview-console").textContent,
-    regions: screen.queryAllByRole("region", { name: "Ruby の実行環境" })
-      .length,
+    regions: screen.queryAllByRole("region", {
+      name: "Ruby runtime environment",
+    }).length,
     embeddedMarkup: container.querySelectorAll("iframe, script, h1").length,
   }).toEqual({ output: text, regions: 0, embeddedMarkup: 0 });
 });

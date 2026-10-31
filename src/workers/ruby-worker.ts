@@ -1,6 +1,8 @@
 import ruby40Url from "@ruby/4.0-wasm-wasi/dist/ruby+stdlib.wasm?url";
 import ruby34Url from "@ruby/3.4-wasm-wasi/dist/ruby+stdlib.wasm?url";
 import ruby33Url from "@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm?url";
+import ruby32Url from "@ruby/3.2-wasm-wasi/dist/ruby+stdlib.wasm?url";
+import rubyHeadUrl from "@ruby/head-wasm-wasi/dist/ruby+stdlib.wasm?url";
 import { isRubyVersion, type RubyVersion } from "../versions";
 import { executeRuby } from "../runtime";
 
@@ -8,6 +10,8 @@ const rubyUrls: Record<RubyVersion, string> = {
   "4.0": ruby40Url,
   "3.4": ruby34Url,
   "3.3": ruby33Url,
+  "3.2": ruby32Url,
+  "4.1": rubyHeadUrl,
 };
 
 self.onmessage = async (

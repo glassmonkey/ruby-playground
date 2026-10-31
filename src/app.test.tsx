@@ -51,9 +51,7 @@ describe("playground UI", () => {
     const editor = (await screen.findByRole("textbox", {
       name: "Ruby source",
     })) as HTMLTextAreaElement;
-    expect(
-      screen.queryByRole("button", { name: /^(実行|再実行)$/ }),
-    ).toBeNull();
+    expect(screen.queryByRole("button", { name: /^(Run|Rerun)$/ })).toBeNull();
     await waitFor(() =>
       expect(start).toHaveBeenCalledWith(
         INITIAL_CODE,
@@ -64,7 +62,7 @@ describe("playground UI", () => {
       ),
     );
     fireEvent.change(editor, { target: { value: "" } });
-    await screen.findByText("出力なし");
+    await screen.findByText("No output");
     await waitFor(() =>
       expect(start).toHaveBeenCalledWith(
         "",
@@ -77,18 +75,27 @@ describe("playground UI", () => {
   });
   it("labels editor and output sections and links to the safety pages", () => {
     setup();
-    expect(screen.getByRole("region", { name: "エディター" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "出力" })).toBeTruthy();
-    const navigation = screen.getByRole("navigation", { name: "安全と情報" });
+    expect(screen.getByRole("region", { name: "Editor" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "Output" })).toBeTruthy();
+    const navigation = screen.getByRole("navigation", {
+      name: "Legal and contact",
+    });
     expect(
       Array.from(navigation.querySelectorAll("a")).map((link) => [
         link.textContent,
         link.getAttribute("href"),
       ]),
     ).toEqual([
-      ["安全な利用", "./safety.html"],
-      ["プライバシー", "./privacy.html"],
-      ["ライセンス", "./licenses/"],
+      ["Privacy Policy", "./privacy.html"],
+      ["Contact", "https://twitter.com/glassmonekey"],
+      [
+        "License",
+        "https://github.com/glassmonkey/ruby-playground/blob/main/LICENSE",
+      ],
+      [
+        "Third-party notices",
+        "https://github.com/glassmonkey/ruby-playground/blob/main/assets/licenses/THIRD-PARTY-NOTICES.txt",
+      ],
     ]);
   });
   it.each(['puts "こんにちは + & # 😀"', ""])(
@@ -103,7 +110,7 @@ describe("playground UI", () => {
       const historyLength = window.history.length;
       // Act
       fireEvent.change(editor, { target: { value: code } });
-      fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+      fireEvent.change(screen.getByLabelText("Ruby version"), {
         target: { value: "3.4" },
       });
       // Assert
@@ -138,7 +145,7 @@ describe("playground UI", () => {
     // Assert
     expect({
       code: (editor as HTMLTextAreaElement).value,
-      version: (screen.getByLabelText("Ruby バージョン") as HTMLSelectElement)
+      version: (screen.getByLabelText("Ruby version") as HTMLSelectElement)
         .value,
     }).toEqual({ code: "puts 42", version: "3.3" });
   });
@@ -146,12 +153,12 @@ describe("playground UI", () => {
     // Arrange
     setup();
     const editor = await screen.findByRole("textbox", { name: "Ruby source" });
-    await screen.findByText("出力なし");
+    await screen.findByText("No output");
     // Act
     fireEvent.change(editor, { target: { value: "puts 42" } });
     // Assert
-    expect(screen.getByLabelText("実行中")).toBeTruthy();
-    await waitFor(() => expect(screen.queryByLabelText("実行中")).toBeNull());
+    expect(screen.getByLabelText("Running")).toBeTruthy();
+    await waitFor(() => expect(screen.queryByLabelText("Running")).toBeNull());
   });
   it("keeps editor content and reports when the complete share URL is too long", async () => {
     setup();
@@ -170,7 +177,7 @@ describe("playground UI", () => {
     fireEvent.change(editor, { target: { value: code } });
 
     expect((await screen.findByRole("alert")).textContent).toContain(
-      "URL に保存できません。コードが長すぎるため、短くしてください。",
+      "The code is too long to save in the URL. Please shorten it.",
     );
     expect(editor.value).toBe(code);
     expect(new URL(window.location.href).searchParams.has("c")).toBe(false);
@@ -200,7 +207,7 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
   await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
   fireEvent.change(editor, { target: { value: "puts :old" } });
   fireEvent.change(editor, { target: { value: "puts :latest" } });
-  fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+  fireEvent.change(screen.getByLabelText("Ruby version"), {
     target: { value: "3.4" },
   });
   expect(cancellations[0]).toHaveBeenCalled();
@@ -239,7 +246,7 @@ it("updates environment independently and rejects a cancelled run's late metadat
   };
   // Act
   act(() => oldInfo(ruby40));
-  fireEvent.change(screen.getByLabelText("Ruby バージョン"), {
+  fireEvent.change(screen.getByLabelText("Ruby version"), {
     target: { value: "3.3" },
   });
   await waitFor(() => expect(start).toHaveBeenCalledTimes(2));
@@ -254,6 +261,7 @@ it("updates environment independently and rejects a cancelled run's late metadat
   act(() => oldInfo(ruby40));
   // Assert
   expect(
-    screen.getByRole("region", { name: "Ruby の実行環境" }).textContent,
+    screen.getByRole("region", { name: "Ruby runtime environment" })
+      .textContent,
   ).toContain("Ruby 3.3.3");
 });

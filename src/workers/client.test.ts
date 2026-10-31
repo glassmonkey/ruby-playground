@@ -26,14 +26,14 @@ describe("run lifecycle", () => {
     worker.onmessage?.call(worker, {
       data: { ...empty, output: "late" },
     } as MessageEvent);
-    expect((await run.promise).error).toContain("停止");
+    expect((await run.promise).error).toContain("stopped");
   });
   it("times out without waiting for blocked worker", async () => {
     vi.useFakeTimers();
     const worker = mockWorker();
     const run = startRubyRun("loop {}", () => worker, 20);
     vi.advanceTimersByTime(21);
-    expect((await run.promise).error).toContain("タイムアウト");
+    expect((await run.promise).error).toContain("timed out");
     expect(worker.terminate).toHaveBeenCalledOnce();
   });
   it("settles worker construction errors and rejects oversized input before launch", async () => {
@@ -62,7 +62,7 @@ it("rejects malformed messages sent by the Ruby JS bridge", async () => {
     const worker = mockWorker();
     const run = startRubyRun("", () => worker);
     worker.onmessage?.call(worker, { data } as MessageEvent);
-    expect((await run.promise).error).toContain("不正");
+    expect((await run.promise).error).toContain("Invalid");
   }
 });
 
@@ -115,7 +115,7 @@ it.each([
   const result = await run.promise;
   // Assert
   expect({ error: result.error, info: onInfo.mock.calls }).toEqual({
-    error: "Ruby Worker の環境情報が不正です。",
+    error: "Invalid runtime information from the Ruby worker.",
     info: [],
   });
 });

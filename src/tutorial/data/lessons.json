@@ -1,0 +1,1000 @@
+[
+  {
+    "slug": "output",
+    "title": "Run Ruby and inspect values",
+    "chapter": "Running Ruby",
+    "goal": "Run a short Ruby program and choose how to display its values.",
+    "paragraphs": [
+      "A Ruby program evaluates code in order. A value can be a number such as 12 or text inside quotes such as \"Welcome\". An expression produces a value: 12 + 3 adds two numbers. Press Run to execute the code in the editor.",
+      "puts displays a value as text on its own line. p displays an inspection form that is useful when exploring values; for a string, it includes surrounding quotes. Both are methods supplied by Ruby. These examples call them by writing the method name followed by the value to display.",
+      "Write each instruction on a new line. Blank lines can separate related instructions. A # outside a quoted string starts a comment that Ruby ignores through the end of that line."
+    ],
+    "code": "puts \"Welcome\"\nputs 12 + 3\np \"Welcome\"",
+    "output": "Welcome\n15\n\"Welcome\"",
+    "experiments": [
+      {
+        "id": "inspect-text",
+        "title": "Inspect text",
+        "task": "Run this short sign message. Replace only the second puts with p, then compare how the same text is displayed.",
+        "code": "puts \"Please wait\"\nputs \"Please wait\"",
+        "output": "Please wait\nPlease wait",
+        "answer": "puts displays the text itself. Changing the second call to p makes its surrounding quotes visible, which helps distinguish a string from other values."
+      },
+      {
+        "id": "show-calculation",
+        "title": "Show a calculation",
+        "task": "Predict which lines display something, then run. Add puts before the calculation so that you can inspect its value too.",
+        "code": "# Count the seats\n6 + 4\nputs \"Seats counted\"",
+        "output": "Seats counted",
+        "answer": "The comment does not run, and calculating a value alone does not print it. Adding puts before 6 + 4 displays 10 before the final message."
+      }
+    ],
+    "pitfall": "The editor runs the program; it does not automatically display every expression. Use puts or p when you want to see a value.",
+    "refs": [
+      "Kernel#puts",
+      "Kernel#p",
+      "Comments"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "variables",
+    "title": "Name and reuse values",
+    "chapter": "Running Ruby",
+    "goal": "Assign values to local variables and reuse those names in a program.",
+    "paragraphs": [
+      "An assignment gives a value a name: destination = \"Harbor\" assigns the string to the local variable destination. Write the name later to use its current value. The = sign performs assignment.",
+      "Choose lowercase names that describe the value, such as destination or departure_time. Use underscores to separate words. Assign a variable before reading it. A later assignment to the same name replaces the value that name will provide."
+    ],
+    "code": "destination = \"Harbor\"\nputs destination\nputs destination\ndestination = \"Museum\"\nputs destination",
+    "output": "Harbor\nHarbor\nMuseum",
+    "experiments": [
+      {
+        "id": "reuse-message",
+        "title": "Reuse a message",
+        "task": "Change the message assignment to a different announcement. Before running, predict which displayed lines will use your new text.",
+        "code": "message = \"Boarding soon\"\nputs message\nputs message",
+        "output": "Boarding soon\nBoarding soon",
+        "answer": "Both calls read message, so changing its single assignment updates both displayed announcements."
+      },
+      {
+        "id": "save-earlier-value",
+        "title": "Keep an earlier number",
+        "task": "Predict the two values before running. Change the final assignment to seats and check whether reserved also changes.",
+        "code": "seats = 12\nreserved = seats\nseats = 8\np seats\np reserved",
+        "output": "8\n12",
+        "answer": "reserved receives the number available when its assignment runs. Reassigning seats later does not reassign reserved; its value remains 12."
+      }
+    ],
+    "pitfall": "Quotes create literal text: puts \"destination\" displays the word destination. Use puts destination to read the variable.",
+    "refs": [
+      "Assignment"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "values",
+    "title": "Calculate with numbers",
+    "chapter": "Basic Data",
+    "goal": "Use integer and floating-point arithmetic to calculate quantities.",
+    "paragraphs": [
+      "Whole numbers such as 18 are Integers. Numbers written with a decimal point, such as 18.0, are Floats. Use + to add, - to subtract, * to multiply and / to divide. These operations produce values you can assign or display.",
+      "Multiplication and division have higher precedence than addition and subtraction. Parentheses group a calculation that should happen first. Dividing two Integers produces an Integer quotient rounded down; a Float operand requests floating-point division instead."
+    ],
+    "code": "price = 6\nquantity = 3\np price * quantity\np 18 / 4\np 18.0 / 4",
+    "output": "18\n4\n4.5",
+    "experiments": [
+      {
+        "id": "group-costs",
+        "title": "Group a delivery cost",
+        "task": "This calculation charges delivery for each item. Edit it so the delivery cost is added once after calculating the item total.",
+        "code": "price = 6\ndelivery = 2\nquantity = 3\np (price + delivery) * quantity",
+        "output": "24",
+        "answer": "The parentheses add delivery to each item price before multiplying. Writing price * quantity + delivery charges delivery once and produces 20."
+      },
+      {
+        "id": "share-quantity",
+        "title": "Share a quantity",
+        "task": "Run to inspect the whole-number quotient. Change only 11 to 11.0 to calculate a share that can include a fractional part.",
+        "code": "total = 11\npeople = 4\np total / people",
+        "output": "2",
+        "answer": "With two Integer operands, division returns an Integer quotient. Making total a Float gives floating-point division and a share of 2.75."
+      }
+    ],
+    "pitfall": "Writing a decimal point after a calculation cannot recover a fraction discarded by integer division. Use a Float operand in the division itself.",
+    "refs": [
+      "Literals",
+      "Integer",
+      "Float",
+      "Precedence"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "strings",
+    "title": "Build and transform text",
+    "chapter": "Basic Data",
+    "goal": "Combine values into messages and apply simple string operations.",
+    "paragraphs": [
+      "A String holds text. Double-quoted strings support interpolation: #{name} inserts the current value of name, and #{count + 1} inserts the value of that expression. This lets one message combine words and calculated values.",
+      "Use + to join strings. A method call such as label.upcase asks the string for an uppercase version; the dot connects a value with the method name. label.length asks for its character count. upcase returns a new string without changing label.",
+      "Single-quoted strings are useful for literal text: they do not interpolate #{...}. Quotes delimit a string in code; puts does not include those delimiters when displaying it."
+    ],
+    "code": "place = \"river walk\"\nminutes = 25\nputs \"Next: #{place}, #{minutes} minutes\"\nputs place.upcase",
+    "output": "Next: river walk, 25 minutes\nRIVER WALK",
+    "experiments": [
+      {
+        "id": "choose-quotes",
+        "title": "Choose quotes for a message",
+        "task": "Run and compare the two messages. Edit the single-quoted message so that it also inserts the value of stop.",
+        "code": "stop = \"Garden\"\nputs 'Next: #{stop}'\nputs \"Next: #{stop}\"",
+        "output": "Next: #{stop}\nNext: Garden",
+        "answer": "The single-quoted string keeps the interpolation characters as text. Double quotes allow Ruby to evaluate stop and insert Garden."
+      },
+      {
+        "id": "make-label",
+        "title": "Make a display label",
+        "task": "Run to inspect the label and its length. Change the first assignment to \"east\" and predict what changes. Add puts word to check whether upcase changed the original value.",
+        "code": "word = \"west\"\nlabel = word.upcase + \" gate\"\nputs label\np label.length",
+        "output": "WEST gate\n9",
+        "answer": "upcase returns the uppercase text, and + joins it with the suffix. Both west and east have four characters, so the label length stays 9. Displaying word shows its original lowercase text."
+      }
+    ],
+    "pitfall": "A string and a number cannot be joined directly with + in these examples. Use interpolation, such as \"Time: #{minutes}\", to insert a number into text.",
+    "refs": [
+      "Literals",
+      "String"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "booleans",
+    "title": "Represent yes, no and absence",
+    "chapter": "Basic Data",
+    "goal": "Read boolean results and distinguish false values from absent values.",
+    "paragraphs": [
+      "The values true and false represent yes-or-no results. A comparison such as tickets == 0 tests equality; tickets > 0 tests whether tickets is greater than zero. Each comparison produces a boolean that you can display with p.",
+      "nil commonly represents a missing or unknown value. It is a distinct value from false. Use p to make nil visible, and use value.nil? to test whether a value is nil. The question mark is part of this method name.",
+      "Ruby treats false and nil as false in truth tests, and every other value as true; this property is called truthiness. The ! operator negates that truthiness: !value is true for a false value and false for a true value. In particular, zero and an empty string are both truthy."
+    ],
+    "code": "tickets = 3\np tickets > 0\np tickets == 0\narrival = nil\np arrival\np arrival.nil?",
+    "output": "true\nfalse\nnil\ntrue",
+    "experiments": [
+      {
+        "id": "check-threshold",
+        "title": "Check available space",
+        "task": "Predict the comparisons, then run. Change booked to 10 and consider why equality and greater-than can give different answers.",
+        "code": "booked = 8\ncapacity = 10\np booked == capacity\np booked > capacity",
+        "output": "false\nfalse",
+        "answer": "With 8 bookings neither comparison is true. At 10 bookings equality becomes true, while greater-than stays false because the two numbers are equal."
+      },
+      {
+        "id": "inspect-truthiness",
+        "title": "Inspect truthiness",
+        "task": "Predict the results of negating these four values, then run. Replace the empty string with \"ready\" and compare that line again.",
+        "code": "p !false\np !nil\np !0\np !\"\"",
+        "output": "true\ntrue\nfalse\nfalse",
+        "answer": "Only false and nil are false values, so negation makes them true. Zero, the empty string and the nonempty string are all truthy, so negation makes them false."
+      }
+    ],
+    "pitfall": "Use == to compare values. A single = assigns a value. Also, nil and false share false truthiness but are not equal to each other.",
+    "refs": [
+      "Literals",
+      "Integer",
+      "NilClass",
+      "FalseClass",
+      "Control Expressions",
+      "BasicObject"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "symbols",
+    "title": "Use symbols as labels",
+    "chapter": "Basic Data",
+    "goal": "Represent a named state with a symbol and compare it with other labels.",
+    "paragraphs": [
+      "A Symbol is a value used as a named label. Write a colon before a simple name, such as :waiting. A program can use a small vocabulary of symbols to describe states without treating those states as editable message text.",
+      "Assign symbols to variables just like other values, and compare them with ==. p displays a symbol with its colon, which helps distinguish it from a string. A symbol such as :waiting is different from the string \"waiting\" even though their letters match.",
+      "Use a string when you need text for a message and a symbol when an API or your own program calls for a named identifier. to_s converts a symbol to a string; to_sym converts a string to a symbol. These calls return converted values."
+    ],
+    "code": "state = :waiting\np state\np state == :waiting\np state == :finished",
+    "output": ":waiting\ntrue\nfalse",
+    "experiments": [
+      {
+        "id": "change-state",
+        "title": "Change a state label",
+        "task": "Predict the comparison results, then run. Change only the assigned state to :finished and check which results change.",
+        "code": "state = :waiting\np state == :waiting\np state == :finished",
+        "output": "true\nfalse",
+        "answer": "Each comparison checks the current label. After assigning :finished, comparison with :waiting is false and comparison with :finished is true."
+      },
+      {
+        "id": "convert-label",
+        "title": "Convert between a label and text",
+        "task": "Run to compare a symbol with text. Change the comparison to label.to_s == text, then inspect why the result changes.",
+        "code": "label = :boarding\ntext = \"boarding\"\np label == text\np label.to_s\np text.to_sym",
+        "output": "false\n\"boarding\"\n:boarding",
+        "answer": "The original comparison uses different kinds of value. label.to_s returns the string \"boarding\", which equals text. text.to_sym returns the symbol :boarding."
+      }
+    ],
+    "pitfall": "The colon belongs to symbol syntax. :boarding is a symbol, while \"boarding\" is a string; choose the kind of value the program expects.",
+    "refs": [
+      "Literals",
+      "Symbol",
+      "String"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "conditionals",
+    "title": "Choose with conditions",
+    "chapter": "Decisions and Loops",
+    "goal": "Choose an action by comparing values with if, elsif and case.",
+    "paragraphs": [
+      "Comparisons such as ==, !=, < and >= produce true or false. Use if to run code when a condition is true, elsif to try another condition, and else for the remaining situation. Ruby checks these branches in order and runs only the first matching branch. For a single action, you can put the condition last: puts \"Ready\" if ready == true.",
+      "Only false and nil count as false in a condition; even 0 and an empty string count as true. Use == to compare values. A single = assigns a value.",
+      "Use case with when to choose among named values. For the string choices here, each when tests whether its value matches the case value. An else branch handles an unrecognized choice."
+    ],
+    "code": "temperature = 18\nif temperature < 10\n  puts \"Wear a coat\"\nelsif temperature < 20\n  puts \"Bring a jacket\"\nelse\n  puts \"Wear a light shirt\"\nend",
+    "output": "Bring a jacket",
+    "experiments": [
+      {
+        "id": "boundary",
+        "title": "Check a boundary",
+        "task": "A parcel is accepted only below the weight limit. Predict the decision at weight 5. Then change the rule to accept the limit too: edit the comparison and test both cases.",
+        "code": "weight = 4\nlimit = 5\nif weight < limit\n  puts \"Accepted\"\nelse\n  puts \"Too heavy\"\nend",
+        "output": "Accepted",
+        "answer": "The initial weight is below the limit. At weight 5, < rejects the parcel; <= accepts a parcel exactly at the limit. Choose the comparison that matches the delivery rule."
+      },
+      {
+        "id": "case-choice",
+        "title": "Route a request",
+        "task": "Predict the response. Change action to \"cancel\", then to \"help\", and follow which branch handles each request.",
+        "code": "action = \"save\"\ncase action\nwhen \"save\"\n  puts \"Saving draft\"\nwhen \"cancel\"\n  puts \"Leaving draft\"\nelse\n  puts \"Unknown action\"\nend",
+        "output": "Saving draft",
+        "answer": "The save choice enters its matching when branch. The cancel choice enters the next branch, while help has no matching choice and reaches else."
+      }
+    ],
+    "pitfall": "Put narrower conditions before broader ones: if the first test already matches, Ruby does not try a later elsif.",
+    "refs": [
+      "Control Expressions",
+      "Integer"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "loops",
+    "title": "Repeat with a condition",
+    "chapter": "Decisions and Loops",
+    "goal": "Repeat work with while and until, and control repetition with break and next.",
+    "paragraphs": [
+      "A while loop checks its condition before each repetition and runs its body while the condition is true. Update the value used by the condition so the loop can finish. An until loop instead repeats while its condition is false.",
+      "break leaves the loop immediately. next skips the rest of the current repetition and starts the next condition check. Keep any necessary counter update before next so that skipping work does not prevent the loop from ending. The form break if condition performs break only when that condition is true; next if condition works the same way."
+    ],
+    "code": "step = 1\nwhile step <= 3\n  puts \"Packing box #{step}\"\n  step = step + 1\nend",
+    "output": "Packing box 1\nPacking box 2\nPacking box 3",
+    "experiments": [
+      {
+        "id": "until-ready",
+        "title": "Fill a container",
+        "task": "Predict how many additions happen. Change capacity to 6 and observe when until stops.",
+        "code": "level = 0\ncapacity = 4\nuntil level >= capacity\n  level = level + 2\n  puts \"Level: #{level}\"\nend",
+        "output": "Level: 2\nLevel: 4",
+        "answer": "until stops when level >= capacity becomes true. The initial capacity needs two additions; capacity 6 needs three. The condition is checked before each addition."
+      },
+      {
+        "id": "stop-early",
+        "title": "Stop at a target",
+        "task": "Predict which attempts are printed. Change target to 2 and trace whether the line after break runs on the matching attempt.",
+        "code": "attempt = 0\ntarget = 3\nwhile attempt < 5\n  attempt = attempt + 1\n  puts \"Attempt #{attempt}\"\n  break if attempt == target\n  puts \"Keep searching\"\nend",
+        "output": "Attempt 1\nKeep searching\nAttempt 2\nKeep searching\nAttempt 3",
+        "answer": "The matching attempt is printed before break. break then exits immediately, so Keep searching is skipped for that attempt. Changing the target moves this stopping point."
+      },
+      {
+        "id": "skip-one",
+        "title": "Skip a reserved number",
+        "task": "Predict the printed ticket numbers. Move the reserved number from 3 to 4 and check that the loop still finishes.",
+        "code": "ticket = 0\nwhile ticket < 5\n  ticket = ticket + 1\n  next if ticket == 3\n  puts ticket\nend",
+        "output": "1\n2\n4\n5",
+        "answer": "next skips printing ticket 3. The increment runs first, so the next repetition advances normally. Changing the condition to ticket == 4 skips that ticket instead."
+      }
+    ],
+    "pitfall": "A condition that never changes can keep a loop running forever. Check the update path, including paths that reach next.",
+    "refs": [
+      "Control Expressions"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "collections",
+    "title": "Store an ordered list",
+    "chapter": "Working with Collections",
+    "goal": "Create an array, read entries by position and update a list.",
+    "paragraphs": [
+      "An Array stores an ordered list of values. Write its entries between square brackets, separated by commas. An index is a position: index 0 selects the first entry, index 1 the second, and so on.",
+      "Use array[index] to read an entry and array[index] = value to replace it. push(value) appends an entry, and length reports the number of entries. p displays an array with brackets so its structure is visible.",
+      "A negative index counts back from the end: -1 selects the last entry. Reading an index outside an array returns nil."
+    ],
+    "code": "supplies = [\"paper\", \"pens\", \"tape\"]\nputs supplies[0]\nsupplies.push(\"labels\")\np supplies\nputs supplies.length",
+    "output": "paper\n[\"paper\", \"pens\", \"tape\", \"labels\"]\n4",
+    "experiments": [
+      {
+        "id": "replace-entry",
+        "title": "Correct a list entry",
+        "task": "The second stop has changed. Predict the list, then edit the assignment to replace the third stop instead.",
+        "code": "stops = [\"Library\", \"Market\", \"Park\"]\nstops[1] = \"Museum\"\np stops",
+        "output": "[\"Library\", \"Museum\", \"Park\"]",
+        "answer": "Index 1 replaces the second entry without adding an entry. Using index 2 replaces Park, because indexing begins at zero."
+      },
+      {
+        "id": "append-last",
+        "title": "Extend a queue",
+        "task": "Predict the last customer and queue length. Add another push before the two puts calls and check how both readings change.",
+        "code": "queue = [\"Ari\", \"Bo\"]\nqueue.push(\"Cam\")\nputs queue[-1]\nputs queue.length",
+        "output": "Cam\n3",
+        "answer": "push adds Cam at the end, making three entries. A further push becomes the new last entry and increases the length again."
+      },
+      {
+        "id": "missing-entry",
+        "title": "Look past the list",
+        "task": "Predict both readings. Change index 2 to index 1 and compare an absent entry with a present entry.",
+        "code": "tools = [\"brush\", \"roller\"]\np tools[0]\np tools[2]",
+        "output": "\"brush\"\nnil",
+        "answer": "Index 0 reads brush. Index 2 is beyond this two-entry array and returns nil; index 1 reads roller."
+      }
+    ],
+    "pitfall": "The last index of a nonempty array is length - 1, not length. Use -1 when you want its last entry.",
+    "refs": [
+      "Array",
+      "Kernel#p"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "hashes",
+    "title": "Look up values by key",
+    "chapter": "Working with Collections",
+    "goal": "Store named values in a hash and look them up with the matching key.",
+    "paragraphs": [
+      "A Hash associates keys with values. A key identifies an entry without relying on its position. Write a hash between braces; in {name: \"Ari\"}, name: creates the Symbol key :name.",
+      "Use hash[key] to read a value and hash[key] = value to add or update an entry. A Symbol such as :name is a name value, distinct from the String \"name\". Use the same kind of key for writing and reading.",
+      "For the ordinary hashes in this lesson, an absent key returns nil. key?(key) checks whether an entry exists, including an entry whose stored value is nil."
+    ],
+    "code": "booking = {name: \"Ari\", seats: 2}\nputs booking[:name]\nbooking[:seats] = 3\nputs booking[:seats]",
+    "output": "Ari\n3",
+    "experiments": [
+      {
+        "id": "stock-update",
+        "title": "Update stock",
+        "task": "Predict the remaining stock. Change the sale from 2 items to 4 while keeping the lookup and update attached to the same key.",
+        "code": "stock = {notebooks: 7, pens: 12}\nstock[:notebooks] = stock[:notebooks] - 2\nputs stock[:notebooks]\nputs stock[:pens]",
+        "output": "5\n12",
+        "answer": "The assignment replaces the notebooks value using its previous value. Pens keep their separate value. Subtracting 4 leaves 3 notebooks."
+      },
+      {
+        "id": "key-types",
+        "title": "Match the key type",
+        "task": "Predict both lookups. Change the second lookup to use a Symbol and compare the results.",
+        "code": "settings = {theme: \"dark\"}\np settings[:theme]\np settings[\"theme\"]",
+        "output": "\"dark\"\nnil",
+        "answer": "The hash contains :theme, so that lookup finds dark. The different key \"theme\" is absent. Reading :theme in both places finds the same entry."
+      },
+      {
+        "id": "presence",
+        "title": "Distinguish empty from absent",
+        "task": "Predict the checks. Add profile[:nickname] = \"Ace\" and see whether the presence check or only the value changes.",
+        "code": "profile = {nickname: nil}\np profile.key?(:nickname)\np profile[:nickname]\np profile.key?(:city)",
+        "output": "true\nnil\nfalse",
+        "answer": "The nickname key exists even though its value is nil. City is absent. Assigning Ace changes the stored value while nickname remains an existing key."
+      }
+    ],
+    "pitfall": "name: is a convenient way to write the Symbol key :name inside a hash. Read that entry with hash[:name], not hash[\"name\"].",
+    "refs": [
+      "Hash",
+      "Literals"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "ranges",
+    "title": "Check a numeric interval",
+    "chapter": "Working with Collections",
+    "goal": "Describe numeric boundaries with ranges and test whether a value lies inside them.",
+    "paragraphs": [
+      "A Range describes values between two endpoints. In a bounded numeric range, .. includes the end and ... excludes it. Both forms include the beginning. Parentheses make a range clear when you call a method directly on it.",
+      "include?(value) tests membership; cover?(value) tests whether a value falls within the boundaries. For the ascending integer ranges and integer candidates used here, both checks agree. A range is not an array that stores every value between its endpoints."
+    ],
+    "code": "allowed = 1..5\np allowed.include?(3)\np allowed.include?(5)\np (1...5).include?(5)",
+    "output": "true\ntrue\nfalse",
+    "experiments": [
+      {
+        "id": "upper-bound",
+        "title": "Validate a rating",
+        "task": "Predict whether the rating is accepted. Try 0 and 5, then change .. to ... to investigate the upper boundary.",
+        "code": "rating = 5\nvalid_ratings = 1..5\nif valid_ratings.cover?(rating)\n  puts \"Rating accepted\"\nelse\n  puts \"Outside rating scale\"\nend",
+        "output": "Rating accepted",
+        "answer": "The inclusive range accepts its upper boundary 5 and excludes 0. The exclusive form 1...5 excludes 5 too; the lower boundary remains included."
+      },
+      {
+        "id": "opening-hours",
+        "title": "Model an opening interval",
+        "task": "The closing hour should be excluded. Predict the two checks, then change closing time from 17 to 18.",
+        "code": "open_hours = 9...17\np open_hours.cover?(9)\np open_hours.cover?(17)",
+        "output": "true\nfalse",
+        "answer": "The opening boundary is included and the closing boundary is excluded. Extending the end to 18 makes hour 17 fall inside the interval."
+      }
+    ],
+    "pitfall": "Count the dots carefully: ... excludes the end, while .. includes it. The beginning is included in both forms here.",
+    "refs": [
+      "Range",
+      "Literals"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "methods",
+    "title": "Name reusable work",
+    "chapter": "Methods and Blocks",
+    "goal": "Define a method with arguments and use its returned value.",
+    "paragraphs": [
+      "Define a method with def, a name, optional parameters in parentheses, a body and end. Calling the method runs the body. Arguments supplied at the call fill the corresponding parameters.",
+      "A method returns the value of the last expression it evaluates. Assign that value or pass it to another method such as puts. Printing inside a method and returning a value are separate actions.",
+      "Use return value to finish a method early. A parameter may have a default, such as quantity = 1, which is used when that argument is omitted. Local variables created inside a method stay local to that call."
+    ],
+    "code": "def item_total(price, quantity)\n  price * quantity\nend\n\ntotal = item_total(6, 3)\nputs total",
+    "output": "18",
+    "experiments": [
+      {
+        "id": "reuse",
+        "title": "Price two orders",
+        "task": "Predict both totals. Add a third call for 5 items priced at 4 each without changing the definition.",
+        "code": "def order_total(price, quantity)\n  price * quantity\nend\n\nputs order_total(4, 2)\nputs order_total(7, 3)",
+        "output": "8\n21",
+        "answer": "Each call provides its own arguments to the same calculation. The added call order_total(4, 5) returns 20; the method definition is reused."
+      },
+      {
+        "id": "default",
+        "title": "Offer a default quantity",
+        "task": "Predict the two prices. Change the default quantity to 2 and identify which call is affected.",
+        "code": "def ticket_cost(price, quantity = 1)\n  price * quantity\nend\n\nputs ticket_cost(8)\nputs ticket_cost(8, 3)",
+        "output": "8\n24",
+        "answer": "The first call omits quantity and uses its default. The second supplies 3 explicitly. Changing the default to 2 affects only the first call."
+      },
+      {
+        "id": "early-return",
+        "title": "Handle an invalid quantity",
+        "task": "Predict both labels. Change the invalid quantity to 1 and trace which return path runs.",
+        "code": "def parcel_label(quantity)\n  return \"No parcels\" if quantity <= 0\n  \"Parcels: #{quantity}\"\nend\n\nputs parcel_label(0)\nputs parcel_label(3)",
+        "output": "No parcels\nParcels: 3",
+        "answer": "For zero, return finishes the call immediately. Positive quantities reach the final string expression, which becomes the returned value."
+      }
+    ],
+    "pitfall": "A puts call displays text but returns nil. Keep a calculation or value as the final expression when callers need to use its result.",
+    "refs": [
+      "Methods",
+      "Calling Methods"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "blocks",
+    "title": "Pass an action with a block",
+    "chapter": "Methods and Blocks",
+    "goal": "Attach a block to a method call and follow how yield runs it.",
+    "paragraphs": [
+      "A block is code attached to a method call, written with do ... end or braces. The method decides when to run that code. In a method definition, yield runs the attached block and then continues with the next expression.",
+      "yield can pass values to the block. Names between vertical bars, such as |message|, receive those values as block parameters. The block returns the value of its final expression to yield, so the method can use it.",
+      "The methods here require a block because they call yield without checking whether one was supplied. Keep the method definition, call and attached block together while tracing the flow."
+    ],
+    "code": "def announce\n  puts \"Before action\"\n  yield\n  puts \"After action\"\nend\n\nannounce do\n  puts \"Pack the order\"\nend",
+    "output": "Before action\nPack the order\nAfter action",
+    "experiments": [
+      {
+        "id": "yield-value",
+        "title": "Customize a notification",
+        "task": "Predict the line. Change the block to print a different sentence using the supplied customer name.",
+        "code": "def notify(customer)\n  yield customer\nend\n\nnotify(\"Ari\") do |name|\n  puts \"Ready for #{name}\"\nend",
+        "output": "Ready for Ari",
+        "answer": "yield passes Ari to the block parameter name. Editing the block changes the notification while the method still supplies the customer."
+      },
+      {
+        "id": "block-result",
+        "title": "Use a supplied calculation",
+        "task": "Predict the printed price. Change the block to subtract 3 instead and follow the value returned to yield.",
+        "code": "def adjusted_price(price)\n  result = yield price\n  puts \"Adjusted: #{result}\"\nend\n\nadjusted_price(12) do |amount|\n  amount * 2\nend",
+        "output": "Adjusted: 24",
+        "answer": "The block returns the multiplication result to yield, which is assigned to result. Replacing it with amount - 3 returns 9 to the method."
+      },
+      {
+        "id": "repeat-action",
+        "title": "Run an action twice",
+        "task": "Predict the order of the lines. Add a line before the first yield and check how many times that added line runs.",
+        "code": "def twice\n  yield \"first\"\n  yield \"second\"\nend\n\ntwice do |position|\n  puts \"Checking #{position}\"\nend",
+        "output": "Checking first\nChecking second",
+        "answer": "Each yield runs the same block with a different argument. A line placed before both yields in the method runs once; a line inside the block runs twice."
+      }
+    ],
+    "pitfall": "Attaching a block does not run it by itself. The called method controls whether and how often it invokes the block.",
+    "refs": [
+      "Methods",
+      "Calling Methods"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "enumerable",
+    "title": "Visit, transform and filter",
+    "chapter": "Using Collections",
+    "goal": "Use each, map and select with blocks to process an array.",
+    "paragraphs": [
+      "An array can pass its entries to a block in order. each is useful when you want an action for every entry, such as printing a label. The block parameter names the current entry.",
+      "map builds a new array from the value returned by the block for each entry. select builds a new array containing the original entries for which the block returns a truthy value (anything except false or nil). These methods provide collection operations associated with Enumerable; arrays support them directly.",
+      "The plain map and select calls here leave the source array unchanged. Choose the operation by what you need: actions for each entry, transformed entries, or entries that pass a condition.",
+      "Calling select and then map lets you filter entries before transforming them. Each method receives its own block. Ruby 3.4 introduced it as the implicit first block parameter when a block declares no parameters and no outer local variable named it takes precedence. The final experiment uses it in two separate blocks."
+    ],
+    "code": "names = [\"Ari\", \"Bo\", \"Cam\"]\nnames.each do |name|\n  puts \"Hello, #{name}\"\nend",
+    "output": "Hello, Ari\nHello, Bo\nHello, Cam",
+    "experiments": [
+      {
+        "id": "map-prices",
+        "title": "Calculate line totals",
+        "task": "Predict the new array. Change the unit price to 5 and check both the totals and the original quantities.",
+        "code": "quantities = [1, 3, 2]\ntotals = quantities.map do |quantity|\n  quantity * 4\nend\np totals\np quantities",
+        "output": "[4, 12, 8]\n[1, 3, 2]",
+        "answer": "map collects one calculated total per quantity. With price 5 the totals become [5, 15, 10]. The original quantities are unchanged."
+      },
+      {
+        "id": "select-stock",
+        "title": "Choose available stock",
+        "task": "Predict which stock counts remain. Change the condition to count >= 3 and compare filtering with changing the counts themselves.",
+        "code": "stock_counts = [0, 4, 1, 0, 3]\navailable = stock_counts.select do |count|\n  count > 0\nend\np available",
+        "output": "[4, 1, 3]",
+        "answer": "select retains the original counts whose condition is true. Requiring at least 3 retains 4 and 3; it does not convert the entries into true and false."
+      },
+      {
+        "id": "combine",
+        "title": "Combine filtering and mapping",
+        "task": "Predict which counts reach map. Change the filter to keep counts of at least 3, then change the multiplier to price each remaining group at 5.",
+        "code": "counts = [0, 4, 1, 0, 3]\ntotals = counts.select { it > 0 }.map { it * 4 }\np totals",
+        "output": "[16, 4, 12]",
+        "answer": "select keeps 4, 1 and 3; map transforms those entries into totals. Keeping only counts of at least 3 and multiplying by 5 gives [20, 15]. Each block has its own current entry."
+      }
+    ],
+    "pitfall": "Use a value expression as the last line of a map block. If its last line is puts, map collects the nil values returned by puts.",
+    "refs": [
+      "Enumerable",
+      "Array",
+      "Calling Methods",
+      "Ruby 3.4 release notes"
+    ],
+    "remaining": "",
+    "versionNote": "The final experiment uses it, introduced in Ruby 3.4. You can also use an explicit block parameter such as |count|.",
+    "variants": {
+      "3.2": {
+        "paragraphs": [
+          "An array can pass its entries to a block in order. each is useful when you want an action for every entry, such as printing a label. The block parameter names the current entry.",
+          "map builds a new array from the value returned by the block for each entry. select builds a new array containing the original entries for which the block returns a truthy value (anything except false or nil). These methods provide collection operations associated with Enumerable; arrays support them directly.",
+          "The plain map and select calls here leave the source array unchanged. Choose the operation by what you need: actions for each entry, transformed entries, or entries that pass a condition.",
+          "Calling select and then map lets you filter entries before transforming them. Each method receives its own block. Name each block parameter explicitly, such as |count|. The final experiment uses a separate parameter in each block."
+        ],
+        "experiments": [
+          {
+            "id": "map-prices",
+            "title": "Calculate line totals",
+            "task": "Predict the new array. Change the unit price to 5 and check both the totals and the original quantities.",
+            "code": "quantities = [1, 3, 2]\ntotals = quantities.map do |quantity|\n  quantity * 4\nend\np totals\np quantities",
+            "output": "[4, 12, 8]\n[1, 3, 2]",
+            "answer": "map collects one calculated total per quantity. With price 5 the totals become [5, 15, 10]. The original quantities are unchanged."
+          },
+          {
+            "id": "select-stock",
+            "title": "Choose available stock",
+            "task": "Predict which stock counts remain. Change the condition to count >= 3 and compare filtering with changing the counts themselves.",
+            "code": "stock_counts = [0, 4, 1, 0, 3]\navailable = stock_counts.select do |count|\n  count > 0\nend\np available",
+            "output": "[4, 1, 3]",
+            "answer": "select retains the original counts whose condition is true. Requiring at least 3 retains 4 and 3; it does not convert the entries into true and false."
+          },
+          {
+            "id": "combine",
+            "title": "Combine filtering and mapping",
+            "task": "Predict which counts reach map. Change the filter to keep counts of at least 3, then change the multiplier to price each remaining group at 5.",
+            "code": "counts = [0, 4, 1, 0, 3]\ntotals = counts.select { |count| count > 0 }.map { |count| count * 4 }\np totals",
+            "output": "[16, 4, 12]",
+            "answer": "select keeps 4, 1 and 3; map transforms those entries into totals. Keeping only counts of at least 3 and multiplying by 5 gives [20, 15]. Each block has its own current entry."
+          }
+        ],
+        "versionNote": "Ruby 3.2 does not support the implicit it block parameter introduced in Ruby 3.4. This version uses explicit block parameters."
+      },
+      "3.3": {
+        "paragraphs": [
+          "An array can pass its entries to a block in order. each is useful when you want an action for every entry, such as printing a label. The block parameter names the current entry.",
+          "map builds a new array from the value returned by the block for each entry. select builds a new array containing the original entries for which the block returns a truthy value (anything except false or nil). These methods provide collection operations associated with Enumerable; arrays support them directly.",
+          "The plain map and select calls here leave the source array unchanged. Choose the operation by what you need: actions for each entry, transformed entries, or entries that pass a condition.",
+          "Calling select and then map lets you filter entries before transforming them. Each method receives its own block. Name each block parameter explicitly, such as |count|. The final experiment uses a separate parameter in each block."
+        ],
+        "experiments": [
+          {
+            "id": "map-prices",
+            "title": "Calculate line totals",
+            "task": "Predict the new array. Change the unit price to 5 and check both the totals and the original quantities.",
+            "code": "quantities = [1, 3, 2]\ntotals = quantities.map do |quantity|\n  quantity * 4\nend\np totals\np quantities",
+            "output": "[4, 12, 8]\n[1, 3, 2]",
+            "answer": "map collects one calculated total per quantity. With price 5 the totals become [5, 15, 10]. The original quantities are unchanged."
+          },
+          {
+            "id": "select-stock",
+            "title": "Choose available stock",
+            "task": "Predict which stock counts remain. Change the condition to count >= 3 and compare filtering with changing the counts themselves.",
+            "code": "stock_counts = [0, 4, 1, 0, 3]\navailable = stock_counts.select do |count|\n  count > 0\nend\np available",
+            "output": "[4, 1, 3]",
+            "answer": "select retains the original counts whose condition is true. Requiring at least 3 retains 4 and 3; it does not convert the entries into true and false."
+          },
+          {
+            "id": "combine",
+            "title": "Combine filtering and mapping",
+            "task": "Predict which counts reach map. Change the filter to keep counts of at least 3, then change the multiplier to price each remaining group at 5.",
+            "code": "counts = [0, 4, 1, 0, 3]\ntotals = counts.select { |count| count > 0 }.map { |count| count * 4 }\np totals",
+            "output": "[16, 4, 12]",
+            "answer": "select keeps 4, 1 and 3; map transforms those entries into totals. Keeping only counts of at least 3 and multiplying by 5 gives [20, 15]. Each block has its own current entry."
+          }
+        ],
+        "versionNote": "Ruby 3.3 does not support the implicit it block parameter introduced in Ruby 3.4. This version uses explicit block parameters."
+      }
+    }
+  },
+  {
+    "slug": "classes",
+    "title": "Create objects with classes",
+    "chapter": "Creating Objects",
+    "goal": "Initialize instance state and expose behavior through methods.",
+    "paragraphs": [
+      "A class defines behavior for its instances. Counter.new creates an instance and calls initialize to set its starting state. An instance variable such as @value belongs to one object; separate instances can hold different values.",
+      "Instance methods read or change the state of their receiver. attr_reader :value defines a value method that reads @value. It does not create a writer: the example changes state through increment instead."
+    ],
+    "code": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @value = start\n  end\n  def increment\n    @value = @value + 1\n  end\nend\nfirst = Counter.new\nsecond = Counter.new(10)\nfirst.increment\np first.value\np second.value",
+    "output": "1\n10",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Keep independent state",
+        "task": "Predict both values after the calls on different receivers. Add a call to first.increment and check which object changes.",
+        "code": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @value = start\n  end\n  def increment\n    @value = @value + 1\n  end\nend\nfirst = Counter.new\nsecond = Counter.new(10)\nfirst.increment\nsecond.increment\nsecond.increment\np first.value\np second.value",
+        "output": "1\n12",
+        "answer": "The calls update first once and second twice, producing 1 and 12. Another call on first changes it to 2 while second stays 12."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Reset object state",
+        "task": "Trace the value before and after reset. Change the starting argument to 8 and investigate whether reset restores that starting value or always uses zero.",
+        "code": "class Counter\n  attr_reader :value\n  def initialize(start = 0)\n    @start = start\n    @value = start\n  end\n  def increment\n    @value = @value + 1\n  end\n  def reset\n    @value = @start\n  end\nend\ncounter = Counter.new(5)\ncounter.increment\ncounter.increment\np counter.value\ncounter.reset\np counter.value",
+        "output": "7\n5",
+        "answer": "The instance remembers its initial value in @start. increment changes @value, while reset restores it from @start. Starting at 8 therefore gives 10 before reset and 8 afterward."
+      }
+    ],
+    "pitfall": "Local variables inside a method do not persist as instance state. Use an instance variable such as @value when later calls on that object need the value.",
+    "refs": [
+      "Modules and Classes",
+      "Class#new",
+      "Module#attr_reader"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "inheritance",
+    "title": "Specialize a class with inheritance",
+    "chapter": "Creating Objects",
+    "goal": "Reuse a superclass and extend a method with super.",
+    "paragraphs": [
+      "A subclass inherits methods from its superclass. class UrgentNotice < Notice makes UrgentNotice a subclass of Notice. The subclass can use the inherited initialize method and define its own label method.",
+      "An overriding method replaces the inherited implementation for that call. Inside the override, super invokes the next implementation of the same method in the ancestor chain. Here that is Notice#label. With no parentheses, super forwards the arguments the current method received; super(text) passes text explicitly, while super() passes no arguments."
+    ],
+    "code": "class Notice\n  def initialize(text)\n    @text = text\n  end\n  def label\n    @text\n  end\nend\nclass UrgentNotice < Notice\n  def label\n    \"Urgent: #{super}\"\n  end\nend\nputs Notice.new(\"Delivery today\").label\nputs UrgentNotice.new(\"Delivery today\").label",
+    "output": "Delivery today\nUrgent: Delivery today",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Extend an inherited result",
+        "task": "Predict which label method runs for each object. Change the subclass prefix, then check whether the superclass output changes.",
+        "code": "class Notice\n  def initialize(text)\n    @text = text\n  end\n  def label\n    @text\n  end\nend\nclass UrgentNotice < Notice\n  def label\n    \"Urgent: #{super}\"\n  end\nend\nputs Notice.new(\"Bring a ticket\").label\nputs UrgentNotice.new(\"Bring a ticket\").label",
+        "output": "Bring a ticket\nUrgent: Bring a ticket",
+        "answer": "The plain Notice uses Notice#label. UrgentNotice#label calls that inherited method with super and adds its own prefix. Editing the prefix changes only the subclass result."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Initialize additional state",
+        "task": "Predict the label. Change the priority argument and then the text argument; trace which initializer stores each value.",
+        "code": "class Notice\n  def initialize(text)\n    @text = text\n  end\n  def label\n    @text\n  end\nend\nclass PriorityNotice < Notice\n  def initialize(text, priority)\n    super(text)\n    @priority = priority\n  end\n  def label\n    \"#{@priority}: #{super}\"\n  end\nend\nputs PriorityNotice.new(\"Check the door\", \"High\").label",
+        "output": "High: Check the door",
+        "answer": "super(text) calls Notice#initialize with one argument, storing @text. The subclass stores @priority itself and combines both through label."
+      }
+    ],
+    "pitfall": "A bare super forwards every received argument. In PriorityNotice#initialize, use super(text) because Notice#initialize accepts one argument, not both text and priority.",
+    "refs": [
+      "Modules and Classes",
+      "Calling Methods"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "modules",
+    "title": "Share behavior with modules",
+    "chapter": "Creating Objects",
+    "goal": "Share one set of instance methods across classes with include.",
+    "paragraphs": [
+      "A module can define methods for reuse. include makes its instance methods available to instances of the including class. Unlike a class, a module cannot create instances with new. A mixin is useful when several classes need behavior without sharing a superclass.",
+      "An included method runs on the receiving object. Named#label calls name on that same Product instance, so Product must supply a name method. Modules can also group constants under a namespace, but this example uses a module to share behavior."
+    ],
+    "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"book\"\n  end\nend\nputs Product.new.label",
+    "output": "item: book",
+    "pitfall": "Included methods can depend on methods of their receiver. Those dependencies still need to be implemented by the class.",
+    "refs": [
+      "Modules and Classes"
+    ],
+    "remaining": "extend, prepend, method lookup order and namespace resolution need dedicated examples.",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Supply receiver behavior",
+        "task": "Predict the labels for these objects. Add another Product to products and check how the shared method uses each object's state.",
+        "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  attr_reader :name\n  def initialize(name)\n    @name = name\n  end\nend\nproducts = [Product.new(\"book\"), Product.new(\"pen\")]\nproducts.each do |product|\n  puts product.label\nend",
+        "output": "item: book\nitem: pen",
+        "answer": "Named#label calls the name reader on each receiving Product. Each object supplies its own stored name, while the module supplies the shared prefix."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Reuse a mixin across classes",
+        "task": "Predict both labels. Add a third class that includes Named and defines its own name method. Call label on its instance.",
+        "code": "module Named\n  def label\n    \"item: #{name}\"\n  end\nend\nclass Product\n  include Named\n  def name\n    \"book\"\n  end\nend\nclass Parcel\n  include Named\n  def name\n    \"box\"\n  end\nend\nputs Product.new.label\nputs Parcel.new.label",
+        "output": "item: book\nitem: box",
+        "answer": "Both classes reuse label without inheriting from each other. A third including class can reuse it too as long as its instances provide name."
+      }
+    ]
+  },
+  {
+    "slug": "operator-methods",
+    "title": "Define an operator for your objects",
+    "chapter": "Creating Objects",
+    "goal": "Implement + as a method that combines two instances.",
+    "paragraphs": [
+      "Many Ruby operators are methods. The expression left + right calls the + method on left and passes right as its argument, just like left.+(right). Defining def +(other) lets your class give that operator a useful meaning.",
+      "Distance#+ combines the meters held by two Distance objects and returns a new Distance. Its reader method lets one object read the other object's meters. The implementation expects another Distance and leaves both operands unchanged. Defining an operator does not change its precedence."
+    ],
+    "code": "class Distance\n  attr_reader :meters\n  def initialize(meters)\n    @meters = meters\n  end\n  def +(other)\n    Distance.new(meters + other.meters)\n  end\nend\nleft = Distance.new(4)\nright = Distance.new(6)\ntotal = left + right\np total.meters\np left.meters",
+    "output": "10\n4",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare operator and method calls",
+        "task": "Predict both totals. Replace the operator expression with left.+(right) and check whether it changes the result.",
+        "code": "class Distance\n  attr_reader :meters\n  def initialize(meters)\n    @meters = meters\n  end\n  def +(other)\n    Distance.new(meters + other.meters)\n  end\nend\nleft = Distance.new(2)\nright = Distance.new(7)\np (left + right).meters\np left.+(right).meters",
+        "output": "9\n9",
+        "answer": "Both expressions call Distance#+ on left with right. They create separate Distance objects holding the same total."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Chain additions",
+        "task": "Predict the total and both original values. Add a fourth Distance to the expression and explain why chaining is possible.",
+        "code": "class Distance\n  attr_reader :meters\n  def initialize(meters)\n    @meters = meters\n  end\n  def +(other)\n    Distance.new(meters + other.meters)\n  end\nend\nfirst = Distance.new(2)\nsecond = Distance.new(3)\ntotal = first + second + Distance.new(4)\np total.meters\np first.meters\np second.meters",
+        "output": "9\n2\n3",
+        "answer": "Each + returns a Distance, so the next + can use it as a receiver. The original objects remain unchanged; a fourth operand adds its meters to the total."
+      }
+    ],
+    "pitfall": "Not every operator is a redefinable method. Logical operators such as && and || have language-defined short-circuit behavior; defining + does not affect them.",
+    "refs": [
+      "Methods",
+      "Operators"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "exceptions",
+    "title": "Handle an expected failure",
+    "chapter": "Handling Errors",
+    "goal": "Handle a specific exception and separate recovery from cleanup.",
+    "paragraphs": [
+      "An exception interrupts normal execution. A rescue clause handles matching exception classes so the program can respond to an expected failure. Integer(text) converts suitable text to an integer and raises ArgumentError when the text is invalid.",
+      "Use rescue ArgumentError => error when the handler needs the exception object. raise ArgumentError, \"message\" reports your own invalid input. An else clause runs when the protected code finishes without an exception; ensure runs when leaving it during normal Ruby control flow, including exception propagation. Worker termination is outside this cleanup guarantee."
+    ],
+    "code": "begin\n  value = Integer(\"not a number\")\n  puts value * 2\nrescue ArgumentError\n  puts \"Please use digits\"\nensure\n  puts \"Attempt finished\"\nend",
+    "output": "Please use digits\nAttempt finished",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Compare success and recovery",
+        "task": "Predict which parts run. Replace the input with \"21\" and trace the path through the protected code, rescue and ensure.",
+        "code": "begin\n  value = Integer(\"oops\")\n  puts value * 2\nrescue ArgumentError\n  puts \"Please use digits\"\nensure\n  puts \"Attempt finished\"\nend",
+        "output": "Please use digits\nAttempt finished",
+        "answer": "The initial conversion raises ArgumentError, so multiplication is skipped and rescue runs. With \"21\", conversion and multiplication succeed, rescue is skipped, and ensure still runs."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Report invalid method input",
+        "task": "Predict the recovery message. Change the argument to a positive value and determine whether the method reaches its final expression.",
+        "code": "def double_positive(value)\n  raise ArgumentError, \"value must be positive\" if value <= 0\n  value * 2\nend\nbegin\n  puts double_positive(-2)\nrescue ArgumentError => error\n  puts error.message\nend",
+        "output": "value must be positive",
+        "answer": "A nonpositive value triggers raise and transfers control to rescue, which reads the message. A positive value reaches value * 2 and prints the returned number."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Run a success-only branch",
+        "task": "Predict the lines that run. Change the text to \"bad\" and compare else with ensure.",
+        "code": "begin\n  value = Integer(\"12\")\nrescue ArgumentError\n  puts \"Invalid input\"\nelse\n  puts \"Accepted: #{value}\"\nensure\n  puts \"Attempt finished\"\nend",
+        "output": "Accepted: 12\nAttempt finished",
+        "answer": "else runs only after the conversion succeeds. Invalid text selects rescue instead, while ensure runs on both paths."
+      }
+    ],
+    "pitfall": "Rescue only failures you can handle. A broad rescue can conceal unrelated programming errors and make a broken program appear to continue successfully.",
+    "refs": [
+      "Exceptions",
+      "Kernel"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "pattern-matching",
+    "title": "Match structured data",
+    "chapter": "Expressive Ruby",
+    "goal": "Select a branch using the shape and values of a Hash.",
+    "paragraphs": [
+      "Pattern matching examines a value’s structure. In a case/in expression, a hash pattern can require particular keys and bind values to local variables. This is useful when handling data with several possible shapes.",
+      "The role value in the example must match \"admin\". The name: shorthand binds the associated value to a local variable named name. The else branch handles other shapes or values. Without a matching branch or else, case/in raises NoMatchingPatternError.",
+      "A hash pattern allows extra keys by default. Add **nil at the end of the pattern to reject extra keys. A guard such as if count > 0 checks a condition after the pattern has matched and bound its variables."
+    ],
+    "code": "user = { name: \"Ruby\", role: \"admin\" }\ncase user\nin { name:, role: \"admin\" }\n  puts \"Welcome, #{name}\"\nelse\n  puts \"Guest\"\nend",
+    "output": "Welcome, Ruby",
+    "pitfall": "A hash pattern can allow extra keys. Use an explicit restrictive pattern when extra keys must be rejected.",
+    "refs": [
+      "Pattern matching"
+    ],
+    "remaining": "Array/find patterns, pins, deconstruction and rightward assignment are outside this lesson.",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Change the required value",
+        "task": "Predict which inputs match. Add an admin hash with an extra key, then change the last hash to include role: \"admin\". Which pattern requirements must each input meet?",
+        "code": "users = [\n  { name: \"Ruby\", role: \"admin\" },\n  { name: \"Sam\", role: \"member\" },\n  { name: \"Lee\" }\n]\nusers.each do |user|\n  case user\n  in { name:, role: \"admin\" }\n    puts \"Welcome, #{name}\"\n  else\n    puts \"Guest\"\n  end\nend",
+        "output": "Welcome, Ruby\nGuest\nGuest",
+        "answer": "Only the first input initially has the required admin role. Member and missing-role inputs select else. Extra keys are allowed by this pattern, while adding the missing admin role makes the last input match."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Reject extra keys",
+        "task": "Predict whether this hash matches. Add **nil after count: in the pattern and compare, then remove the extra source key.",
+        "code": "item = { name: \"book\", count: 2, color: \"blue\" }\ncase item\nin { name:, count: }\n  puts \"#{name}: #{count}\"\nelse\n  puts \"Different shape\"\nend",
+        "output": "book: 2",
+        "answer": "The original pattern allows the color key. With { name:, count:, **nil }, extra keys prevent a match. Removing color restores the match."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Guard a matched value",
+        "task": "Predict the branch. Try count values 0 and 5, then remove the count key. Which check requires structure and which checks the bound value?",
+        "code": "item = { name: \"book\", count: 2 }\ncase item\nin { name:, count: } if count > 0\n  puts \"Ready: #{name}\"\nelse\n  puts \"Unavailable\"\nend",
+        "output": "Ready: book",
+        "answer": "The hash pattern first requires and binds name and count. The guard then requires count > 0. Zero fails the guard; a missing count fails the pattern before that guard runs."
+      }
+    ]
+  },
+  {
+    "slug": "callables",
+    "title": "Store behavior with procs and lambdas",
+    "chapter": "Expressive Ruby",
+    "goal": "Save a block as a callable object and pass behavior to a method.",
+    "paragraphs": [
+      "A block can become a Proc object that you store in a variable and invoke with call. proc { |value| value * 2 } creates one; ->(value) { value * 2 } creates a lambda, which is also a Proc. Both can use local variables from the surrounding scope where they were created.",
+      "A method can accept a callable as an ordinary argument and invoke it with call. A lambda checks arguments like a method, while an ordinary proc handles missing or extra arguments more permissively. return inside a lambda returns from that lambda; return inside an ordinary proc tries to return from the enclosing method where the proc was created. Prefer a lambda when you want method-like argument and return behavior."
+    ],
+    "code": "double = proc { |value| value * 2 }\ntriple = ->(value) { value * 3 }\np double.call(4)\np triple.call(4)",
+    "output": "8\n12",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Pass a pricing rule",
+        "task": "Predict the two results. Add a new lambda as a pricing rule without changing quote.",
+        "code": "def quote(price, rule)\n  rule.call(price)\nend\nregular = ->(price) { price }\nsale = ->(price) { price - 3 }\np quote(20, regular)\np quote(20, sale)",
+        "output": "20\n17",
+        "answer": "quote delegates the calculation to the callable. Each lambda receives the same price but applies its own rule, so a new rule needs no edit to quote."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Capture a local variable",
+        "task": "Predict both calls. Change fee before the second call and check whether the proc uses the updated local variable.",
+        "code": "fee = 2\nwith_fee = proc { |price| price + fee }\np with_fee.call(10)\nfee = 5\np with_fee.call(10)",
+        "output": "12\n15",
+        "answer": "The proc retains access to the surrounding fee variable rather than freezing its original value. The second call uses the updated fee."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Compare argument rules",
+        "task": "Predict what each call does. Supply a value to each callable and compare with calling without arguments.",
+        "code": "loose = proc { |value| value }\nstrict = ->(value) { value }\np loose.call\nbegin\n  p strict.call\nrescue ArgumentError\n  puts \"A value is required\"\nend",
+        "output": "nil\nA value is required",
+        "answer": "For this single positional parameter, the ordinary proc fills a missing argument with nil. The lambda rejects the missing argument with ArgumentError. Providing one argument lets both return it."
+      }
+    ],
+    "pitfall": "A block passed directly to a method is not an ordinary positional argument. When the method expects a callable parameter such as rule, pass the Proc or lambda object explicitly.",
+    "refs": [
+      "Proc"
+    ],
+    "remaining": ""
+  },
+  {
+    "slug": "refinements",
+    "title": "Scope a method extension with refinements",
+    "chapter": "Supplementary Topics",
+    "goal": "Activate an extension in a lexical scope.",
+    "paragraphs": [
+      "Reopening a class changes methods for its users broadly. A refinement can limit where an extension is active. Define the extension inside refine, then activate the containing module with using.",
+      "Activation follows where code is defined, not simply which object is passed around. A method defined outside the active scope does not gain the refinement merely because a caller activated it. Keep this distinction in mind when splitting code into methods."
+    ],
+    "code": "module ExcitedText\n  refine String do\n    def excited\n      self + \"!\"\n    end\n  end\nend\nusing ExcitedText\nputs \"Ruby\".excited",
+    "output": "Ruby!",
+    "pitfall": "using cannot be activated inside a method. Refinements are not a general global extension mechanism.",
+    "refs": [
+      "Refinements"
+    ],
+    "remaining": "Refinement method lookup and interactions with inheritance and imports are not covered yet.",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Change refined behavior",
+        "task": "Predict both the transformed strings and the original array. Change the method to add a question mark and compare whether the source strings change.",
+        "code": "module ExcitedText\n  refine String do\n    def excited\n      upcase + \"!\"\n    end\n  end\nend\nusing ExcitedText\nnames = [\"Ruby\", \"Blocks\"]\np names.map { |name| name.excited }\np names",
+        "output": "[\"RUBY!\", \"BLOCKS!\"]\n[\"Ruby\", \"Blocks\"]",
+        "answer": "The refinement is active at the map call. Each invocation builds a new string using upcase and +, so the names array still holds its original strings. Changing the punctuation changes only the returned values."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Compare lexical scopes",
+        "task": "Predict both calls. Add using DecoratedText inside PlainView before its method definition and compare the behavior.",
+        "code": "class Text\n  def label\n    \"plain\"\n  end\nend\nmodule DecoratedText\n  refine Text do\n    def label\n      \"decorated\"\n    end\n  end\nend\nclass PlainView\n  def show(text)\n    text.label\n  end\nend\nclass DecoratedView\n  using DecoratedText\n  def show(text)\n    text.label\n  end\nend\ntext = Text.new\nputs PlainView.new.show(text)\nputs DecoratedView.new.show(text)",
+        "output": "plain\ndecorated",
+        "answer": "Only the method defined in DecoratedView initially has the refinement active. The receiver is the same object in both calls. Activating the refinement before PlainView#show is defined changes that call too."
+      }
+    ]
+  },
+  {
+    "slug": "special-forms",
+    "title": "Recognize alias, undef, BEGIN and END",
+    "chapter": "Supplementary Topics",
+    "goal": "Identify less common forms and their effect on execution.",
+    "paragraphs": [
+      "alias introduces another name for an existing method at that point in the program. undef makes a method unavailable through that class. These forms affect an interface, so ordinary method definitions are often clearer when no aliasing is needed. The respond_to? method checks whether an object offers the named method.",
+      "BEGIN executes before the main body of a Ruby script. END registers work for normal Ruby process exit. The browser playground evaluates code in a Worker that the host later terminates, rather than shutting down a Ruby command-line process normally. Use a local Ruby script when investigating process-exit behavior; use ensure for cleanup during normal Ruby control flow."
+    ],
+    "code": "BEGIN { puts \"start\" }\nclass Message\n  def text\n    \"hello\"\n  end\n  alias original_text text\n  undef text\nend\nputs Message.new.original_text\np Message.new.respond_to?(:text)\nEND { puts \"finish\" }",
+    "output": "start\nhello\nfalse",
+    "pitfall": "Do not use END for cleanup in this playground. Its execution lifecycle differs from running a Ruby script as a command-line process.",
+    "refs": [
+      "Miscellaneous",
+      "Module#alias_method"
+    ],
+    "remaining": "Multiple END blocks and alias behavior across later method redefinitions need further examples.",
+    "experiments": [
+      {
+        "id": "change",
+        "title": "Keep two method names",
+        "task": "Predict which names are callable on each class. Remove undef text and compare how the subclass interface changes. Does the superclass change?",
+        "code": "class Message\n  def text\n    \"hello\"\n  end\nend\nclass ArchivedMessage < Message\n  alias original_text text\n  undef text\nend\nputs Message.new.text\nputs ArchivedMessage.new.original_text\np ArchivedMessage.new.respond_to?(:text)",
+        "output": "hello\nhello\nfalse",
+        "answer": "The subclass saves an alias for the inherited implementation, then blocks access through text in that subclass. Message#text remains available on Message instances. Removing undef makes text available on ArchivedMessage again."
+      },
+      {
+        "id": "experiment-2",
+        "title": "Redefine after aliasing",
+        "task": "Predict both calls. Move the alias line below the second text definition and compare which implementation message uses.",
+        "code": "class Greeting\n  def text\n    \"hello\"\n  end\n  alias message text\n  def text\n    \"welcome\"\n  end\nend\ngreeting = Greeting.new\nputs greeting.text\nputs greeting.message",
+        "output": "welcome\nhello",
+        "answer": "The alias initially refers to the earlier implementation, so redefining text does not update message. Moving alias after the redefinition makes message refer to the new implementation."
+      },
+      {
+        "id": "experiment-3",
+        "title": "Run initialization before the body",
+        "task": "Predict the order of the printed lines. Move BEGIN below the second puts and run again. How does BEGIN differ from an ordinary block at that position?",
+        "code": "puts \"first body line\"\nBEGIN { puts \"setup\" }\nputs \"second body line\"",
+        "output": "setup\nfirst body line\nsecond body line",
+        "answer": "BEGIN runs before the main body regardless of its position among those top-level statements. Moving it does not change the ordering of its output relative to the body."
+      }
+    ]
+  }
+]

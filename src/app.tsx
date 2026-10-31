@@ -15,16 +15,12 @@ import {
 } from "@chakra-ui/react";
 import type { RunResult, RuntimeInfo } from "./runtime";
 import { startRubyRun, type RunHandle } from "./workers/client";
-import {
-  RUBY_VERSIONS,
-  RUBY_PATCH_VERSIONS,
-  type RubyVersion,
-} from "./versions";
+import { RUBY_RELEASES, type RubyVersion } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
 
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
-import RubyMark from "./ruby-mark";
+import Brand from "./brand";
 
 import { INITIAL_CODE } from "./sample";
 
@@ -125,31 +121,19 @@ export default function App() {
     >
       <Box as="header" mb={6}>
         <Flex align="center" gap={3} mb={3}>
-          <RubyMark boxSize={{ base: 9, md: 12 }} />
-          <Heading
-            as="h1"
-            fontWeight="800"
-            letterSpacing="-0.05em"
-            fontSize={{ base: "2xl", md: "4xl" }}
-          >
-            <Box as="span" color="accent">
-              Ruby
-            </Box>{" "}
-            Playground
-          </Heading>
+          <Brand heading />
         </Flex>
         <Text color="mutedText" fontSize="sm">
-          コードを書いて、すぐ試す。ブラウザで Ruby を楽しもう。
+          Run Ruby online in your browser. No installation or account required.
         </Text>
-        <Link
-          href="#about"
-          display="inline-block"
-          mt={2}
-          fontSize="sm"
-          color="accent"
-        >
-          About Ruby Playground?
-        </Link>
+        <Flex as="nav" aria-label="Introduction" gap={4} mt={2} wrap="wrap">
+          <Link href="#about" fontSize="sm" color="accent">
+            About Ruby Playground?
+          </Link>
+          <Link href="/tutorial/" fontSize="sm" color="accent">
+            Ruby tutorial
+          </Link>
+        </Flex>
       </Box>
       <Box as="main">
         {warning && (
@@ -202,7 +186,7 @@ export default function App() {
               </Text>
               <Select
                 id="ruby-version"
-                aria-label="Ruby バージョン"
+                aria-label="Ruby version"
                 value={version}
                 width="auto"
                 maxW="100%"
@@ -214,9 +198,9 @@ export default function App() {
                   updateUrl({ code, version: next });
                 }}
               >
-                {RUBY_VERSIONS.map((value) => (
-                  <option key={value} value={value}>
-                    Ruby {value} ({RUBY_PATCH_VERSIONS[value]})
+                {RUBY_RELEASES.map((release) => (
+                  <option key={release.id} value={release.id}>
+                    {`Ruby ${release.id} (${release.patch}${release.channel === "development" ? "-dev" : ""})`}
                   </option>
                 ))}
               </Select>
@@ -225,14 +209,26 @@ export default function App() {
               <Text as="label" htmlFor="ui-theme" fontSize="xs">
                 UI Theme:
               </Text>
+              <Text
+                fontSize="xs"
+                fontWeight={colorMode === "dark" ? "bold" : "normal"}
+              >
+                Dark
+              </Text>
               <Switch
                 id="ui-theme"
-                aria-label="UI Theme"
+                aria-label="Light theme"
                 size="lg"
                 colorScheme="ruby"
                 isChecked={colorMode === "light"}
                 onChange={toggleColorMode}
               />
+              <Text
+                fontSize="xs"
+                fontWeight={colorMode === "light" ? "bold" : "normal"}
+              >
+                Light
+              </Text>
             </Flex>
           </Flex>
         </Flex>
@@ -277,12 +273,10 @@ export default function App() {
               borderColor="panelBorder"
               borderBottomWidth="1px"
             >
-              エディター
+              Editor
             </Heading>
             <Box flex={1} minH={0}>
-              <Suspense
-                fallback={<Spinner aria-label="エディター読み込み中" />}
-              >
+              <Suspense fallback={<Spinner aria-label="Loading editor" />}>
                 <RubyEditor
                   code={code}
                   onChange={(next) => {
@@ -318,7 +312,7 @@ export default function App() {
               borderColor="panelBorder"
             >
               <Heading id="output-heading" as="h2" size="xs" color="accent">
-                出力
+                Output
               </Heading>
               <Flex gap={3} align="center" color="accent">
                 {status === "running" && (
@@ -329,25 +323,25 @@ export default function App() {
                       stop();
                       setResult({
                         ...EMPTY_RESULT,
-                        error: "実行を停止しました。",
+                        error: "Execution stopped.",
                       });
                       setStatus("done");
                     }}
                   >
-                    停止
+                    Stop
                   </Button>
                 )}
                 {status !== "done" && (
-                  <Spinner size="sm" aria-label="実行中" color="accent" />
+                  <Spinner size="sm" aria-label="Running" color="accent" />
                 )}
                 <VisuallyHidden role="status">
                   {status === "running"
-                    ? "実行中…（初回は Ruby を読み込みます）"
+                    ? "Running… (Ruby may take a moment to load the first time)"
                     : status === "done"
                       ? result.error
-                        ? "エラー"
-                        : "完了"
-                      : "実行待ち"}
+                        ? "Error"
+                        : "Complete"
+                      : "Waiting to run"}
                 </VisuallyHidden>
               </Flex>
             </Flex>
@@ -366,7 +360,7 @@ export default function App() {
             )}
             <Output text={result.output} />
             {status === "done" && !result.output && !result.error && (
-              <Text color="gray.500">出力なし</Text>
+              <Text color="gray.500">No output</Text>
             )}
           </Box>
         </Flex>
@@ -374,14 +368,123 @@ export default function App() {
           <Heading as="h2" id="about-heading" size="md" mb={3}>
             About Ruby Playground
           </Heading>
-          <Text mb={3}>
-            コードを編集すると、自動で結果が変わります。Version で Ruby
-            を選べます。
+          <Heading as="h3" size="sm" mb={2}>
+            Run Ruby online without installation
+          </Heading>
+          <Text mb={4}>
+            Ruby Playground lets you write and run Ruby directly in your browser
+            using WebAssembly. Try language features, experiment with small
+            programs, and share examples without installing Ruby or creating an
+            account.
           </Text>
-          <Text fontSize="sm" color="mutedText" mb={3}>
-            編集内容は URL
-            に自動保存されます。アドレスバーからコピーして共有できます。コードは
-            URL に含まれるため、秘密情報は入力しないでください。
+          <Heading as="h3" size="sm" mb={2}>
+            How to use the online Ruby editor
+          </Heading>
+          <Text mb={3}>
+            Enter code in the editor to run it automatically. Standard output
+            and errors appear in the Output panel as plain text. Choose a Ruby
+            version from Version to compare behavior while keeping your code.
+          </Text>
+          <Text mb={4}>
+            Your code and selected version are saved in the address bar as you
+            edit. Copy the URL to share an example or bookmark it for later.
+            Anyone with the URL can read and run the code, so do not include
+            secrets or personal information.
+          </Text>
+          <Text mb={4}>
+            Start with our{" "}
+            <Link href="/tutorial/" color="accent">
+              Ruby Tutorial
+            </Link>{" "}
+            to learn step by step, from your first output to classes and advanced syntax. Each lesson includes an explanation, runnable code and a practice task.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Notes
+          </Heading>
+          <Text mb={3}>
+            The playground is designed for trying small Ruby programs. Behavior
+            and available features may differ from a local Ruby installation.
+          </Text>
+          <Text mb={4}>
+            Loading and execution may take longer depending on your connection
+            and device. Follow any messages shown in the playground if a program
+            cannot run or a link cannot be shared.
+          </Text>
+        </Box>
+        <Box as="section" aria-labelledby="faq-heading" mt={6}>
+          <Heading as="h2" id="faq-heading" size="md" mb={3}>
+            Ruby Playground FAQ
+          </Heading>
+          <Heading as="h3" size="sm" mb={2}>
+            Is Ruby Playground free?
+          </Heading>
+          <Text mb={4}>
+            Yes. You can write, run and share small Ruby programs without an
+            account or a local Ruby installation.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Why is there no output?
+          </Heading>
+          <Text mb={4}>
+            Code runs automatically after you edit it. Use puts to print text or
+            p to inspect a value. Expression return values are not displayed
+            automatically. The first run may take longer while Ruby loads.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Can I compare Ruby versions?
+          </Heading>
+          <Text mb={4}>
+            Choose a version above the editor to rerun the same code. The
+            selector shows bundled versions; development builds are marked dev.
+            Each run starts with a fresh environment.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            Can I use Rails, extra gems or standard input?
+          </Heading>
+          <Text mb={4}>
+            This playground is for single-file Ruby examples. Rails, installing
+            extra gems and interactive standard input are not supported. Use
+            values in your code instead of gets.
+          </Text>
+          <Heading as="h3" size="sm" mb={2}>
+            How do I save and share my code?
+          </Heading>
+          <Text>
+            Copy or bookmark the address after editing. The URL contains your
+            code and selected version, and runs automatically when opened.
+            Anyone with the link can read the source.
+          </Text>
+        </Box>
+        <Box as="section" aria-labelledby="safety-heading" mt={6}>
+          <Heading as="h2" id="safety-heading" size="sm" mb={3}>
+            Security
+          </Heading>
+          <Text mb={3}>
+            Code executes in your browser. Running unfamiliar code can still
+            affect your browser or device, so only use code and shared links
+            from sources you trust.
+          </Text>
+          <Text>
+            Shared links run automatically when opened, and anyone with the URL
+            can read the code. Keep passwords, personal information, and other
+            confidential data out of your examples.
+          </Text>
+        </Box>
+        <Box as="section" aria-labelledby="request-heading" mt={6}>
+          <Heading as="h2" id="request-heading" size="sm" mb={2}>
+            Request and report
+          </Heading>
+          <Text>
+            Found a bug or have an idea? Open an{" "}
+            <Link
+              href="https://github.com/glassmonkey/ruby-playground/issues"
+              isExternal
+              color="accent"
+            >
+              issue on GitHub
+            </Link>{" "}
+            with the steps to reproduce it. Check that your example contains no
+            private information before sharing it.
           </Text>
         </Box>
         <Flex
@@ -396,11 +499,30 @@ export default function App() {
           fontSize="sm"
           color="mutedText"
         >
-          <Flex as="nav" aria-label="安全と情報" gap={4} wrap="wrap">
-            <Link href="./safety.html">安全な利用</Link>
-            <Link href="./privacy.html">プライバシー</Link>
-            <Link href="./licenses/">ライセンス</Link>
+          <Flex as="nav" aria-label="Legal and contact" gap={4} wrap="wrap">
+            <Link href="./privacy.html">Privacy Policy</Link>
+            <Link href="https://twitter.com/glassmonekey" isExternal>
+              Contact
+            </Link>
+            <Link
+              href="https://github.com/glassmonkey/ruby-playground/blob/main/LICENSE"
+              isExternal
+            >
+              License
+            </Link>
+            <Link
+              href="https://github.com/glassmonkey/ruby-playground/blob/main/assets/licenses/THIRD-PARTY-NOTICES.txt"
+              isExternal
+            >
+              Third-party notices
+            </Link>
           </Flex>
+          <Text as="small">
+            © 2026{" "}
+            <Link href="https://twitter.com/glassmonekey" isExternal>
+              @glassmonekey
+            </Link>
+          </Text>
         </Flex>
       </Box>
     </Box>
