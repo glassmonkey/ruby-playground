@@ -16,6 +16,8 @@ jobs:
       - run: npm install --global npm@11.17.0
       - run: node --version && npm --version
       - run: npm ci
+      - run: npm ci --prefix proxy
+      - run: npm --prefix proxy run test:fixtures
       - run: npm run check
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

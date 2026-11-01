@@ -62,20 +62,42 @@ origins are in `proxy/wrangler.jsonc`.
 
 ```sh
 npm ci --prefix proxy   # install wrangler for the proxy, once
-npm run proxy:dev       # run the Worker locally with wrangler
-npm run proxy:e2e       # send real requests through a local proxy
+npm run proxy:dev       # run the production-configured Worker locally
+npm run proxy:e2e       # exercise the Worker against local recorded responses
 ```
 
-`proxy:e2e` starts a local proxy if none is running. To check a deployed proxy
-instead, set `GEM_PROXY_URL` to its URL and `GEM_PROXY_ORIGIN` to an origin it
-allows. `npm run check` also runs the proxy's unit tests.
+`npm run test:e2e` starts the app preview, local cassette HTTP server and a
+test-configured Wrangler Worker. `npm run proxy:e2e` starts the cassette server
+and Worker for the proxy API tests. Both replay checked-in RubyGems responses;
+they do not contact rubygems.org. The fixture Worker rewrites only the fixed
+RubyGems origin to that local server and has no deploy routes. `npm run check`
+runs the proxy unit tests. CI also validates cassette hashes.
 
-Pushing a change under `proxy/` to `main` deploys the Worker and then runs
-`proxy:e2e` against production; see `.github/workflows/proxy.yml`. The workflow
-needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository
-secrets. To deploy by hand, run `npx wrangler login`, then `npm run deploy` in
-`proxy/`. The Worker is served only on the custom domain set in
-`proxy/wrangler.jsonc`.
+Cassette contents, source URLs, licenses, recorded response metadata and
+normalizations are documented in
+[`proxy/test-fixtures/README.md`](../proxy/test-fixtures/README.md). Normal
+tests never record or update fixtures. Recording is a separate, explicit
+operation restricted by the recorder to its documented public URL allowlist:
+
+```sh
+RUBYGEMS_CASSETTE_RECORD=1 npm --prefix proxy run record:fixtures
+```
+
+Review the resulting bodies, hashes, metadata and license attribution before
+proposing cassette changes. Do not put credentials or authenticated responses
+in fixtures.
+
+To check a deployed proxy instead, set `GEM_PROXY_URL` to its URL and
+`GEM_PROXY_ORIGIN` to an origin it allows. Pull requests and feature branch
+pushes run local cassette-backed tests and do not deploy. The proxy workflow
+can deploy from `main` after its tests pass, including when manually dispatched
+on `main`. Its `gem-proxy` GitHub environment supplies the
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` values used by that job. A
+deployment requires explicit authorization for the target, credentials, scope
+and expiry. Do not use the fixture Wrangler config for a deployment.
+
+`proxy:dev` uses the production Worker configuration for local development.
+The custom domain in `proxy/wrangler.jsonc` is used by the deployment workflow.
 
 ## Ruby runtimes
 

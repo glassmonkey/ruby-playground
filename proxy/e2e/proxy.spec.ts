@@ -1,8 +1,8 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 
-// Real requests through the proxy to rubygems.org. A small, long-published gem
-// keeps the downloads light and the expected bytes stable.
+// Recorded RubyGems responses replay through the local Wrangler Worker by
+// default. GEM_PROXY_URL opts into a separately selected external target.
 const allowedOrigin = process.env.GEM_PROXY_ORIGIN ?? "http://127.0.0.1:18888";
 const GEM = "rainbow";
 const VERSION = "3.1.1";
@@ -57,6 +57,54 @@ test("serves the .gem whose SHA-256 matches the compact index", async ({
   });
 });
 
+test("replays the real pastel dependency index and both gem archives", async ({
+  request,
+}) => {
+  const pastelInfo = await request.get("/info/pastel");
+  const pastelIndex = await pastelInfo.text();
+  const ttyColorInfo = await request.get("/info/tty-color");
+  const ttyColorIndex = await ttyColorInfo.text();
+  const pastelGem = await request.get("/gems/pastel-0.8.0.gem");
+  const ttyColorGem = await request.get("/gems/tty-color-0.6.0.gem");
+  const got = {
+    pastel: {
+      infoStatus: pastelInfo.status(),
+      dependencyRow: /^0\.8\.0 .*$/m.exec(pastelIndex)?.[0],
+      gemStatus: pastelGem.status(),
+      gemSha256: createHash("sha256")
+        .update(await pastelGem.body())
+        .digest("hex"),
+    },
+    ttyColor: {
+      infoStatus: ttyColorInfo.status(),
+      versionRow: /^0\.6\.0 .*$/m.exec(ttyColorIndex)?.[0],
+      gemStatus: ttyColorGem.status(),
+      gemSha256: createHash("sha256")
+        .update(await ttyColorGem.body())
+        .digest("hex"),
+    },
+  };
+
+  expect(got).toEqual({
+    pastel: {
+      infoStatus: 200,
+      dependencyRow:
+        "0.8.0 tty-color:~> 0.5|checksum:481da9fb7d2f6e6b1a08faf11fa10363172dc40fd47848f096ae21209f805a75,ruby:>= 2.0.0,created_at:2020-07-04T14:13:49Z",
+      gemStatus: 200,
+      gemSha256:
+        "481da9fb7d2f6e6b1a08faf11fa10363172dc40fd47848f096ae21209f805a75",
+    },
+    ttyColor: {
+      infoStatus: 200,
+      versionRow:
+        "0.6.0 |checksum:6f9c37ca3a4e2367fb2e6d09722762647d6f455c111f05b59f35730eeb24332a,ruby:>= 2.0.0,created_at:2020-11-07T17:34:44Z",
+      gemStatus: 200,
+      gemSha256:
+        "6f9c37ca3a4e2367fb2e6d09722762647d6f455c111f05b59f35730eeb24332a",
+    },
+  });
+});
+
 test("leaves CORS off for an origin outside the list", async ({ request }) => {
   const response = await request.get(`/info/${GEM}`, {
     headers: { Origin: "https://example.com" },
@@ -75,10 +123,12 @@ test("passes a missing .gem through as an uncached failure", async ({
     headers: { Origin: allowedOrigin },
   });
   expect({
+    status: response.status(),
     ok: response.ok(),
     allowOrigin: response.headers()["access-control-allow-origin"],
     cacheControl: response.headers()["cache-control"],
   }).toEqual({
+    status: 403,
     ok: false,
     allowOrigin: allowedOrigin,
     cacheControl: "no-store",
