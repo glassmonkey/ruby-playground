@@ -9,9 +9,10 @@ import {
 } from "@testing-library/react";
 import { ChakraProvider } from "@chakra-ui/react";
 import { parseShareUrl, buildShareUrl } from "../share";
-import type { startRubyRun } from "../workers/client";
+import type { startGemInstall, startRubyRun } from "../workers/client";
 import App from "../app";
 import { INITIAL_CODE } from "../sample";
+import { formatLockfile } from "../lockfile";
 vi.mock("../editor", () => ({
   default: ({
     code,
@@ -33,10 +34,20 @@ const start = vi.hoisted(() =>
     cancel: vi.fn(),
   })),
 );
-vi.mock("../workers/client", () => ({ startRubyRun: start }));
+const install = vi.hoisted(() =>
+  vi.fn<typeof startGemInstall>(() => ({
+    promise: Promise.resolve({ lock: [] }),
+    cancel: vi.fn(),
+  })),
+);
+vi.mock("../workers/client", () => ({
+  startRubyRun: start,
+  startGemInstall: install,
+}));
 afterEach(() => {
   cleanup();
   start.mockClear();
+  install.mockClear();
   window.history.replaceState(null, "", "/");
 });
 const setup = () =>
@@ -59,6 +70,7 @@ describe("playground UI", () => {
         undefined,
         "4.0",
         expect.any(Function),
+        { gemfile: "" },
       ),
     );
     fireEvent.change(editor, { target: { value: "" } });
@@ -70,6 +82,7 @@ describe("playground UI", () => {
         undefined,
         "4.0",
         expect.any(Function),
+        { gemfile: "" },
       ),
     );
   });
@@ -117,7 +130,7 @@ describe("playground UI", () => {
         hash: url.hash,
         historyLength: window.history.length,
       }).toEqual({
-        state: { code, version: "3.4" },
+        state: { code, version: "3.4", gemfile: "" },
         campaign: "ruby",
         hash: "#about",
         historyLength,
@@ -214,6 +227,7 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
     undefined,
     "3.4",
     expect.any(Function),
+    { gemfile: "" },
   );
   await act(async () =>
     completions[1]({ stdout: "new", stderr: "", output: "new" }),
@@ -260,4 +274,224 @@ it("updates environment independently and rejects a cancelled run's late metadat
     screen.getByRole("region", { name: "Ruby runtime environment" })
       .textContent,
   ).toContain("Ruby 3.3.3");
+});
+
+it("installs from the Gemfile tab, shares the lockfile and treats Gemfile edits as stale", async () => {
+  // Arrange
+  const lock = [
+    { name: "faker", version: "3.8.0", source: "rubygems" as const },
+  ];
+  install.mockImplementation(() => ({
+    promise: Promise.resolve({ lock }),
+    cancel: vi.fn(),
+  }));
+  setup();
+  fireEvent.click(await screen.findByRole("tab", { name: "Gemfile" }));
+  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  fireEvent.change(editor, { target: { value: 'gem "faker"\n' } });
+  // Act
+  fireEvent.click(screen.getByRole("button", { name: "bundle install" }));
+  await screen.findByText("Gemfile.lock matches the Gemfile", {
+    exact: false,
+  });
+  await waitFor(() =>
+    expect(start).toHaveBeenLastCalledWith(
+      INITIAL_CODE,
+      undefined,
+      undefined,
+      "4.0",
+      expect.any(Function),
+      { gemfile: 'gem "faker"\n', lock },
+    ),
+  );
+  const installedUrl = parseShareUrl(window.location.href, INITIAL_CODE);
+  fireEvent.change(editor, { target: { value: 'gem "faker", "~> 3.7"\n' } });
+  const staleNotice = screen.queryByText("Gemfile.lock is out of date", {
+    exact: false,
+  });
+  const staleLockfile = screen.getByRole("heading", {
+    name: "Gemfile.lock (out of date)",
+  }).nextElementSibling?.textContent;
+  const staleUrlHasLock = new URL(window.location.href).searchParams.has("l");
+  fireEvent.change(editor, { target: { value: 'gem "faker"\n' } });
+  // Assert
+  expect({
+    installedLock: installedUrl.lock,
+    staleShown: staleNotice !== null,
+    staleLockfile,
+    staleUrlHasLock,
+    revertedLock: parseShareUrl(window.location.href, INITIAL_CODE).lock,
+  }).toEqual({
+    installedLock: lock,
+    staleShown: true,
+    staleLockfile: formatLockfile(lock),
+    staleUrlHasLock: false,
+    revertedLock: lock,
+  });
+});
+
+it("installs silently when opened without a lockfile and after switching Ruby", async () => {
+  // Arrange
+  const gemfile = 'gem "faker"\n';
+  const lock = [
+    { name: "faker", version: "3.8.0", source: "rubygems" as const },
+  ];
+  const pending: Array<(value: { lock: typeof lock }) => void> = [];
+  install.mockImplementation(() => ({
+    promise: new Promise((resolve) => pending.push(resolve)),
+    cancel: vi.fn(),
+  }));
+  window.history.replaceState(
+    null,
+    "",
+    buildShareUrl(window.location.href, { code: "puts 1", gemfile }),
+  );
+  // Act
+  setup();
+  await waitFor(() => expect(install).toHaveBeenCalledTimes(1));
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const runsBeforeInstall = start.mock.calls.length;
+  await act(async () => pending[0]({ lock }));
+  await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+  fireEvent.change(screen.getByLabelText("Ruby version"), {
+    target: { value: "3.4" },
+  });
+  await waitFor(() => expect(install).toHaveBeenCalledTimes(2));
+  // Assert
+  expect({
+    installs: install.mock.calls.map(([g, v]) => [g, v]),
+    runsBeforeInstall,
+    firstRun: start.mock.calls[0][5],
+    urlLock: parseShareUrl(window.location.href, INITIAL_CODE).lock,
+  }).toEqual({
+    installs: [
+      [gemfile, "4.0"],
+      [gemfile, "3.4"],
+    ],
+    runsBeforeInstall: 0,
+    firstRun: { gemfile, lock },
+    urlLock: undefined,
+  });
+});
+
+it("guides a missing require to the Gemfile without guessing the gem name", async () => {
+  // Arrange
+  start.mockImplementation(() => ({
+    promise: Promise.resolve({
+      stdout: "",
+      stderr: "",
+      output: "",
+      error:
+        "eval:1:in 'Kernel#require': cannot load such file -- faker (LoadError)",
+    }),
+    cancel: vi.fn(),
+  }));
+  window.history.replaceState(
+    null,
+    "",
+    buildShareUrl(window.location.href, { code: 'require "faker"' }),
+  );
+  setup();
+  // Act
+  const open = await screen.findByRole("button", { name: "Open Gemfile" });
+  const search = screen.getByRole("link", {
+    name: 'Search rubygems.org for "faker"',
+  });
+  fireEvent.click(open);
+  // Assert
+  expect({
+    search: search.getAttribute("href"),
+    gemfileTab: screen
+      .getByRole("tab", { name: "Gemfile" })
+      .getAttribute("aria-selected"),
+  }).toEqual({
+    search: "https://rubygems.org/search?query=faker",
+    gemfileTab: "true",
+  });
+});
+
+it("searches rubygems.org with slashes turned into spaces", async () => {
+  // Arrange
+  start.mockImplementation(() => ({
+    promise: Promise.resolve({
+      stdout: "",
+      stderr: "",
+      output: "",
+      error:
+        "eval:1:in 'Kernel#require': cannot load such file -- rack/test (LoadError)",
+    }),
+    cancel: vi.fn(),
+  }));
+  window.history.replaceState(
+    null,
+    "",
+    buildShareUrl(window.location.href, { code: 'require "rack/test"' }),
+  );
+  // Act
+  setup();
+  const search = await screen.findByRole("link", {
+    name: 'Search rubygems.org for "rack test"',
+  });
+  // Assert
+  expect(search.getAttribute("href")).toBe(
+    "https://rubygems.org/search?query=rack%20test",
+  );
+});
+
+it("keeps a LoadError in the output while the Gemfile is edited", async () => {
+  // Arrange
+  start.mockImplementation(() => ({
+    promise: Promise.resolve({
+      stdout: "",
+      stderr: "",
+      output: "",
+      error:
+        "eval:1:in 'Kernel#require': cannot load such file -- faker (LoadError)",
+    }),
+    cancel: vi.fn(),
+  }));
+  window.history.replaceState(
+    null,
+    "",
+    buildShareUrl(window.location.href, { code: 'require "faker"' }),
+  );
+  setup();
+  fireEvent.click(await screen.findByRole("button", { name: "Open Gemfile" }));
+  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  // Act
+  fireEvent.change(editor, { target: { value: 'gem "faker"\n' } });
+  fireEvent.change(editor, { target: { value: 'gem "faker"\ngem "rake"\n' } });
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  // Assert
+  expect({
+    runs: start.mock.calls.length,
+    guidance:
+      screen.queryByText('Could not load "faker"', { exact: false }) !== null,
+  }).toEqual({ runs: 1, guidance: true });
+});
+
+it("points a missing native extension to an issue instead of the Gemfile", async () => {
+  // Arrange
+  start.mockImplementation(() => ({
+    promise: Promise.resolve({
+      stdout: "",
+      stderr: "",
+      output: "",
+      error:
+        "/gems/installed/bigdecimal-4.1.3/lib/bigdecimal.rb:10:in 'Kernel#require': cannot load such file -- bigdecimal.so (LoadError)",
+    }),
+    cancel: vi.fn(),
+  }));
+  // Act
+  setup();
+  const issue = await screen.findByRole("link", { name: "Open an issue" });
+  // Assert
+  expect({
+    issue: issue.getAttribute("href"),
+    gemfileGuidance: screen.queryByRole("button", { name: "Open Gemfile" }),
+  }).toEqual({
+    issue:
+      "https://github.com/glassmonkey/ruby-playground/issues/new?title=Support%20the%20bigdecimal%20gem%20(native%20extension)",
+    gemfileGuidance: null,
+  });
 });

@@ -5,7 +5,15 @@ import {
   OpenFile,
   PreopenDirectory,
   WASI,
+  type Inode,
 } from "@bjorn3/browser_wasi_shim";
+import {
+  installGems,
+  resolveGems,
+  type GemRequest,
+  type GemSource,
+  type ResolvedGem,
+} from "./gems";
 
 export const MAX_OUTPUT_BYTES = 100_000;
 export type RuntimeInfo = {
@@ -23,11 +31,23 @@ export type RunResult = {
   error?: string;
 };
 
+/** Experiment: Gemfile entries to resolve and install before user code runs. */
+export type GemSetup = GemSource & {
+  requests: GemRequest[];
+  /** Versions pinned by a shared URL; resolution is skipped when present. */
+  locked?: ResolvedGem[];
+  /** Called only for a fresh resolution, not for locked versions. */
+  onResolved?: (gems: ResolvedGem[]) => void;
+  /** Awaited after every gem is extracted, before user code runs. */
+  onInstalled?: () => void | Promise<void>;
+};
+
 /** A new VM and filesystem per call; capture writes, never eval's return value. */
 export async function executeRuby(
   module: WebAssembly.Module,
   code: string,
   onRuntimeInfo?: (info: RuntimeInfo) => void,
+  gems?: GemSetup,
 ): Promise<RunResult> {
   const result: RunResult = { stdout: "", stderr: "", output: "" };
   const decoders = { stdout: new TextDecoder(), stderr: new TextDecoder() };
@@ -41,6 +61,9 @@ export async function executeRuby(
     result.output += text;
   };
   try {
+    // Kept by reference: the shim reads this Map on every lookup, so entries
+    // added while resolving are visible to Ruby without re-creating the VM.
+    const gemFiles = new Map<string, Inode>();
     const wasi = new WASI(
       [],
       [],
@@ -49,7 +72,11 @@ export async function executeRuby(
         new ConsoleStdout(capture("stdout")),
         new ConsoleStdout(capture("stderr")),
         new PreopenDirectory("/", new Map()),
+        new PreopenDirectory("/gems", gemFiles),
       ],
+      // The shim logs every failed path lookup unless debug is explicitly false;
+      // a gem require probes thousands of paths and the console logging dominates.
+      { debug: false },
     );
     let initializing = true;
     const { vm } = await RubyVM.instantiateModule({
@@ -86,6 +113,13 @@ export async function executeRuby(
         revision: vm.eval("RUBY_REVISION.to_s").toString(),
         encoding: vm.eval("Encoding.default_external.name").toString(),
       });
+    }
+    if (gems && gems.requests.length > 0) {
+      const resolved =
+        gems.locked ?? (await resolveGems(vm, gemFiles, gems.requests, gems));
+      if (!gems.locked) gems.onResolved?.(resolved);
+      await installGems(vm, gemFiles, resolved, gems);
+      await gems.onInstalled?.();
     }
     vm.eval(code);
   } catch (error) {

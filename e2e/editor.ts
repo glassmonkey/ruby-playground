@@ -11,8 +11,12 @@ export const INITIAL_OUTPUT = [
 ].join("\n");
 
 /** Edit through Monaco's accessible input, just as a keyboard user would. */
-export async function editRuby(page: Page, code: string) {
-  const editor = page.getByRole("textbox", { name: "Ruby source" });
+export async function editRuby(
+  page: Page,
+  code: string,
+  editorName = "Ruby source",
+) {
+  const editor = page.getByRole("textbox", { name: editorName });
   await page.locator(".monaco-editor .view-lines").click({ timeout: 10_000 });
   await expect(editor).toBeFocused();
   const selectAll = await page.evaluate(() =>
