@@ -53,9 +53,11 @@ site to GitHub Pages; see [GitHub Pages deployment](pages-release.md).
 
 rubygems.org serves gem metadata and `.gem` files without CORS headers, so
 browser code cannot read them directly. The Worker in `proxy/` forwards only
-those read-only paths and adds CORS headers for the allowed origins. The paths,
-origins and cache lifetimes are in `proxy/src/index.ts` and
-`proxy/wrangler.jsonc`.
+those read-only paths and adds CORS headers for the allowed origins. It is
+written with Hono, and its routes in `proxy/src/index.ts` are the contract with
+the app: the app calls them through Hono's RPC client, typed by the exported
+`AppType`, so a changed path or parameter fails the type check. The allowed
+origins are in `proxy/wrangler.jsonc`.
 
 ```sh
 npm ci --prefix proxy   # install wrangler for the proxy, once

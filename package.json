@@ -36,6 +36,7 @@
     "@ruby/head-wasm-wasi": "2.10.1-2026-10-28-a",
     "@ruby/wasm-wasi": "2.10.1",
     "framer-motion": "14.5.0",
+    "hono": "4.13.13",
     "lz-string": "1.5.0",
     "monaco-editor": "0.57.0",
     "react": "18.3.1",

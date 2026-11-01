@@ -89,6 +89,8 @@ describe("gem proxy", () => {
   it.each([
     ["/api/v1/gems/faker.json", "GET", 404],
     ["/gems/faker-3.8.0.gem/extra", "GET", 404],
+    ["/gems/faker", "GET", 404],
+    ["/info/a%2Fb", "GET", 404],
     ["/info/faker?x=1", "GET", 404],
     ["/", "GET", 404],
     ["/info/faker", "POST", 405],
