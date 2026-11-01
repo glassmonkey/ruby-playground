@@ -55,10 +55,10 @@ rubygems.org serves gem metadata and `.gem` files without CORS headers, so
 browser code cannot read them directly. The Worker in `proxy/` forwards only
 those read-only paths and adds CORS headers for the allowed origins. It is
 written with Hono, and its routes in `proxy/src/index.ts` are the contract with
-the app: the app calls them through Hono's RPC client, typed by the exported
-`AppType`, so a changed path or parameter fails the type check. Gem names
-follow RubyGems' naming rule in `proxy/src/gem-name.ts`, which the app shares.
-The allowed origins are in `proxy/wrangler.jsonc`.
+the app: their types are exported as `AppType`, so code that calls them through
+Hono's RPC client fails the type check when a path or parameter changes. Gem
+names follow RubyGems' naming rule in `proxy/src/gem-name.ts`. The allowed
+origins are in `proxy/wrangler.jsonc`.
 
 ```sh
 npm ci --prefix proxy   # install wrangler for the proxy, once

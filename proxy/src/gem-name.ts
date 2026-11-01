@@ -2,7 +2,7 @@
  * RubyGems' own rule for gem names (Gem::SpecificationPolicy#validate_name):
  * only letters, digits, ".", "-" and "_", at least one letter, and no leading
  * ".", "-" or "_". Uppercase is allowed because older gems such as RedCloth
- * use it. Shared with the app so both sides accept the same names.
+ * use it. Kept in its own module so the app can import the same rule.
  */
 export const GEM_NAME = /^(?![._-])[0-9._-]*[A-Za-z][A-Za-z0-9._-]*$/;
 

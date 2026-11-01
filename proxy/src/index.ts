@@ -1,8 +1,8 @@
 /**
  * Cloudflare Worker that proxies the two read-only rubygems.org paths the
- * playground uses and adds the CORS headers rubygems.org does not send there.
- * The routes are the contract with the app, which calls them through Hono's
- * RPC client typed by AppType.
+ * playground needs for gems and adds the CORS headers rubygems.org does not
+ * send there. The routes are the contract with the app: their types are
+ * exported as AppType for Hono's RPC client.
  */
 import { Hono } from "hono";
 import { GEM_FILE, GEM_NAME } from "./gem-name";
@@ -86,7 +86,7 @@ const app = new Hono<{ Bindings: Env }>()
   });
 app.notFound((c) => c.text("Not found", 404));
 
-/** The contract the app's RPC client is typed against. */
+/** The route types, for Hono's RPC client (`hc<AppType>`). */
 export type AppType = typeof app;
 
 export default app;

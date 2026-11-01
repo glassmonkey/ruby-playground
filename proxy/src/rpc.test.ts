@@ -28,7 +28,7 @@ describe("gem proxy RPC contract", () => {
   });
 
   it("uses the same hono version in the proxy and the app", () => {
-    // The app's RPC client and the Worker must agree on the route types.
+    // An RPC client in the app and the Worker must agree on the route types.
     const version = (path: string) =>
       JSON.parse(readFileSync(new URL(path, import.meta.url), "utf8"))
         .dependencies.hono;
