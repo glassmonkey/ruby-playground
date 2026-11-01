@@ -25,7 +25,13 @@ whose lessons run code in the page.
   shows the running VM's version, platform, encoding, release date and revision.
 - Sharing by URL. The code and selected version are saved in the address bar as
   you edit. Copy the URL to share an example or bookmark it. Opening a shared
-  link restores the code and runs it.
+  link restores the code and runs it. A shared link can also include a Gemfile
+  and locked gem versions; opening it may download and run those third-party
+  gems in your browser.
+- Additional gems. Add supported `gem "name"` entries to the Gemfile and run
+  `bundle install`. Dependency metadata and gem packages are fetched through
+  the project's gem proxy. Installed `.gem` files are cached in browser Cache
+  Storage.
 - Ruby tutorial. Lessons are grouped into chapters, from the basics to classes
   and more advanced syntax. Each lesson has an explanation, an example and
   experiments to run and edit. Each Ruby version has its own course at
@@ -35,8 +41,12 @@ whose lessons run code in the page.
 
 ## Limitations
 
-- Programs are single files. Standard input (`gets`), Rails, additional gems and
-  saved snippets are not supported.
+- Gemfiles support `gem "name"` with version requirements and the default
+  rubygems.org source. Other Gemfile directives and sources are not supported.
+  Gems that require threads, sockets or native C extensions cannot run in the
+  current ruby.wasm WASI runtimes.
+- Rails and saved snippets are not supported.
+- User programs are single files, and standard input (`gets`) is not supported.
 - Each run starts in a new Ruby VM, so variables, constants and files from
   earlier runs are not kept.
 - Run time, output size, code length and share URL length are limited. The
@@ -58,9 +68,16 @@ whose lessons run code in the page.
   source code. Do not open links from sources you do not trust, and keep
   passwords and personal information out of your code. Because the code is part
   of the URL, it can remain in browser history and in hosting request logs.
+- A shared link can contain a Gemfile and lock data. The browser fetches the
+  named gems through the gem proxy and executes their Ruby code along with your
+  program. Use only links and gems you trust. The proxy receives your IP
+  address and the requested gem names and files. Downloaded `.gem` files are
+  stored in your browser's Cache Storage until the browser removes them or you
+  clear site data.
 - The site is a static site on GitHub Pages. There are no accounts and no
-  application backend, and the site uses no analytics or advertising. See the
-  [privacy policy](https://ruby-play.dev/privacy.html).
+  application backend for running code. The separate gem proxy fetches
+  packages from rubygems.org. The site uses no analytics or advertising. See
+  the [privacy policy](https://ruby-play.dev/privacy.html).
 
 ## Feedback and contributing
 

@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import {
   Box,
   Button,
+  Code,
   Flex,
   Heading,
   Icon,
@@ -11,23 +12,47 @@ import {
   Switch,
   useColorMode,
   Spinner,
+  Tab,
+  TabList,
+  Tabs,
   Text,
 } from "@chakra-ui/react";
 import type { RunResult, RuntimeInfo } from "./runtime";
-import { startRubyRun, type RunHandle } from "./workers/client";
+import {
+  startGemInstall,
+  startRubyRun,
+  type RunHandle,
+} from "./workers/client";
 import { RUBY_RELEASES, type RubyVersion } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
+import type { ResolvedGem } from "./gems";
 
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
 import Brand from "./brand";
 import About from "./about";
+import { formatLockfile, type InstallState } from "./lockfile";
+import {
+  extensionIssueUrl,
+  missingExtension,
+  missingRequire,
+  searchQuery,
+  searchUrl,
+} from "./missing-require";
 
 import { INITIAL_CODE } from "./sample";
 
 const RubyEditor = lazy(() => import("./editor"));
 export const LIVE_DELAY_MS = 350;
 const EMPTY_RESULT: RunResult = { stdout: "", stderr: "", output: "" };
+const IDLE_INSTALL: InstallState = { status: "idle", log: [] };
+
+/** A lockfile is valid only for the Gemfile text and Ruby version it was made from. */
+type GemLock = { gemfile: string; version: RubyVersion; gems: ResolvedGem[] };
+// Each file's output sits in the same right-hand frame: main.rb prints, the
+// Gemfile produces Gemfile.lock. Errors and guidance stay at the top of it.
+const EDITOR_TABS = ["main.rb", "Gemfile"] as const;
+type EditorTab = (typeof EDITOR_TABS)[number];
 
 export default function App() {
   const { colorMode, toggleColorMode } = useColorMode();
@@ -36,6 +61,33 @@ export default function App() {
   );
   const [code, setCode] = useState(initial.code);
   const [version, setVersion] = useState(initial.version);
+  const [gemfile, setGemfile] = useState(initial.gemfile);
+  const [tab, setTab] = useState<EditorTab>("main.rb");
+  const [lock, setLock] = useState<GemLock | undefined>(() =>
+    initial.lock
+      ? {
+          gemfile: initial.gemfile,
+          version: initial.version,
+          gems: initial.lock,
+        }
+      : undefined,
+  );
+  const [install, setInstall] = useState<InstallState>(IDLE_INSTALL);
+  const installRun = useRef<{ cancel: () => void }>();
+  const lockFor = (forGemfile: string, forVersion: RubyVersion) =>
+    lock && lock.gemfile === forGemfile && lock.version === forVersion
+      ? lock.gems
+      : undefined;
+  const activeLock = lockFor(gemfile, version);
+  const hasGems = /^\s*gem\s/m.test(gemfile);
+  // Only a Gemfile the user edited needs an explicit bundle install; a missing
+  // or outdated lockfile on load or after a Ruby switch is installed silently.
+  const [gemfileEdited, setGemfileEdited] = useState(false);
+  const waitingForGems = hasGems && !activeLock && !gemfileEdited;
+  const autoInstalled = useRef<string>();
+  // Install completes asynchronously; it must save the latest editor state.
+  const latest = useRef({ code, version, gemfile });
+  latest.current = { code, version, gemfile };
   const [revision, setRevision] = useState(0);
   const [warning, setWarning] = useState(initial.warning ?? "");
   const [environment, setEnvironment] = useState<{
@@ -44,6 +96,19 @@ export default function App() {
   }>();
   const [result, setResult] = useState<RunResult>(EMPTY_RESULT);
   const [status, setStatus] = useState<"idle" | "running" | "done">("idle");
+  // result always belongs to the current code: each edit clears it before rerunning.
+  const missingFeature = missingRequire(result.error, code);
+  const nativeExtension = missingExtension(result.error);
+  const lockStatus =
+    install.status === "installing"
+      ? "Running bundle install…"
+      : activeLock
+        ? "Gemfile.lock matches the Gemfile. main.rb downloads these versions when it runs."
+        : lock
+          ? "The Gemfile or Ruby version changed, so Gemfile.lock is out of date. Run bundle install to update it."
+          : hasGems
+            ? "No Gemfile.lock yet. Press bundle install."
+            : "No Gemfile.lock yet. Add gems to the Gemfile and press bundle install to create one.";
   const run = useRef<RunHandle>();
   const generation = useRef(0);
   const scheduled = useRef<ReturnType<typeof setTimeout>>();
@@ -58,6 +123,8 @@ export default function App() {
     run.current?.cancel();
     setResult(EMPTY_RESULT);
     setStatus("idle");
+    // The automatic install sets the lockfile, which re-runs this effect.
+    if (waitingForGems) return;
     scheduled.current = setTimeout(async () => {
       setStatus("running");
       const handle = startRubyRun(
@@ -68,6 +135,7 @@ export default function App() {
         (info) => {
           if (current === generation.current) setEnvironment({ version, info });
         },
+        { gemfile, lock: activeLock },
       );
       run.current = handle;
       const next = await handle.promise;
@@ -82,7 +150,49 @@ export default function App() {
       run.current?.cancel();
       run.current = undefined;
     };
-  }, [code, version, revision]);
+    // Gemfile edits are not a dependency, and neither is a lockfile going
+    // stale: the last result (such as a LoadError) stays in place until a new
+    // lockfile arrives, and the run then reads whatever lock is valid.
+  }, [code, version, lock, waitingForGems, revision]);
+  const stopInstall = () => {
+    installRun.current?.cancel();
+    installRun.current = undefined;
+    setInstall(IDLE_INSTALL);
+  };
+  const runInstall = async () => {
+    installRun.current?.cancel();
+    const target = { gemfile, version };
+    const handle = startGemInstall(gemfile, version, (line) => {
+      if (installRun.current === handle)
+        setInstall((state) => ({ ...state, log: [...state.log, line] }));
+    });
+    installRun.current = handle;
+    setInstall({ status: "installing", log: [] });
+    const outcome = await handle.promise;
+    if (installRun.current !== handle) return;
+    installRun.current = undefined;
+    if (outcome.error !== undefined) {
+      setInstall((state) => ({
+        ...state,
+        status: "error",
+        error: outcome.error,
+      }));
+      return;
+    }
+    const gems = outcome.lock ?? [];
+    setLock({ ...target, gems });
+    setGemfileEdited(false);
+    setInstall((state) => ({ ...state, status: "done" }));
+    updateUrl({ ...latest.current, lock: gems });
+  };
+  useEffect(() => {
+    if (!waitingForGems) return;
+    // One attempt per Gemfile and Ruby version, so a failure is not retried in a loop.
+    const key = `${version}\n${gemfile}`;
+    if (autoInstalled.current === key) return;
+    autoInstalled.current = key;
+    void runInstall();
+  }, [waitingForGems, gemfile, version]);
   useEffect(() => {
     const navigate = () => {
       generation.current++;
@@ -92,6 +202,17 @@ export default function App() {
       const state = parseShareUrl(window.location.href, INITIAL_CODE);
       setCode(state.code);
       setVersion(state.version);
+      setGemfile(state.gemfile);
+      setLock(
+        state.lock
+          ? { gemfile: state.gemfile, version: state.version, gems: state.lock }
+          : undefined,
+      );
+      installRun.current?.cancel();
+      installRun.current = undefined;
+      setInstall(IDLE_INSTALL);
+      setGemfileEdited(false);
+      autoInstalled.current = undefined;
       setRevision((value) => value + 1);
       setWarning(state.warning ?? "");
       setResult(EMPTY_RESULT);
@@ -108,7 +229,7 @@ export default function App() {
     } catch (error) {
       // A stale URL must not silently share the previous editor contents.
       const url = new URL(window.location.href);
-      for (const key of ["c", "v", "f"]) url.searchParams.delete(key);
+      for (const key of ["c", "v", "g", "l", "f"]) url.searchParams.delete(key);
       window.history.replaceState(window.history.state, "", url);
       setWarning(error instanceof Error ? error.message : String(error));
     }
@@ -196,7 +317,13 @@ export default function App() {
                   stop();
                   const next = event.target.value as RubyVersion;
                   setVersion(next);
-                  updateUrl({ code, version: next });
+                  stopInstall();
+                  updateUrl({
+                    code,
+                    version: next,
+                    gemfile,
+                    lock: lockFor(gemfile, next),
+                  });
                 }}
               >
                 {RUBY_RELEASES.map((release) => (
@@ -262,29 +389,120 @@ export default function App() {
             minW={0}
             overflow="hidden"
           >
-            <Heading
-              id="editor-heading"
-              as="h2"
-              size="xs"
+            <Flex
+              align="center"
+              justify="space-between"
               px={3}
-              py={3}
               h={12}
-              color="accent"
+              minH={12}
               bg="panelBg"
               borderColor="panelBorder"
               borderBottomWidth="1px"
             >
-              Editor
-            </Heading>
-            <Box flex={1} minH={0}>
+              <Heading id="editor-heading" as="h2" size="xs" color="accent">
+                Editor
+              </Heading>
+              <Tabs
+                size="sm"
+                variant="soft-rounded"
+                colorScheme="ruby"
+                index={EDITOR_TABS.indexOf(tab)}
+                onChange={(index) => setTab(EDITOR_TABS[index])}
+              >
+                <TabList>
+                  {EDITOR_TABS.map((name) => (
+                    <Tab key={name}>{name}</Tab>
+                  ))}
+                </TabList>
+              </Tabs>
+            </Flex>
+            {tab === "Gemfile" && (
+              <Box
+                px={3}
+                py={2}
+                fontSize="xs"
+                color="mutedText"
+                borderBottomWidth="1px"
+                borderColor="panelBorder"
+              >
+                <Text>
+                  Write one gem per line, then press bundle install at the
+                  bottom right. Dependencies are resolved too, and a
+                  Gemfile.lock is created.
+                </Text>
+                <Text mt={1}>
+                  Example: <Code fontSize="xs">{'gem "faker"'}</Code>
+                  {"  With a version: "}
+                  <Code fontSize="xs">{'gem "faker", "~> 3.8"'}</Code>
+                </Text>
+              </Box>
+            )}
+            <Box flex={1} minH={0} position="relative">
+              {tab === "Gemfile" && (
+                <Button
+                  position="absolute"
+                  right={6}
+                  bottom={5}
+                  zIndex={2}
+                  size="lg"
+                  rounded="full"
+                  boxShadow="lg"
+                  colorScheme="ruby"
+                  variant={
+                    install.status === "installing" ? "outline" : "solid"
+                  }
+                  bg={install.status === "installing" ? "panelBg" : undefined}
+                  leftIcon={
+                    install.status === "installing" ? (
+                      <Spinner size="sm" />
+                    ) : (
+                      <Icon viewBox="0 0 16 16" aria-hidden="true">
+                        <path
+                          d="M8 1.5v8.5M4.5 6.5 8 10l3.5-3.5M2.5 14h11"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.6"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        />
+                      </Icon>
+                    )
+                  }
+                  onClick={
+                    install.status === "installing" ? stopInstall : runInstall
+                  }
+                >
+                  {install.status === "installing" ? "Stop" : "bundle install"}
+                </Button>
+              )}
               <Suspense fallback={<Spinner aria-label="Loading editor" />}>
                 <RubyEditor
-                  code={code}
+                  path={tab}
+                  code={tab === "main.rb" ? code : gemfile}
                   onChange={(next) => {
+                    if (tab === "Gemfile") {
+                      if (next === gemfile) return;
+                      stopInstall();
+                      setGemfile(next);
+                      setGemfileEdited(true);
+                      // Only a lockfile made from this exact Gemfile is shared.
+                      updateUrl({
+                        code,
+                        version,
+                        gemfile: next,
+                        lock: lockFor(next, version),
+                      });
+                      return;
+                    }
                     if (next === code) return;
                     stop();
                     setCode(next);
-                    updateUrl({ code: next, version });
+                    updateUrl({
+                      code: next,
+                      version,
+                      gemfile,
+                      lock: activeLock,
+                    });
                   }}
                 />
               </Suspense>
@@ -359,9 +577,137 @@ export default function App() {
                 {result.error}
               </Box>
             )}
-            <Output text={result.output} />
-            {status === "done" && !result.output && !result.error && (
-              <Text color="gray.500">No output</Text>
+            {missingFeature && (
+              <Box
+                mx={3}
+                mb={3}
+                p={3}
+                fontSize="sm"
+                borderWidth="1px"
+                borderColor="panelBorder"
+                rounded="md"
+              >
+                <Text mb={2}>
+                  {`Could not load "${missingFeature}". Add it to the Gemfile and run bundle install.`}
+                </Text>
+                <Flex gap={4} align="center" wrap="wrap">
+                  <Button
+                    size="sm"
+                    colorScheme="ruby"
+                    onClick={() => setTab("Gemfile")}
+                  >
+                    Open Gemfile
+                  </Button>
+                  <Link
+                    href={searchUrl(missingFeature)}
+                    isExternal
+                    color="accent"
+                  >
+                    {`Search rubygems.org for "${searchQuery(missingFeature)}"`}
+                  </Link>
+                </Flex>
+              </Box>
+            )}
+            {nativeExtension && (
+              <Box
+                mx={3}
+                mb={3}
+                p={3}
+                fontSize="sm"
+                borderWidth="1px"
+                borderColor="panelBorder"
+                rounded="md"
+              >
+                <Text mb={2}>
+                  {nativeExtension.gem
+                    ? `The ${nativeExtension.gem.name} gem (${nativeExtension.gem.version}) needs the native extension "${nativeExtension.extension}", which this playground cannot load yet.`
+                    : `The native extension "${nativeExtension.extension}" cannot be loaded in this playground yet.`}{" "}
+                  If you need it, please let us know in an issue.
+                </Text>
+                <Link
+                  href={extensionIssueUrl(nativeExtension)}
+                  isExternal
+                  color="accent"
+                >
+                  Open an issue
+                </Link>
+              </Box>
+            )}
+            {/* Below the run's error, so that error keeps its place during an install.
+                The Gemfile output below shows the full log instead. */}
+            {tab === "main.rb" && install.status === "installing" && (
+              <Box
+                mx={3}
+                mb={3}
+                p={3}
+                fontSize="sm"
+                borderWidth="1px"
+                borderColor="panelBorder"
+                rounded="md"
+                aria-live="polite"
+              >
+                <Flex align="center" gap={2}>
+                  <Spinner size="xs" color="accent" />
+                  <Text>Running bundle install…</Text>
+                </Flex>
+                <Box as="pre" mt={2} fontSize="xs" whiteSpace="pre-wrap">
+                  {install.log.join("\n")}
+                </Box>
+              </Box>
+            )}
+            {install.status === "error" && (
+              <Box
+                role="alert"
+                bg="red.50"
+                color="red.800"
+                p={3}
+                mx={3}
+                mb={3}
+                whiteSpace="pre-wrap"
+                overflowWrap="anywhere"
+              >
+                {`bundle install failed: ${install.error}`}
+              </Box>
+            )}
+            {tab === "main.rb" ? (
+              <>
+                {waitingForGems && install.status === "idle" && (
+                  <Text px={3} py={2} fontSize="sm">
+                    No Gemfile.lock yet. Run bundle install from the Gemfile
+                    tab.
+                  </Text>
+                )}
+                <Output text={result.output} />
+                {status === "done" && !result.output && !result.error && (
+                  <Text color="gray.500">No output</Text>
+                )}
+              </>
+            ) : (
+              <Box px={3} py={2}>
+                <Flex align="center" gap={2} fontSize="sm" aria-live="polite">
+                  {install.status === "installing" && (
+                    <Spinner size="xs" color="accent" />
+                  )}
+                  <Text>{lockStatus}</Text>
+                </Flex>
+                {install.log.length > 0 && (
+                  <Box as="pre" mt={3} fontSize="sm" whiteSpace="pre-wrap">
+                    {install.log.join("\n")}
+                  </Box>
+                )}
+                {lock && (
+                  <>
+                    <Heading as="h3" size="xs" mt={4} mb={2} color="accent">
+                      {activeLock
+                        ? "Gemfile.lock"
+                        : "Gemfile.lock (out of date)"}
+                    </Heading>
+                    <Box as="pre" fontSize="sm" whiteSpace="pre">
+                      {formatLockfile(lock.gems)}
+                    </Box>
+                  </>
+                )}
+              </Box>
             )}
           </Box>
         </Flex>
@@ -375,10 +721,16 @@ export default function App() {
             affect your browser or device, so only use code and shared links
             from sources you trust.
           </Text>
-          <Text>
+          <Text mb={3}>
             Shared links run automatically when opened, and anyone with the URL
             can read the code. Keep passwords, personal information, and other
             confidential data out of your examples.
+          </Text>
+          <Text>
+            A shared Gemfile can cause third-party gems to be downloaded and run
+            in your browser. The gem proxy receives your IP address and
+            requested gem names, and downloaded gem files are cached in your
+            browser.
           </Text>
         </Box>
         <Box as="section" aria-labelledby="request-heading" mt={6}>
