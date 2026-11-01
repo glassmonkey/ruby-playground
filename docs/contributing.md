@@ -91,9 +91,10 @@ To check a deployed proxy instead, set `GEM_PROXY_URL` to its URL and
 `GEM_PROXY_ORIGIN` to an origin it allows. Pull requests and feature branch
 pushes run local cassette-backed tests and do not deploy. The proxy workflow
 can deploy from `main` after its tests pass, including when manually dispatched
-on `main`; deployment requires the repository's Cloudflare secrets. Do not use
-the fixture Wrangler config for a deployment. For manual deployment, follow
-`proxy/README.md` and use an authorized Cloudflare environment.
+on `main`. Its `gem-proxy` GitHub environment supplies the
+`CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` values used by that job. A
+deployment requires explicit authorization for the target, credentials, scope
+and expiry. Do not use the fixture Wrangler config for a deployment.
 
 `proxy:dev` uses the production Worker configuration for local development.
 The custom domain in `proxy/wrangler.jsonc` is used by the deployment workflow.
