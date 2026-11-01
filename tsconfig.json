@@ -6,5 +6,5 @@
     "resolveJsonModule": true, "isolatedModules": true, "noEmit": true, "allowImportingTsExtensions": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "e2e", "*.config.ts"]
+  "include": ["src", "e2e", "proxy/src", "proxy/e2e", "proxy/playwright.config.ts", "*.config.ts"]
 }

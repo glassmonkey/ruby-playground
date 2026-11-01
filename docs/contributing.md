@@ -46,7 +46,36 @@ site to GitHub Pages; see [GitHub Pages deployment](pages-release.md).
 - `src/build/`: the Vite plugin that renders tutorial pages, social images and
   the sitemap.
 - `e2e/`: browser tests.
+- `proxy/`: the gem proxy, a Cloudflare Worker, and its end-to-end tests.
 - `assets/`: static files copied to the site root.
+
+## Gem proxy
+
+rubygems.org serves gem metadata and `.gem` files without CORS headers, so
+browser code cannot read them directly. The Worker in `proxy/` forwards only
+those read-only paths and adds CORS headers for the allowed origins. It is
+written with Hono, and its routes in `proxy/src/index.ts` are the contract with
+the app: their types are exported as `AppType`, so code that calls them through
+Hono's RPC client fails the type check when a path or parameter changes. Gem
+names follow RubyGems' naming rule in `proxy/src/gem-name.ts`. The allowed
+origins are in `proxy/wrangler.jsonc`.
+
+```sh
+npm ci --prefix proxy   # install wrangler for the proxy, once
+npm run proxy:dev       # run the Worker locally with wrangler
+npm run proxy:e2e       # send real requests through a local proxy
+```
+
+`proxy:e2e` starts a local proxy if none is running. To check a deployed proxy
+instead, set `GEM_PROXY_URL` to its URL and `GEM_PROXY_ORIGIN` to an origin it
+allows. `npm run check` also runs the proxy's unit tests.
+
+Pushing a change under `proxy/` to `main` deploys the Worker and then runs
+`proxy:e2e` against production; see `.github/workflows/proxy.yml`. The workflow
+needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository
+secrets. To deploy by hand, run `npx wrangler login`, then `npm run deploy` in
+`proxy/`. The Worker is served only on the custom domain set in
+`proxy/wrangler.jsonc`.
 
 ## Ruby runtimes
 
