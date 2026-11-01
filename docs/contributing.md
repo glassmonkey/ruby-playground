@@ -70,9 +70,12 @@ npm run proxy:e2e       # send real requests through a local proxy
 instead, set `GEM_PROXY_URL` to its URL and `GEM_PROXY_ORIGIN` to an origin it
 allows. `npm run check` also runs the proxy's unit tests.
 
-Deploying needs access to the Cloudflare account: run `npx wrangler login`,
-then `npm run deploy` in `proxy/`. The Worker is served only on the custom
-domain set in `proxy/wrangler.jsonc`.
+Pushing a change under `proxy/` to `main` deploys the Worker and then runs
+`proxy:e2e` against production; see `.github/workflows/proxy.yml`. The workflow
+needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` repository
+secrets. To deploy by hand, run `npx wrangler login`, then `npm run deploy` in
+`proxy/`. The Worker is served only on the custom domain set in
+`proxy/wrangler.jsonc`.
 
 ## Ruby runtimes
 
