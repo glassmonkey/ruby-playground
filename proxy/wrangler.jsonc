@@ -1,0 +1,12 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ruby-playground-gem-proxy",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  // Served only from the custom domain; the workers.dev address stays off.
+  "workers_dev": false,
+  "routes": [{ "pattern": "gems.ruby-play.dev", "custom_domain": true }],
+  "vars": { "ALLOWED_ORIGINS": "https://ruby-play.dev" },
+  // Abuse handling starts with watching usage: request logs and metrics.
+  "observability": { "enabled": true }
+}

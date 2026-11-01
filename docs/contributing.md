@@ -46,7 +46,30 @@ site to GitHub Pages; see [GitHub Pages deployment](pages-release.md).
 - `src/build/`: the Vite plugin that renders tutorial pages, social images and
   the sitemap.
 - `e2e/`: browser tests.
+- `proxy/`: the gem proxy, a Cloudflare Worker, and its end-to-end tests.
 - `assets/`: static files copied to the site root.
+
+## Gem proxy
+
+rubygems.org serves gem metadata and `.gem` files without CORS headers, so
+browser code cannot read them directly. The Worker in `proxy/` forwards only
+those read-only paths and adds CORS headers for the allowed origins. The paths,
+origins and cache lifetimes are in `proxy/src/index.ts` and
+`proxy/wrangler.jsonc`.
+
+```sh
+npm ci --prefix proxy   # install wrangler for the proxy, once
+npm run proxy:dev       # run the Worker locally with wrangler
+npm run proxy:e2e       # send real requests through a local proxy
+```
+
+`proxy:e2e` starts a local proxy if none is running. To check a deployed proxy
+instead, set `GEM_PROXY_URL` to its URL and `GEM_PROXY_ORIGIN` to an origin it
+allows. `npm run check` also runs the proxy's unit tests.
+
+Deploying needs access to the Cloudflare account: run `npx wrangler login`,
+then `npm run deploy` in `proxy/`. The Worker is served only on the custom
+domain set in `proxy/wrangler.jsonc`.
 
 ## Ruby runtimes
 

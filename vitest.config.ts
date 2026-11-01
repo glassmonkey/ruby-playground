@@ -4,7 +4,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "proxy/src/**/*.test.ts"],
     restoreMocks: true,
     fileParallelism: false,
     testTimeout: 5000,

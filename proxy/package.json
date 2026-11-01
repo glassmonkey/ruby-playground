@@ -1,0 +1,13 @@
+{
+  "name": "ruby-playground-gem-proxy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --ip 127.0.0.1 --port 8787 --var ALLOWED_ORIGINS:http://127.0.0.1:18888,http://127.0.0.1:8888",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "4.151.1"
+  }
+}
