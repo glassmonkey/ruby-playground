@@ -33,7 +33,7 @@
     "@ruby/3.3-wasm-wasi": "2.10.1",
     "@ruby/3.4-wasm-wasi": "2.10.1",
     "@ruby/4.0-wasm-wasi": "2.10.1",
-    "@ruby/head-wasm-wasi": "2.10.1-2026-10-28-a",
+    "@ruby/head-wasm-wasi": "2.10.1",
     "@ruby/wasm-wasi": "2.10.1",
     "framer-motion": "14.5.0",
     "hono": "4.13.13",
