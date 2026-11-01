@@ -5,6 +5,7 @@
  * RPC client typed by AppType.
  */
 import { Hono } from "hono";
+import { GEM_FILE, GEM_NAME } from "./gem-name";
 
 const UPSTREAM = "https://rubygems.org";
 // A published name-version.gem never changes; index entries change whenever
@@ -43,10 +44,8 @@ async function fromRubygems(
 }
 
 // Plain parameters keep the RPC client's keys as `:name` and `:file`; their
-// shape is checked in the handlers so anything else is a 404, as for unknown
-// paths.
-const GEM_NAME = /^[\w.-]+$/;
-const GEM_FILE = /^[\w.-]+\.gem$/;
+// shape follows RubyGems' naming rule in ./gem-name, and anything else is a
+// 404, as for unknown paths.
 
 // One chain, so the route types reach AppType.
 const app = new Hono<{ Bindings: Env }>()

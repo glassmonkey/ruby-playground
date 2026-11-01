@@ -91,6 +91,9 @@ describe("gem proxy", () => {
     ["/gems/faker-3.8.0.gem/extra", "GET", 404],
     ["/gems/faker", "GET", 404],
     ["/info/a%2Fb", "GET", 404],
+    ["/info/-rainbow", "GET", 404],
+    ["/info/123", "GET", 404],
+    ["/gems/.rainbow-3.1.1.gem", "GET", 404],
     ["/info/faker?x=1", "GET", 404],
     ["/", "GET", 404],
     ["/info/faker", "POST", 405],
@@ -108,6 +111,14 @@ describe("gem proxy", () => {
       });
     },
   );
+
+  it("proxies a gem name with uppercase letters, which RubyGems allows", async () => {
+    const upstream = stubUpstream();
+    await call("/info/RedCloth");
+    expect(upstream.mock.calls[0]?.[0]).toBe(
+      "https://rubygems.org/info/RedCloth",
+    );
+  });
 
   it("answers a preflight for an allowed origin", async () => {
     stubUpstream();
