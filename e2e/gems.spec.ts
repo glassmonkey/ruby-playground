@@ -245,6 +245,7 @@ test("stops a delayed install, then recovers and reruns with the gem", async ({
   await page.getByRole("button", { name: "bundle install" }).click();
   await expectInstallComplete(page);
   await page.getByRole("tab", { name: "main.rb" }).click();
+  await editRuby(page, rainbowCode);
   await expect(page.getByTestId("preview-console")).toHaveText(
     "rainbow ready\n",
     { timeout: 120_000 },
