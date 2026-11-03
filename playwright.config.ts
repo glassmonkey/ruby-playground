@@ -3,6 +3,7 @@ const port = process.env.PORT || "8888";
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: "test-results/preview",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
@@ -28,10 +29,7 @@ export default defineConfig({
       reuseExistingServer: false,
     },
     {
-      command:
-        process.env.E2E_DEV_SERVER === "1"
-          ? `VITE_GEM_PROXY_URL=http://127.0.0.1:8787 npx vite --host 127.0.0.1 --port ${port} --strictPort`
-          : `VITE_GEM_PROXY_URL=http://127.0.0.1:8787 npm run build && npx vite preview --host 127.0.0.1 --port ${port} --strictPort`,
+      command: `VITE_GEM_PROXY_URL=http://127.0.0.1:8787 npm run build && npx vite preview --host 127.0.0.1 --port ${port} --strictPort`,
       url: `http://127.0.0.1:${port}/`,
       timeout: 5 * 60 * 1000,
       reuseExistingServer: false,

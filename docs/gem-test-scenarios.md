@@ -12,6 +12,19 @@ that commit. The historical browser section records prior, uncommitted
 real-upstream test versions and does not establish results for the current
 VCR-backed specs.
 
+## Test entry points
+
+- `npm run test:e2e` uses the root Playwright preview config. It starts the
+  cassette HTTP server, test-only Wrangler Worker, and app preview; gem browser
+  requests travel over local HTTP and replay recorded RubyGems responses.
+- `npm run test:e2e:dev` uses `playwright.dev.config.ts` for the SEO browser
+  tests. It starts only Vite and does not need the cassette server or Worker.
+- `npm run proxy:e2e` uses the fixed local cassette-backed Worker for HTTP API
+  checks. It does not read a public proxy override.
+- `npm run proxy:e2e:public` requires explicit `GEM_PROXY_URL` and
+  `GEM_PROXY_ORIGIN` HTTP(S) origins. It starts no local server and checks the
+  selected endpoint; that public check was not run for this change.
+
 Statuses distinguish current local results from historical evidence. Current
 unique automated checks total 169: 149 focused app/proxy tests (139 unit and
 10 Ruby WASM component), three cassette-integrity tests, nine local Worker API

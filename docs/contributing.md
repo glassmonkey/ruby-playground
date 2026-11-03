@@ -26,24 +26,29 @@ if that port is already in use.
 ```sh
 npm run check        # lint, type check, unit tests and build
 npm run test:e2e     # browser tests against a production preview
+npm run test:e2e:dev # SEO browser tests against the Vite dev server
 ```
 
-Install the browser for `test:e2e` once with `npx playwright install chromium`.
-The browser tests start the local gem proxy, so install its dependencies with
-`npm ci --prefix proxy` first. Unit tests live in `__test__/` directories next to the code they test, and
-browser tests live in `e2e/`. CI runs both on pushes and pull requests. See
-`package.json` for the other scripts. The [gem test scenario inventory](gem-test-scenarios.md) separates mocked unit
-checks, Ruby WASM component checks, local HTTP integration, browser E2E, and
-public verification. `npm run test:e2e` starts the recorded-response server,
-test-only Wrangler Worker, and app preview; Playwright owns and stops those
-servers. Browser, Worker, and cassette-server requests use real local HTTP.
-Normal tests replay recorded RubyGems responses and do not fall back to the
-public service. Missing, corrupt, and delayed responses use local-only fault
-controls around recorded data. Playwright does not reuse existing servers; a
-busy port causes startup to fail without terminating another process.
+Install the browser for browser tests once with
+`npx playwright install chromium`. The browser tests start the local gem proxy,
+so install its dependencies with `npm ci --prefix proxy` first. Unit tests live
+in `__test__/` directories next to the code they test, and browser tests live
+in `e2e/`. CI runs these checks on pushes and pull requests. See `package.json`
+for the other scripts. The [gem test scenario inventory](gem-test-scenarios.md)
+separates mocked unit checks, Ruby WASM component checks, local HTTP
+integration, browser E2E, and public verification. `npm run test:e2e` starts
+the recorded-response server, test-only Wrangler Worker, and app preview;
+Playwright owns and stops those servers. Browser, Worker, and cassette-server
+requests use real local HTTP. Normal tests replay recorded RubyGems responses
+and do not fall back to the public service. Missing, corrupt, and delayed
+responses use local-only fault controls around recorded data. Playwright does
+not reuse existing servers; a busy port causes startup to fail without
+terminating another process. `npm run test:e2e:dev` starts only Vite and runs
+the SEO browser tests in `e2e/seo.spec.ts`.
 
-`npm run proxy:e2e` is the local Worker API check. Its normal mode uses recorded
-responses and has no external fallback. Public RubyGems access is limited to an explicit recording operation; recording
+`npm run proxy:e2e` is the local Worker API check. It always targets the
+recorded-response Worker and ignores `GEM_PROXY_URL`. Public RubyGems access is
+limited to an explicit recording operation; recording
 or refreshing cassettes requires separate authorization. The opt-in command is
 `RUBYGEMS_CASSETTE_RECORD=1 npm --prefix proxy run record:fixtures`; it writes
 response bodies and the manifest under `proxy/test-fixtures/cassettes/`. Do not
@@ -51,9 +56,8 @@ run it as part of normal tests, and do not use a public endpoint override as
 part of the normal test suite. See the [cassette notes](../proxy/test-fixtures/README.md)
 for captured-response metadata and local fault controls.
 
-To run the gem browser scenarios against Vite's development server, use
-`E2E_DEV_SERVER=1 npx playwright test e2e/gems.spec.ts`. By default,
-`npm run test:e2e` tests the built app through Vite preview. The current recorded package identities and checksums are summarized in the
+By default, `npm run test:e2e` tests the built app through Vite preview. The
+current recorded package identities and checksums are summarized in the
 [scenario inventory](gem-test-scenarios.md); normal test commands replay the
 checked-in responses. The explicit recording procedure is separate from
 routine tests.
@@ -90,14 +94,24 @@ origins are in `proxy/wrangler.jsonc`.
 npm ci --prefix proxy   # install wrangler for the proxy, once
 npm run proxy:dev       # run the Worker locally with wrangler
 npm run proxy:e2e       # check local Worker over HTTP with recorded responses
+npm run proxy:e2e:public # check an explicitly configured public proxy
 npm --prefix proxy run deploy -- --dry-run
+```
+
+For an explicitly selected public target, pass both origins. The public mode
+does not start a local server and is separate from the local replay tests:
+
+```sh
+GEM_PROXY_URL=https://proxy.example.test \
+GEM_PROXY_ORIGIN=https://app.example.test \
+npm run proxy:e2e:public
 ```
 
 The dry-run command bundles the Worker and checks its configuration without
 uploading it. It does not verify Cloudflare credentials, account access, route
 ownership, or live behavior.
 
-There are three levels of proxy verification:
+Proxy verification has four levels:
 
 - Focused proxy unit tests stub `fetch`; they check route behavior without
   contacting RubyGems or Cloudflare. Cassette artifact checks inspect response
@@ -114,8 +128,13 @@ There are three levels of proxy verification:
 - `npm run test:e2e` starts the local cassette server, test-only Wrangler
   Worker, and app preview, then tests the gem flow in Chromium. The browser,
   Worker, and cassette server communicate over real local HTTP.
-- A run against `https://gems.ruby-play.dev` would verify the public Worker.
-  The public endpoint remains unverified by the local checks above.
+- `npm run proxy:e2e:public` targets an explicitly configured HTTP(S) proxy
+  using `GEM_PROXY_URL` and `GEM_PROXY_ORIGIN`. It starts no local server and
+  fails before running tests if either value is missing or malformed. This
+  public endpoint check was not run for this change.
+
+The separate `npm run test:e2e:dev` command starts only Vite for SEO browser
+tests; it does not need the cassette server or Worker.
 
 The proxy workflow runs the local Worker API checks for pull requests and main
 changes, then has a separate deployment job for main after those checks pass.
