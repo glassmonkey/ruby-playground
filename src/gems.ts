@@ -190,21 +190,34 @@ const EXTRACT = `
     end
   end
   begin
-    specifications = []
     Dir.glob("/gems/*.gem").sort.each do |path|
       package = Gem::Package.new(path)
       dest = "/gems/installed/#{package.spec.full_name}"
       package.extract_files(dest)
       package.spec.full_gem_path = dest
-      Gem::Specification.add_spec(package.spec)
-      specifications << package.spec
+      File.write("/gems/#{package.spec.full_name}.gemspec", package.spec.to_ruby)
     end
-    specifications.each(&:activate)
   ensure
     File.define_method(:chmod, instance_chmod)
     File.singleton_class.define_method(:chmod, class_chmod)
     IO.singleton_class.define_method(:copy_stream, copy_stream)
   end
+end.call
+`;
+
+// Load installed specs in the fresh user VM so setup-only RubyGems activations
+// cannot conflict with a locked gem of the same name.
+const ACTIVATE_INSTALLED = `
+-> do
+  require "rubygems"
+  specifications = Dir.glob("/gems/*.gemspec").sort.map do |path|
+    specification = Gem::Specification.load(path)
+    raise "Could not load installed gem specification: #{path}" unless specification
+    specification.full_gem_path = "/gems/installed/#{specification.full_name}"
+    Gem::Specification.add_spec(specification)
+    specification
+  end
+  specifications.each(&:activate)
 end.call
 `;
 
@@ -296,7 +309,7 @@ end.call
 `;
 
 /**
- * Download gems into /gems and activate their registered specifications. The lockfile decides
+ * Download and extract gems into /gems. The lockfile decides
  * the version: a locked image gem is used from the image only when this build
  * has exactly that version, and otherwise comes from rubygems.org.
  */
@@ -329,4 +342,9 @@ export async function installGems(
       }),
   );
   vm.eval(EXTRACT);
+}
+
+/** Register and activate extracted specs in the fresh VM that will run user code. */
+export function activateInstalledGems(vm: RubyVM): void {
+  vm.eval(ACTIVATE_INSTALLED);
 }

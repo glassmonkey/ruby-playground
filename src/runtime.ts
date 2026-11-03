@@ -8,6 +8,7 @@ import {
   type Inode,
 } from "@bjorn3/browser_wasi_shim";
 import {
+  activateInstalledGems,
   installGems,
   resolveGems,
   type GemRequest,
@@ -42,6 +43,58 @@ export type GemSetup = GemSource & {
   onInstalled?: () => void | Promise<void>;
 };
 
+type OutputCapture = (
+  stream: "stdout" | "stderr",
+) => (data: Uint8Array) => void;
+
+async function instantiateRubyVM(
+  module: WebAssembly.Module,
+  gemFiles: Map<string, Inode>,
+  capture: OutputCapture,
+): Promise<RubyVM> {
+  const wasi = new WASI(
+    [],
+    [],
+    [
+      new OpenFile(new File([])),
+      new ConsoleStdout(capture("stdout")),
+      new ConsoleStdout(capture("stderr")),
+      new PreopenDirectory("/", new Map()),
+      new PreopenDirectory("/gems", gemFiles),
+    ],
+    // The shim logs every failed path lookup unless debug is explicitly false;
+    // a gem require probes thousands of paths and the console logging dominates.
+    { debug: false },
+  );
+  let initializing = true;
+  const { vm } = await RubyVM.instantiateModule({
+    module,
+    wasip1: wasi,
+    addToImports: (imports) => {
+      // Ruby-only scope: do not expose Worker globals, fetch or postMessage to Ruby.
+      for (const [name, original] of Object.entries(
+        imports["rb-js-abi-host"],
+      )) {
+        if (
+          name === "rb_wasm_throw_prohibit_rewind_exception" ||
+          typeof original !== "function"
+        )
+          continue;
+        imports["rb-js-abi-host"][name] = (...args: number[]) => {
+          if (!initializing)
+            throw new Error(
+              "JavaScript bridge is disabled in this playground.",
+            );
+          return original(...args);
+        };
+      }
+    },
+  });
+  initializing = false;
+  vm.eval("$stdout.sync = true; $stderr.sync = true");
+  return vm;
+}
+
 /** A new VM and filesystem per call; capture writes, never eval's return value. */
 export async function executeRuby(
   module: WebAssembly.Module,
@@ -61,51 +114,12 @@ export async function executeRuby(
     result.output += text;
   };
   try {
-    // Kept by reference: the shim reads this Map on every lookup, so entries
-    // added while resolving are visible to Ruby without re-creating the VM.
+    // Gem setup uses a disposable VM. The fresh user VM shares only the gem
+    // filesystem so RubyGems setup activations cannot affect the user's code.
     const gemFiles = new Map<string, Inode>();
-    const wasi = new WASI(
-      [],
-      [],
-      [
-        new OpenFile(new File([])),
-        new ConsoleStdout(capture("stdout")),
-        new ConsoleStdout(capture("stderr")),
-        new PreopenDirectory("/", new Map()),
-        new PreopenDirectory("/gems", gemFiles),
-      ],
-      // The shim logs every failed path lookup unless debug is explicitly false;
-      // a gem require probes thousands of paths and the console logging dominates.
-      { debug: false },
-    );
-    let initializing = true;
-    const { vm } = await RubyVM.instantiateModule({
-      module,
-      wasip1: wasi,
-      addToImports: (imports) => {
-        // Ruby-only scope: do not expose Worker globals, fetch or postMessage to Ruby.
-        for (const [name, original] of Object.entries(
-          imports["rb-js-abi-host"],
-        )) {
-          if (
-            name === "rb_wasm_throw_prohibit_rewind_exception" ||
-            typeof original !== "function"
-          )
-            continue;
-          imports["rb-js-abi-host"][name] = (...args: number[]) => {
-            if (!initializing)
-              throw new Error(
-                "JavaScript bridge is disabled in this playground.",
-              );
-            return original(...args);
-          };
-        }
-      },
-    });
-    initializing = false;
-    vm.eval("$stdout.sync = true; $stderr.sync = true");
+    let vm = await instantiateRubyVM(module, gemFiles, capture);
     if (onRuntimeInfo) {
-      // Inspect the actual VM before user code can redefine constants or block.
+      // Both VMs use this module, so report once before setup starts.
       onRuntimeInfo({
         version: vm.eval("RUBY_VERSION").toString(),
         platform: vm.eval("RUBY_PLATFORM").toString(),
@@ -119,6 +133,8 @@ export async function executeRuby(
         gems.locked ?? (await resolveGems(vm, gemFiles, gems.requests, gems));
       if (!gems.locked) gems.onResolved?.(resolved);
       await installGems(vm, gemFiles, resolved, gems);
+      vm = await instantiateRubyVM(module, gemFiles, capture);
+      activateInstalledGems(vm);
       await gems.onInstalled?.();
     }
     vm.eval(code);

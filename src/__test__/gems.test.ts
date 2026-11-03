@@ -10,6 +10,8 @@ let module: WebAssembly.Module;
 let rainbowArchive: Uint8Array;
 let pastelArchive: Uint8Array;
 let ttyColorArchive: Uint8Array;
+let fileutilsArchive: Uint8Array;
+let fileutilsActivationFailureArchive: Uint8Array;
 const wasmPaths: Record<RubyVersion, string> = {
   "3.2": "@ruby/3.2-wasm-wasi/dist/ruby+stdlib.wasm",
   "3.3": "@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm",
@@ -50,6 +52,12 @@ beforeAll(async () => {
       "../../proxy/test-fixtures/cassettes/gems/tty-color-0.6.0.gem",
       import.meta.url,
     ),
+  );
+  fileutilsArchive = await readFile(
+    new URL("./fixtures/fileutils-1.7.3.synthetic.gem", import.meta.url),
+  );
+  fileutilsActivationFailureArchive = await readFile(
+    new URL("./fixtures/fileutils-1.7.2.synthetic.gem", import.meta.url),
   );
 }, 30_000);
 
@@ -449,6 +457,117 @@ describe("dependency resolution in the real Ruby WASM runtime", () => {
       error: undefined,
       output: "dependency ready\n0.8.0\n0.6.0\n",
       requested: ["pastel-0.8.0.gem", "tty-color-0.6.0.gem"],
+    });
+  });
+  it.each(RUBY_VERSIONS)(
+    "activates and runs the locked fileutils gem instead of the builtin on Ruby %s",
+    async (version) => {
+      const ruby = await wasmFor(version);
+      const requested: string[] = [];
+      const runtimeVersions: string[] = [];
+      let installed = false;
+      const result = await executeRuby(
+        ruby,
+        [
+          'require "fileutils"',
+          "puts FileUtils::VERSION_MARKER",
+          'puts Gem.loaded_specs.fetch("fileutils").version',
+          'gem "fileutils", "= 1.7.3"',
+        ].join("\n"),
+        ({ version: runtimeVersion }) => {
+          runtimeVersions.push(runtimeVersion.split(".").slice(0, 2).join("."));
+        },
+        {
+          requests: [{ name: "fileutils", requirements: ["= 1.7.3"] }],
+          locked: [{ name: "fileutils", version: "1.7.3", source: "rubygems" }],
+          fetchInfo: async () => {
+            throw new Error("locked versions must not fetch metadata");
+          },
+          fetchGem: async (fileName) => {
+            requested.push(fileName);
+            return fileutilsArchive;
+          },
+          onInstalled: () => {
+            installed = true;
+          },
+        },
+      );
+
+      expect({
+        error: result.error,
+        output: result.output,
+        requested,
+        runtimeVersions,
+        installed,
+      }).toEqual({
+        error: undefined,
+        output: "fileutils 1.7.3 loaded\n1.7.3\n",
+        requested: ["fileutils-1.7.3.gem"],
+        runtimeVersions: [version],
+        installed: true,
+      });
+    },
+  );
+  it("keeps the JavaScript bridge disabled in a fresh gem user VM", async () => {
+    let installed = false;
+    const result = await executeRuby(
+      module,
+      `require "js"; JS.global`,
+      undefined,
+      {
+        requests: [{ name: "fileutils", requirements: ["= 1.7.3"] }],
+        locked: [{ name: "fileutils", version: "1.7.3", source: "rubygems" }],
+        fetchInfo: async () => {
+          throw new Error("locked versions must not fetch metadata");
+        },
+        fetchGem: async () => fileutilsArchive,
+        onInstalled: () => {
+          installed = true;
+        },
+      },
+    );
+
+    expect({
+      blocked: result.error?.includes("JavaScript bridge is disabled"),
+      installed,
+    }).toEqual({
+      blocked: true,
+      installed: true,
+    });
+  });
+  it("does not report installation when an extracted gem cannot activate", async () => {
+    let installed = false;
+    const requested: string[] = [];
+    const result = await executeRuby(
+      module,
+      'puts "user code ran"',
+      undefined,
+      {
+        requests: [{ name: "fileutils", requirements: ["= 1.7.2"] }],
+        locked: [{ name: "fileutils", version: "1.7.2", source: "rubygems" }],
+        fetchInfo: async () => {
+          throw new Error("locked versions must not fetch metadata");
+        },
+        fetchGem: async (fileName) => {
+          requested.push(fileName);
+          return fileutilsActivationFailureArchive;
+        },
+        onInstalled: () => {
+          installed = true;
+        },
+      },
+    );
+
+    expect({
+      error: result.error,
+      output: result.output,
+      requested,
+      installed,
+    }).toEqual({
+      error: expect.stringContaining("missing-fixture-dependency"),
+      output: "",
+      requested: ["fileutils-1.7.2.gem"],
+      installed: false,
     });
   });
   it.each([
