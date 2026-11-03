@@ -1,18 +1,24 @@
 import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
+import type { TestInfo } from "@playwright/test";
 
-// Recorded RubyGems responses replay through the local Wrangler Worker by
-// default. GEM_PROXY_URL opts into a separately selected external target.
-const allowedOrigin = process.env.GEM_PROXY_ORIGIN ?? "http://127.0.0.1:18888";
+function allowedOrigin(testInfo: TestInfo): string {
+  const origin = testInfo.config.metadata.allowedOrigin;
+  if (typeof origin !== "string") {
+    throw new Error("Playwright config must declare metadata.allowedOrigin.");
+  }
+  return origin;
+}
 const GEM = "rainbow";
 const VERSION = "3.1.1";
 
 test("serves the compact index with CORS for the allowed origin", async ({
   request,
-}) => {
+}, testInfo) => {
+  const origin = allowedOrigin(testInfo);
   // Act
   const response = await request.get(`/info/${GEM}`, {
-    headers: { Origin: allowedOrigin },
+    headers: { Origin: origin },
   });
   // Assert
   expect({
@@ -22,7 +28,7 @@ test("serves the compact index with CORS for the allowed origin", async ({
     listsVersion: (await response.text()).includes(`\n${VERSION} `),
   }).toEqual({
     status: 200,
-    allowOrigin: allowedOrigin,
+    allowOrigin: origin,
     cacheControl: "public, max-age=300",
     listsVersion: true,
   });
@@ -30,7 +36,8 @@ test("serves the compact index with CORS for the allowed origin", async ({
 
 test("serves the .gem whose SHA-256 matches the compact index", async ({
   request,
-}) => {
+}, testInfo) => {
+  const origin = allowedOrigin(testInfo);
   // Arrange
   const index = await (await request.get(`/info/${GEM}`)).text();
   const published = new RegExp(
@@ -39,7 +46,7 @@ test("serves the .gem whose SHA-256 matches the compact index", async ({
   ).exec(index)?.[1];
   // Act
   const response = await request.get(`/gems/${GEM}-${VERSION}.gem`, {
-    headers: { Origin: allowedOrigin },
+    headers: { Origin: origin },
   });
   // Assert
   expect({
@@ -51,7 +58,7 @@ test("serves the .gem whose SHA-256 matches the compact index", async ({
       .digest("hex"),
   }).toEqual({
     status: 200,
-    allowOrigin: allowedOrigin,
+    allowOrigin: origin,
     cacheControl: "public, max-age=31536000, immutable",
     sha256: published,
   });
@@ -117,10 +124,11 @@ test("leaves CORS off for an origin outside the list", async ({ request }) => {
 
 test("passes a missing .gem through as an uncached failure", async ({
   request,
-}) => {
+}, testInfo) => {
+  const origin = allowedOrigin(testInfo);
   // rubygems.org answers a missing .gem with 403 from its storage.
   const response = await request.get(`/gems/${GEM}-0.0.1.gem`, {
-    headers: { Origin: allowedOrigin },
+    headers: { Origin: origin },
   });
   expect({
     status: response.status(),
@@ -130,7 +138,7 @@ test("passes a missing .gem through as an uncached failure", async ({
   }).toEqual({
     status: 403,
     ok: false,
-    allowOrigin: allowedOrigin,
+    allowOrigin: origin,
     cacheControl: "no-store",
   });
 });
@@ -141,10 +149,13 @@ for (const [method, path, status] of [
   ["POST", `/info/${GEM}`, 405],
   ["OPTIONS", `/info/${GEM}`, 204],
 ] as const) {
-  test(`answers ${method} ${path} with ${status}`, async ({ request }) => {
+  test(`answers ${method} ${path} with ${status}`, async ({
+    request,
+  }, testInfo) => {
+    const origin = allowedOrigin(testInfo);
     const response = await request.fetch(path, {
       method,
-      headers: { Origin: allowedOrigin },
+      headers: { Origin: origin },
     });
     expect(response.status()).toBe(status);
   });

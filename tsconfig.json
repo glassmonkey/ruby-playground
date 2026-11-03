@@ -1,10 +1,25 @@
 {
   "compilerOptions": {
-    "target": "ES2022", "lib": ["ES2022", "DOM", "DOM.Iterable"],
-    "module": "ESNext", "moduleResolution": "Bundler", "jsx": "react-jsx",
-    "strict": true, "skipLibCheck": true, "esModuleInterop": true,
-    "resolveJsonModule": true, "isolatedModules": true, "noEmit": true, "allowImportingTsExtensions": true,
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
     "types": ["vite/client", "node"]
   },
-  "include": ["src", "e2e", "proxy/src", "proxy/e2e", "proxy/playwright.config.ts", "*.config.ts"]
+  "include": [
+    "src",
+    "e2e",
+    "proxy/src",
+    "proxy/e2e",
+    "proxy/*.config.ts",
+    "*.config.ts"
+  ]
 }
