@@ -18,7 +18,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
-    command: `VITE_GEM_PROXY_URL= npx vite --host 127.0.0.1 --port ${port} --strictPort`,
+    command: `npx vite --host 127.0.0.1 --port ${port} --strictPort`,
     url: `http://127.0.0.1:${port}/`,
     timeout: 5 * 60 * 1000,
     reuseExistingServer: false,
