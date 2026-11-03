@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "wrangler dev --ip 127.0.0.1 --port 8787 --var ALLOWED_ORIGINS:http://127.0.0.1:18888,http://127.0.0.1:8888",
+    "fixtures:serve": "node test-fixtures/server.mjs",
+    "record:fixtures": "node test-fixtures/record-cassettes.mjs",
+    "test:fixtures": "node --test test-fixtures/cassettes.test.mjs",
     "deploy": "wrangler deploy"
   },
   "devDependencies": {

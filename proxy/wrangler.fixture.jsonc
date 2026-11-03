@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "ruby-playground-gem-proxy-fixture",
+  "main": "test-fixtures/worker.ts",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "vars": {
+    "ALLOWED_ORIGINS": "http://127.0.0.1:18888,http://127.0.0.1:8888",
+  },
+  "observability": { "enabled": false },
+}

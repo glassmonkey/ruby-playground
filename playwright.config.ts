@@ -3,6 +3,7 @@ const port = process.env.PORT || "8888";
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: "test-results/preview",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
@@ -14,13 +15,24 @@ export default defineConfig({
       : {},
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
-  webServer: {
-    command:
-      process.env.E2E_DEV_SERVER === "1"
-        ? `npx vite --host 127.0.0.1 --port ${port} --strictPort`
-        : `npm run build && npx vite preview --host 127.0.0.1 --port ${port} --strictPort`,
-    url: `http://127.0.0.1:${port}/`,
-    timeout: 5 * 60 * 1000,
-    reuseExistingServer: false,
-  },
+  webServer: [
+    {
+      command: "npm --prefix proxy run fixtures:serve",
+      url: "http://127.0.0.1:18787/health",
+      timeout: 5 * 60 * 1000,
+      reuseExistingServer: false,
+    },
+    {
+      command: `WRANGLER_SEND_METRICS=false WRANGLER_LOG_PATH=/tmp/ruby-play-wrangler.log proxy/node_modules/.bin/wrangler dev --config proxy/wrangler.fixture.jsonc --ip 127.0.0.1 --port 8787 --inspector-port 0 --var ALLOWED_ORIGINS:http://127.0.0.1:${port}`,
+      url: "http://127.0.0.1:8787/info/rainbow",
+      timeout: 5 * 60 * 1000,
+      reuseExistingServer: false,
+    },
+    {
+      command: `VITE_GEM_PROXY_URL=http://127.0.0.1:8787 npm run build && npx vite preview --host 127.0.0.1 --port ${port} --strictPort`,
+      url: `http://127.0.0.1:${port}/`,
+      timeout: 5 * 60 * 1000,
+      reuseExistingServer: false,
+    },
+  ],
 });

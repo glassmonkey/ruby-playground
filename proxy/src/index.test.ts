@@ -86,6 +86,47 @@ describe("gem proxy", () => {
     });
   });
 
+  it.each([500, 503])(
+    "passes an upstream %i through with CORS and no caching",
+    async (status) => {
+      // Arrange
+      stubUpstream(status);
+      // Act
+      const got = await call("/info/faker", {
+        headers: { Origin: "https://ruby-play.dev" },
+      });
+      // Assert
+      expect(got).toEqual({
+        status,
+        allowOrigin: "https://ruby-play.dev",
+        cacheControl: "no-store",
+        body: "payload",
+      });
+    },
+  );
+
+  it("returns an uncached 500 with CORS when upstream fetch rejects", async () => {
+    // Arrange
+    const upstream = vi.fn<typeof fetch>(async () => {
+      throw new Error("connection refused");
+    });
+    vi.stubGlobal("fetch", upstream);
+    // Act
+    const got = await call("/info/faker", {
+      headers: { Origin: "https://ruby-play.dev" },
+    });
+    // Assert
+    expect({ got, upstreamCalls: upstream.mock.calls.length }).toEqual({
+      got: {
+        status: 500,
+        allowOrigin: "https://ruby-play.dev",
+        cacheControl: "no-store",
+        body: "Internal Server Error",
+      },
+      upstreamCalls: 1,
+    });
+  });
+
   it.each([
     ["/api/v1/gems/faker.json", "GET", 404],
     ["/gems/faker-3.8.0.gem/extra", "GET", 404],

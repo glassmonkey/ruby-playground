@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-11-01T09:36:44Z",
+  "source": "https://rubygems.org",
+  "capture": {
+    "method": "GET",
+    "redirects": "followed",
+    "retries": 0,
+    "headers": {
+      "normalize": "lowercase names and trim surrounding value whitespace",
+      "captured": [
+        "accept-ranges",
+        "cache-control",
+        "content-length",
+        "content-type",
+        "etag",
+        "last-modified",
+        "vary"
+      ],
+      "excluded": [
+        "date",
+        "server",
+        "via",
+        "x-amz-request-id",
+        "x-amz-id-2",
+        "x-request-id",
+        "x-runtime",
+        "x-backend",
+        "x-served-by",
+        "x-cache",
+        "x-cache-hits",
+        "x-timer"
+      ]
+    },
+    "bodyHash": "body.rawSha256 is the source response before documented body normalizations",
+    "replayBodyHash": "body.sha256 is the exact on-disk replay body"
+  },
+  "packages": {
+    "rainbow 3.1.1": {
+      "license": "MIT",
+      "licenseSource": "embedded gemspec",
+      "licenseFile": "licenses/rainbow-3.1.1-LICENSE",
+      "licenseFileSha256": "a02553249a5fd0a57263ebc80bdd2cd366f5db751cac99587bee775c3c968a5b",
+      "runtimeDependencies": []
+    },
+    "pastel 0.8.0": {
+      "license": "MIT",
+      "licenseSource": "embedded gemspec",
+      "licenseFile": "licenses/pastel-0.8.0-LICENSE.txt",
+      "licenseFileSha256": "c0ae109c24dbd66f2597bb261b4ece82e0b7a664b00b11dc29e3485d2996d930",
+      "runtimeDependencies": ["tty-color ~> 0.5"]
+    },
+    "tty-color 0.6.0": {
+      "license": "MIT",
+      "licenseSource": "embedded gemspec",
+      "licenseFile": "licenses/tty-color-0.6.0-LICENSE.txt",
+      "licenseFileSha256": "d6cb5ff5fe0412eb4f13ce892e50cee0e32bc9c4fedc84d7f970d1132c535b23",
+      "runtimeDependencies": []
+    }
+  },
+  "responses": {
+    "GET /info/rainbow": {
+      "url": "https://rubygems.org/info/rainbow",
+      "status": 200,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "max-age=60, public",
+        "etag": "\"d12461ad8dac4de609ca961b72ade9f1\"",
+        "last-modified": "Thu, 28 May 2026 23:28:23 GMT",
+        "content-length": "2384"
+      },
+      "body": {
+        "file": "info/rainbow.body",
+        "bytes": 2384,
+        "sha256": "012e481f3e27bd7e16e63cd484f6a75b9a6e01bf15ce7d42d0c2259dc09011c1",
+        "rawBytes": 2384,
+        "rawSha256": "012e481f3e27bd7e16e63cd484f6a75b9a6e01bf15ce7d42d0c2259dc09011c1",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /info/pastel": {
+      "url": "https://rubygems.org/info/pastel",
+      "status": 200,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "max-age=60, public",
+        "etag": "\"8fe10cfa3406a63cd7e8f22ee2553c27\"",
+        "last-modified": "Thu, 28 May 2026 23:54:53 GMT",
+        "content-length": "2410"
+      },
+      "body": {
+        "file": "info/pastel.body",
+        "bytes": 2410,
+        "sha256": "4a59961bd220a59e2ccf7554d03d911ceeb6aa72ec921824953cd9a6534769da",
+        "rawBytes": 2410,
+        "rawSha256": "4a59961bd220a59e2ccf7554d03d911ceeb6aa72ec921824953cd9a6534769da",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /info/tty-color": {
+      "url": "https://rubygems.org/info/tty-color",
+      "status": 200,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "max-age=60, public",
+        "etag": "\"d0bd14c01162ac448104c79422d2821b\"",
+        "last-modified": "Fri, 29 May 2026 00:01:18 GMT",
+        "content-length": "1303"
+      },
+      "body": {
+        "file": "info/tty-color.body",
+        "bytes": 1303,
+        "sha256": "8c2601a7da6f221ee99af6f2236bfc70c4aee33eb586388f0cc7913d0174ddfc",
+        "rawBytes": 1303,
+        "rawSha256": "8c2601a7da6f221ee99af6f2236bfc70c4aee33eb586388f0cc7913d0174ddfc",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /info/gla183-vcr-missing-20261101": {
+      "url": "https://rubygems.org/info/gla183-vcr-missing-20261101",
+      "status": 404,
+      "headers": {
+        "content-type": "text/plain; charset=utf-8",
+        "cache-control": "max-age=60, public",
+        "content-length": "27"
+      },
+      "body": {
+        "file": "info/gla183-vcr-missing-20261101.body",
+        "bytes": 27,
+        "sha256": "e9fa8172b77ab691ead1c3dea24f92b0d2e808bc538f77171f49ea01f49e24b0",
+        "rawBytes": 27,
+        "rawSha256": "e9fa8172b77ab691ead1c3dea24f92b0d2e808bc538f77171f49ea01f49e24b0",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /gems/rainbow-3.1.1.gem": {
+      "url": "https://rubygems.org/gems/rainbow-3.1.1.gem",
+      "status": 200,
+      "headers": {
+        "content-type": "application/octet-stream",
+        "cache-control": "max-age=31536000",
+        "etag": "\"acdea414d05a0d360e0fda6c26747156\"",
+        "last-modified": "Sat, 29 Mar 2025 00:08:25 GMT",
+        "content-length": "13824"
+      },
+      "body": {
+        "file": "gems/rainbow-3.1.1.gem",
+        "bytes": 13824,
+        "sha256": "039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a",
+        "package": "rainbow 3.1.1",
+        "license": "MIT",
+        "rawBytes": 13824,
+        "rawSha256": "039491aa3a89f42efa1d6dec2fc4e62ede96eb6acd95e52f1ad581182b79bc6a",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /gems/pastel-0.8.0.gem": {
+      "url": "https://rubygems.org/gems/pastel-0.8.0.gem",
+      "status": 200,
+      "headers": {
+        "content-type": "application/octet-stream",
+        "cache-control": "max-age=31536000",
+        "etag": "\"0b238cba4ecffadc6ef557c6803d5a01\"",
+        "last-modified": "Fri, 28 Mar 2025 18:54:15 GMT",
+        "content-length": "15872"
+      },
+      "body": {
+        "file": "gems/pastel-0.8.0.gem",
+        "bytes": 15872,
+        "sha256": "481da9fb7d2f6e6b1a08faf11fa10363172dc40fd47848f096ae21209f805a75",
+        "package": "pastel 0.8.0",
+        "license": "MIT",
+        "rawBytes": 15872,
+        "rawSha256": "481da9fb7d2f6e6b1a08faf11fa10363172dc40fd47848f096ae21209f805a75",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /gems/tty-color-0.6.0.gem": {
+      "url": "https://rubygems.org/gems/tty-color-0.6.0.gem",
+      "status": 200,
+      "headers": {
+        "content-type": "application/octet-stream",
+        "cache-control": "max-age=31536000",
+        "etag": "\"c07b77abb865c0ad470217431d07bb89\"",
+        "last-modified": "Fri, 28 Mar 2025 20:04:39 GMT",
+        "content-length": "9728"
+      },
+      "body": {
+        "file": "gems/tty-color-0.6.0.gem",
+        "bytes": 9728,
+        "sha256": "6f9c37ca3a4e2367fb2e6d09722762647d6f455c111f05b59f35730eeb24332a",
+        "package": "tty-color 0.6.0",
+        "license": "MIT",
+        "rawBytes": 9728,
+        "rawSha256": "6f9c37ca3a4e2367fb2e6d09722762647d6f455c111f05b59f35730eeb24332a",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /gems/rainbow-0.0.1.gem": {
+      "url": "https://rubygems.org/gems/rainbow-0.0.1.gem",
+      "status": 403,
+      "headers": {
+        "content-type": "application/xml",
+        "accept-ranges": "bytes"
+      },
+      "body": {
+        "file": "gems/rainbow-0.0.1.body",
+        "bytes": 184,
+        "sha256": "52103ec530f7b6e7ae5b7a4a5bcdf3f3fffe7da03179c3aaab54a40af181f9bf",
+        "rawBytes": 263,
+        "rawSha256": "6f72c11776228348bc3deaebc9dda8d0bd300299a2238e3798b6b6b6016a32ed",
+        "normalizations": [
+          "XML RequestId value replaced with fixture-request-id",
+          "XML HostId value replaced with fixture-host-id"
+        ]
+      },
+      "recordedAt": "2026-11-01T09:36:44Z"
+    }
+  }
+}
