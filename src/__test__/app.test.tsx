@@ -294,6 +294,10 @@ it("installs from the Gemfile tab, shares the lockfile and treats Gemfile edits 
   await screen.findByText("Gemfile.lock matches the Gemfile", {
     exact: false,
   });
+  expect({
+    alert: screen.queryByRole("alert"),
+    lock: parseShareUrl(window.location.href, INITIAL_CODE).lock,
+  }).toEqual({ alert: null, lock });
   await waitFor(() =>
     expect(start).toHaveBeenLastCalledWith(
       INITIAL_CODE,
@@ -328,6 +332,64 @@ it("installs from the Gemfile tab, shares the lockfile and treats Gemfile edits 
     staleUrlHasLock: false,
     revertedLock: lock,
   });
+});
+
+it("can retry an install after its worker timeout and run with the recovered lock", async () => {
+  // Arrange
+  const gemfile = 'gem "faker"\n';
+  const lock = [
+    { name: "faker", version: "3.8.0", source: "rubygems" as const },
+  ];
+  type InstallOutcome = Awaited<ReturnType<typeof startGemInstall>["promise"]>;
+  const outcomes: Array<(result: InstallOutcome) => void> = [];
+  install.mockImplementation(() => ({
+    promise: new Promise((resolve) => outcomes.push(resolve)),
+    cancel: vi.fn(),
+  }));
+  setup();
+  fireEvent.click(await screen.findByRole("tab", { name: "Gemfile" }));
+  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  fireEvent.change(editor, { target: { value: gemfile } });
+
+  // Act
+  fireEvent.click(screen.getByRole("button", { name: "bundle install" }));
+  await screen.findByRole("button", { name: "Stop" });
+  await act(async () =>
+    outcomes[0]({ error: "bundle install timed out after 60 seconds." }),
+  );
+
+  // Assert
+  expect({
+    error: screen.getByRole("alert").textContent,
+    retryButton: screen.getByRole("button", { name: "bundle install" })
+      .textContent,
+    lock: parseShareUrl(window.location.href, INITIAL_CODE).lock,
+  }).toEqual({
+    error: "bundle install failed: bundle install timed out after 60 seconds.",
+    retryButton: "bundle install",
+    lock: undefined,
+  });
+
+  // Act
+  fireEvent.click(screen.getByRole("button", { name: "bundle install" }));
+  await screen.findByRole("button", { name: "Stop" });
+  await act(async () => outcomes[1]({ lock }));
+
+  // Assert
+  await screen.findByText("Gemfile.lock matches the Gemfile", {
+    exact: false,
+  });
+  await waitFor(() =>
+    expect(start).toHaveBeenLastCalledWith(
+      INITIAL_CODE,
+      undefined,
+      undefined,
+      "4.0",
+      expect.any(Function),
+      { gemfile, lock },
+    ),
+  );
+  expect(parseShareUrl(window.location.href, INITIAL_CODE).lock).toEqual(lock);
 });
 
 it("installs silently when opened without a lockfile and after switching Ruby", async () => {

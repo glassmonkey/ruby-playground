@@ -100,6 +100,9 @@ const RESOLVER = `
   missing_error = Class.new(StandardError)
   ruby_version = Gem::Version.new(RUBY_VERSION)
   index_path = ->(name) { "/gems/index/#{name}" }
+  fallback_path = "/gems/fallback.txt"
+  fallback_names = File.exist?(fallback_path) ? File.read(fallback_path).split("\n") : []
+  builtin_candidates = []
   set_class = Class.new(Gem::Resolver::APISet) do
     define_method(:versions) do |name|
       return @data[name] if @data.key?(name)
@@ -121,7 +124,13 @@ const RESOLVER = `
     define_method(:find_all) do |req|
       builtin = Gem::Specification.find_all_by_name(req.name)
         .select { |spec| req.dependency.match?(spec.name, spec.version) }.max_by(&:version)
-      next [Gem::Resolver::InstalledSpecification.new(self, builtin)] if builtin
+      if builtin
+        builtin_candidates << req.name
+        installed = Gem::Resolver::InstalledSpecification.new(self, builtin)
+        next [installed] unless fallback_names.include?(req.name)
+        external = super(req).select { |spec| spec.required_ruby_version.satisfied_by?(ruby_version) }
+        next [installed, *external]
+      end
       super(req).select { |spec| spec.required_ruby_version.satisfied_by?(ruby_version) }
     end
   end
@@ -147,7 +156,11 @@ const RESOLVER = `
   rescue missing_error => e
     "missing #{e.message}"
   rescue Gem::DependencyResolutionError, Gem::UnsatisfiableDependencyError => e
-    "error #{e.message}"
+    if builtin_candidates.empty?
+      "error #{e.message}"
+    else
+      "fallback #{builtin_candidates.uniq.join(",")}\nerror #{e.message}"
+    end
   end
 end.call
 `;
@@ -161,18 +174,36 @@ const EXTRACT = `
   require "fileutils"
   instance_chmod = File.instance_method(:chmod)
   class_chmod = File.singleton_class.instance_method(:chmod)
+  # RubyGems 4.1 drains the archive via IO.copy_stream(..., IO::NULL).
+  copy_stream = IO.singleton_class.instance_method(:copy_stream)
   File.define_method(:chmod) { |*| 0 }
   File.singleton_class.define_method(:chmod) { |*| 0 }
+  IO.singleton_class.define_method(:copy_stream) do |source, destination, *args|
+    if destination == IO::NULL
+      total = 0
+      while chunk = source.read(16 * 1024)
+        total += chunk.bytesize
+      end
+      total
+    else
+      copy_stream.bind(self).call(source, destination, *args)
+    end
+  end
   begin
+    specifications = []
     Dir.glob("/gems/*.gem").sort.each do |path|
       package = Gem::Package.new(path)
       dest = "/gems/installed/#{package.spec.full_name}"
       package.extract_files(dest)
-      package.spec.require_paths.each { |dir| $LOAD_PATH.unshift File.join(dest, dir) }
+      package.spec.full_gem_path = dest
+      Gem::Specification.add_spec(package.spec)
+      specifications << package.spec
     end
+    specifications.each(&:activate)
   ensure
     File.define_method(:chmod, instance_chmod)
     File.singleton_class.define_method(:chmod, class_chmod)
+    IO.singleton_class.define_method(:copy_stream, copy_stream)
   end
 end.call
 `;
@@ -188,6 +219,7 @@ export async function resolveGems(
 ): Promise<ResolvedGem[]> {
   const encoder = new TextEncoder();
   const index = new Map<string, Inode>();
+  const fallbackNames = new Set<string>();
   files.set("index", new Directory(index));
   const roots = requests.map(({ name, requirements }) =>
     [name, ...requirements].join("\t"),
@@ -195,6 +227,30 @@ export async function resolveGems(
   files.set("roots.txt", new File(encoder.encode(roots.join("\n"))));
   for (let round = 0; round < MAX_ROUNDS; round++) {
     const outcome = vm.eval(RESOLVER).toString();
+    if (outcome.startsWith("fallback ")) {
+      const [fallbackLine, errorLine, ...details] = outcome.split("\n");
+      const names = fallbackLine.slice("fallback ".length).split(",");
+      const pending = names.filter((name) => !fallbackNames.has(name));
+      if (pending.length === 0) {
+        const error = [errorLine.slice("error ".length), ...details].join("\n");
+        throw new Error(`Could not resolve gem dependencies: ${error}`);
+      }
+      await Promise.all(
+        pending.map(async (name) => {
+          if (!index.has(name))
+            index.set(
+              name,
+              new File(encoder.encode(await source.fetchInfo(name))),
+            );
+          fallbackNames.add(name);
+        }),
+      );
+      files.set(
+        "fallback.txt",
+        new File(encoder.encode([...fallbackNames].join("\n"))),
+      );
+      continue;
+    }
     if (outcome.startsWith("error "))
       throw new Error(
         `Could not resolve gem dependencies: ${outcome.slice("error ".length)}`,
@@ -240,7 +296,7 @@ end.call
 `;
 
 /**
- * Download gems into /gems and put them on $LOAD_PATH. The lockfile decides
+ * Download gems into /gems and activate their registered specifications. The lockfile decides
  * the version: a locked image gem is used from the image only when this build
  * has exactly that version, and otherwise comes from rubygems.org.
  */

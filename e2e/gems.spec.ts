@@ -193,21 +193,24 @@ test("reports a corrupt gem archive, avoids caching it, and recovers", async ({
   );
 });
 
-test("stops a pending delayed metadata request without creating a lock", async ({
+test("stops a delayed install, then recovers and reruns with the gem", async ({
   page,
 }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(180_000);
   let resolveRequest!: () => void;
   const delayedRequest = new Promise<void>((resolve) => {
     resolveRequest = resolve;
   });
+  let metadataRequests = 0;
   page.on("request", (request) => {
     const url = new URL(request.url());
     if (
       url.origin === "http://127.0.0.1:8787" &&
       url.pathname === "/info/rainbow"
-    )
+    ) {
+      metadataRequests++;
       resolveRequest();
+    }
   });
 
   await page.goto("./");
@@ -236,6 +239,17 @@ test("stops a pending delayed metadata request without creating a lock", async (
   await expect(page.getByTestId("preview-console")).toHaveText(
     "previous output\n",
   );
+
+  await page.getByRole("tab", { name: "Gemfile" }).click();
+  await resetRubyGemsVcr();
+  await page.getByRole("button", { name: "bundle install" }).click();
+  await expectInstallComplete(page);
+  await page.getByRole("tab", { name: "main.rb" }).click();
+  await expect(page.getByTestId("preview-console")).toHaveText(
+    "rainbow ready\n",
+    { timeout: 120_000 },
+  );
+  expect(metadataRequests).toBe(2);
 });
 
 test("adds a gem to an installed Gemfile and reruns edited code with it", async ({

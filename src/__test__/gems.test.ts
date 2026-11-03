@@ -3,14 +3,52 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
 import { executeRuby } from "../runtime";
-import { parseGemfile, type ResolvedGem } from "../gems";
+import { parseGemfile, type GemRequest, type ResolvedGem } from "../gems";
+import { RUBY_VERSIONS, type RubyVersion } from "../versions";
 
 let module: WebAssembly.Module;
+let rainbowArchive: Uint8Array;
+let pastelArchive: Uint8Array;
+let ttyColorArchive: Uint8Array;
+const wasmPaths: Record<RubyVersion, string> = {
+  "3.2": "@ruby/3.2-wasm-wasi/dist/ruby+stdlib.wasm",
+  "3.3": "@ruby/3.3-wasm-wasi/dist/ruby+stdlib.wasm",
+  "3.4": "@ruby/3.4-wasm-wasi/dist/ruby+stdlib.wasm",
+  "4.0": "@ruby/4.0-wasm-wasi/dist/ruby+stdlib.wasm",
+  "4.1": "@ruby/head-wasm-wasi/dist/ruby+stdlib.wasm",
+};
+const wasmModules = new Map<RubyVersion, Promise<WebAssembly.Module>>();
+
+function wasmFor(version: RubyVersion): Promise<WebAssembly.Module> {
+  let wasm = wasmModules.get(version);
+  if (!wasm) {
+    const require = createRequire(import.meta.url);
+    wasm = readFile(require.resolve(wasmPaths[version])).then((bytes) =>
+      WebAssembly.compile(bytes),
+    );
+    wasmModules.set(version, wasm);
+  }
+  return wasm;
+}
+
 beforeAll(async () => {
-  const require = createRequire(import.meta.url);
-  module = await WebAssembly.compile(
-    await readFile(
-      require.resolve("@ruby/4.0-wasm-wasi/dist/ruby+stdlib.wasm"),
+  module = await wasmFor("4.0");
+  rainbowArchive = await readFile(
+    new URL(
+      "../../proxy/test-fixtures/cassettes/gems/rainbow-3.1.1.gem",
+      import.meta.url,
+    ),
+  );
+  pastelArchive = await readFile(
+    new URL(
+      "../../proxy/test-fixtures/cassettes/gems/pastel-0.8.0.gem",
+      import.meta.url,
+    ),
+  );
+  ttyColorArchive = await readFile(
+    new URL(
+      "../../proxy/test-fixtures/cassettes/gems/tty-color-0.6.0.gem",
+      import.meta.url,
     ),
   );
 }, 30_000);
@@ -125,6 +163,22 @@ describe("Gemfile parsing", () => {
 });
 
 describe("dependency resolution in the real Ruby WASM runtime", () => {
+  const backtrackCases: [string, GemRequest[]][] = [
+    [
+      "builtin root precedes the dependency",
+      [
+        { name: "prime", requirements: [">= 0"] },
+        { name: "ant", requirements: [">= 0"] },
+      ],
+    ],
+    [
+      "dependency precedes the builtin root",
+      [
+        { name: "ant", requirements: [">= 0"] },
+        { name: "prime", requirements: [">= 0"] },
+      ],
+    ],
+  ];
   it("resolves the newest compatible chain and uses gems bundled with Ruby", async () => {
     const { result, fetched, resolved } = await resolveWith(["~> 3.7"]);
     expect({ error: result.error, fetched, resolved }).toEqual({
@@ -235,6 +289,45 @@ describe("dependency resolution in the real Ruby WASM runtime", () => {
       resolved.map(({ name, version }) => `${name} ${version}`).sort(),
     ).toEqual(["ant 1.0.0", "bee 1.0.0", "cat 1.0.0"]);
   });
+  it.each(backtrackCases)(
+    "backtracks from bundled prime when %s",
+    async (_case, requests) => {
+      const index: Record<string, string> = {
+        ant: "---\n1.0.0 prime:< 0.1.4|checksum:0",
+        forwardable: "---",
+        prime: "---\n0.1.3 |checksum:0",
+        singleton: "---",
+      };
+      const fetched: string[] = [];
+      let resolved: ResolvedGem[] = [];
+      const result = await executeRuby(module, "", undefined, {
+        requests,
+        fetchInfo: async (name) => {
+          fetched.push(name);
+          return index[name];
+        },
+        fetchGem: async () => {
+          throw new Error("offline");
+        },
+        onResolved: (gems) => {
+          resolved = gems;
+        },
+      });
+
+      expect({
+        error: result.error,
+        fetched: fetched.sort(),
+        resolved: resolved.sort((a, b) => a.name.localeCompare(b.name)),
+      }).toEqual({
+        error: "offline",
+        fetched: ["ant", "forwardable", "prime", "singleton"],
+        resolved: [
+          { name: "ant", version: "1.0.0", source: "rubygems" },
+          { name: "prime", version: "0.1.3", source: "rubygems" },
+        ],
+      });
+    },
+  );
   it("leaves no resolver or extraction changes visible to user code", async () => {
     const result = await executeRuby(
       module,
@@ -272,6 +365,90 @@ describe("dependency resolution in the real Ruby WASM runtime", () => {
     expect({ requested, error: result.error }).toEqual({
       requested: ["prime-0.1.3.gem"],
       error: "offline",
+    });
+  });
+  it.each(RUBY_VERSIONS)(
+    "registers and activates a real locked gem after extraction on Ruby %s",
+    async (version) => {
+      const ruby = await wasmFor(version);
+      const requested: string[] = [];
+      const result = await executeRuby(
+        ruby,
+        [
+          'require "rainbow"',
+          'puts Gem.loaded_specs["rainbow"]&.version',
+          'gem "rainbow", "= 3.1.1"',
+          'puts Gem.loaded_specs.fetch("rainbow").version',
+        ].join("\n"),
+        undefined,
+        {
+          requests: [{ name: "rainbow", requirements: ["= 3.1.1"] }],
+          locked: [{ name: "rainbow", version: "3.1.1", source: "rubygems" }],
+          fetchInfo: async () => {
+            throw new Error("a locked version must not fetch metadata");
+          },
+          fetchGem: async (fileName) => {
+            requested.push(fileName);
+            return rainbowArchive;
+          },
+        },
+      );
+
+      expect({
+        error: result.error,
+        output: result.output,
+        requested,
+      }).toEqual({
+        error: undefined,
+        output: "3.1.1\n3.1.1\n",
+        requested: ["rainbow-3.1.1.gem"],
+      });
+    },
+  );
+  it("activates a locked gem and its pure Ruby dependency together", async () => {
+    const requested: string[] = [];
+    const archives = new Map([
+      ["pastel-0.8.0.gem", pastelArchive],
+      ["tty-color-0.6.0.gem", ttyColorArchive],
+    ]);
+    const result = await executeRuby(
+      module,
+      [
+        'require "pastel"',
+        'puts Pastel.new(enabled: false).green("dependency ready")',
+        'puts Gem.loaded_specs.fetch("pastel").version',
+        'puts Gem.loaded_specs.fetch("tty-color").version',
+      ].join("\n"),
+      undefined,
+      {
+        requests: [
+          { name: "pastel", requirements: ["= 0.8.0"] },
+          { name: "tty-color", requirements: ["= 0.6.0"] },
+        ],
+        locked: [
+          { name: "pastel", version: "0.8.0", source: "rubygems" },
+          { name: "tty-color", version: "0.6.0", source: "rubygems" },
+        ],
+        fetchInfo: async () => {
+          throw new Error("locked versions must not fetch metadata");
+        },
+        fetchGem: async (fileName) => {
+          requested.push(fileName);
+          const archive = archives.get(fileName);
+          if (!archive) throw new Error(`unexpected gem request: ${fileName}`);
+          return archive;
+        },
+      },
+    );
+
+    expect({
+      error: result.error,
+      output: result.output,
+      requested: requested.sort(),
+    }).toEqual({
+      error: undefined,
+      output: "dependency ready\n0.8.0\n0.6.0\n",
+      requested: ["pastel-0.8.0.gem", "tty-color-0.6.0.gem"],
     });
   });
   it.each([
