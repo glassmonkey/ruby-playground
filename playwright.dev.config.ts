@@ -5,6 +5,7 @@ const port = process.env.PORT || "18888";
 export default defineConfig({
   testDir: "./e2e",
   testMatch: "seo.spec.ts",
+  outputDir: "test-results/dev-seo",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,

@@ -8,6 +8,7 @@ const allowedOrigin = "http://127.0.0.1:18888";
 
 export default defineConfig({
   testDir: "./e2e",
+  outputDir: "../test-results/proxy-replay",
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: 1,
