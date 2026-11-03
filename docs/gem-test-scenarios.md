@@ -25,6 +25,20 @@ VCR-backed specs.
   `GEM_PROXY_ORIGIN` HTTP(S) origins. It starts no local server and checks the
   selected endpoint; that public check was not run for this change.
 
+To validate public-config collection without starting a server or sending
+HTTP requests, use reserved loopback ports with Playwright's `--list` option:
+
+```sh
+GEM_PROXY_URL=http://127.0.0.1:65534 \
+GEM_PROXY_ORIGIN=http://127.0.0.1:65533 \
+npm run proxy:e2e:public -- --list
+```
+
+This collected nine tests successfully. It validates configuration and test
+discovery only; it does not verify a public endpoint. The preview, dev SEO,
+local proxy replay, and public proxy configs use separate Playwright result
+directories so their reports do not overwrite one another.
+
 Statuses distinguish current local results from historical evidence. Current
 unique automated checks total 169: 149 focused app/proxy tests (139 unit and
 10 Ruby WASM component), three cassette-integrity tests, nine local Worker API
