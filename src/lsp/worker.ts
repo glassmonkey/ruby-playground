@@ -86,6 +86,9 @@ const initializeReady = new Promise<void>((resolve, reject) => {
   rejectInitialized = reject;
 });
 const ready = initializeReady;
+// Failed startup can happen before the first protocol request is queued.
+// Keep the worker's internal barrier from surfacing an unhandled rejection.
+void ready.catch(() => undefined);
 
 async function initialize(version: LspRubyVersion): Promise<void> {
   const started = performance.now();

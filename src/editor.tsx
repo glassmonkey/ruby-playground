@@ -3,6 +3,7 @@ import Editor, { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor/editor/editor.api.js";
 import type { editor as MonacoEditor, Position } from "monaco-editor";
 import "monaco-editor/languages/definitions/ruby/register.js";
+import "monaco-editor/editor/contrib/suggest/browser/suggestController.js";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { useEffect, useRef, useState } from "react";
 import { CompletionClient } from "./lsp/client";
