@@ -7,6 +7,7 @@ import "monaco-editor/editor/contrib/suggest/browser/suggestController.js";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { useEffect, useRef, useState } from "react";
 import { CompletionClient } from "./lsp/client";
+import { requestForStableSnapshot } from "./lsp/completion-request";
 import { utf8ByteColumnToUtf16 } from "./lsp/positions";
 import { isLspRubyVersion } from "./lsp/versions";
 import { DEFAULT_RUBY_VERSION, type RubyVersion } from "./versions";
@@ -75,24 +76,39 @@ export default function RubyEditor({
       provideCompletionItems: async (model, position, _context, token) => {
         const current = client.current;
         if (!current || model.isDisposed()) return { suggestions: [] };
-        const documentVersion = model.getVersionId();
         try {
-          const items = await current.complete(
-            model.uri.toString(),
-            model.getValue(),
-            documentVersion,
-            { line: position.lineNumber - 1, character: position.column - 1 },
+          // A dot triggers the provider before the user finishes typing a method.
+          // If WASM answers after that edit, query the latest snapshot once instead
+          // of returning stale text edits or leaving Monaco without candidates.
+          const result = await requestForStableSnapshot(
+            () => {
+              const activeEditor = editor.current;
+              if (activeEditor?.getModel() !== model) return undefined;
+              return {
+                text: model.getValue(),
+                version: model.getVersionId(),
+                position: activeEditor.getPosition() ?? position,
+              };
+            },
+            (snapshot) =>
+              current.complete(
+                model.uri.toString(),
+                snapshot.text,
+                snapshot.version,
+                {
+                  line: snapshot.position.lineNumber - 1,
+                  character: snapshot.position.column - 1,
+                },
+              ),
+            () =>
+              !token.isCancellationRequested &&
+              !model.isDisposed() &&
+              client.current === current,
           );
-          if (
-            token.isCancellationRequested ||
-            model.isDisposed() ||
-            model.getVersionId() !== documentVersion ||
-            client.current !== current
-          )
-            return { suggestions: [] };
+          if (!result || model.isDisposed()) return { suggestions: [] };
           return {
-            suggestions: items.map((item) =>
-              toMonacoCompletion(item, model, position),
+            suggestions: result.value.map((item) =>
+              toMonacoCompletion(item, model, result.snapshot.position),
             ),
           };
         } catch {
