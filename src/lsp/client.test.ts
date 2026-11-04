@@ -73,20 +73,20 @@ function start(
   return client;
 }
 
-async function expectNoUnhandledRejection(work: () => Promise<void>): Promise<void> {
-  const unhandled: unknown[] = [];
-  const listener = (reason: unknown) => unhandled.push(reason);
+function watchUnhandledRejections() {
+  const reasons: unknown[] = [];
+  const listener = (reason: unknown) => reasons.push(reason);
   process.on("unhandledRejection", listener);
-  try {
-    await work();
-    if (vi.isFakeTimers()) vi.useRealTimers();
-    await new Promise<void>((resolve) => setImmediate(resolve));
-    expect(unhandled).toEqual([]);
-  } finally {
-    process.off("unhandledRejection", listener);
-  }
+  return {
+    async expectNoneAfterNextMacrotask(): Promise<void> {
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      expect(reasons).toEqual([]);
+    },
+    stop(): void {
+      process.off("unhandledRejection", listener);
+    },
+  };
 }
-
 
 describe("CompletionClient", () => {
   afterEach(() => vi.useRealTimers());
@@ -177,46 +177,59 @@ describe("CompletionClient", () => {
   });
 
   it("handles a pre-request fatal worker message and rejects later completion", async () => {
-    await expectNoUnhandledRejection(async () => {
-      const worker = new FakeWorker();
-      const sut = createClient(worker);
+    const unhandled = watchUnhandledRejections();
+    const worker = new FakeWorker();
+    const sut = createClient(worker);
+    try {
       worker.dispatchEvent(
         new MessageEvent("message", {
           data: { type: "fatal", error: "asset download failed" },
         }),
       );
+      await unhandled.expectNoneAfterNextMacrotask();
       await expect(
         sut.complete("file:///main.rb", "1", 1, { line: 0, character: 1 }),
       ).rejects.toThrow("asset download failed");
       expect(worker.terminated).toBe(true);
+    } finally {
       sut.dispose();
-    });
+      unhandled.stop();
+    }
   });
 
   it("handles a boot timeout before the first request and rejects later completion", async () => {
-    await expectNoUnhandledRejection(async () => {
-      vi.useFakeTimers();
-      const worker = new FakeWorker();
-      const sut = createClient(worker);
+    vi.useFakeTimers();
+    const unhandled = watchUnhandledRejections();
+    const worker = new FakeWorker();
+    const sut = createClient(worker);
+    try {
       await vi.advanceTimersByTimeAsync(60_000);
+      vi.useRealTimers();
+      await unhandled.expectNoneAfterNextMacrotask();
       await expect(
         sut.complete("file:///main.rb", "1", 1, { line: 0, character: 1 }),
       ).rejects.toThrow("initialization timed out");
       expect(worker.terminated).toBe(true);
+    } finally {
       sut.dispose();
-    });
+      unhandled.stop();
+    }
   });
 
   it("handles disposal before the first request and rejects later completion", async () => {
-    await expectNoUnhandledRejection(async () => {
-      const worker = new FakeWorker();
-      const sut = createClient(worker);
+    const unhandled = watchUnhandledRejections();
+    const worker = new FakeWorker();
+    const sut = createClient(worker);
+    try {
       sut.dispose();
+      await unhandled.expectNoneAfterNextMacrotask();
       await expect(
         sut.complete("file:///main.rb", "1", 1, { line: 0, character: 1 }),
       ).rejects.toThrow("disposed");
       expect(worker.terminated).toBe(true);
-    });
+    } finally {
+      unhandled.stop();
+    }
   });
 
   it("ignores a late disposed session when completion starts again after re-enable", async () => {
