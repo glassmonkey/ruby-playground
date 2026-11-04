@@ -76,38 +76,9 @@ export class CompletionClient {
     const operation = this.queue.then(async () => {
       await this.ready;
       this.assertUsable();
-      if (!this.initialized) {
-        await this.sendRequest("initialize", {
-          processId: null,
-          rootUri: "file:///playground",
-          capabilities: { general: { positionEncodings: ["utf-16"] } },
-          initializationOptions: {
-            enabledFeatures: ["completion"],
-            formatter: "none",
-            linters: [],
-          },
-        });
-        await this.sendNotification("initialized", {});
-        this.initialized = true;
-      }
+      await this.initializeSession();
 
-      if (this.documentUri !== uri) {
-        if (this.documentUri)
-          await this.sendNotification("textDocument/didClose", {
-            textDocument: { uri: this.documentUri },
-          });
-        await this.sendNotification("textDocument/didOpen", {
-          textDocument: { uri, languageId: "ruby", version, text },
-        });
-        this.documentUri = uri;
-        this.documentVersion = version;
-      } else if (version > this.documentVersion) {
-        await this.sendNotification("textDocument/didChange", {
-          textDocument: { uri, version },
-          contentChanges: [{ text }],
-        });
-        this.documentVersion = version;
-      }
+      await this.syncDocument(uri, text, version);
 
       const result = await this.sendRequest("textDocument/completion", {
         textDocument: { uri },
@@ -124,6 +95,76 @@ export class CompletionClient {
     });
     this.queue = operation.catch(() => undefined);
     return operation;
+  }
+
+  resolve(
+    uri: string,
+    text: string,
+    version: number,
+    item: LspCompletionItem,
+  ): Promise<LspCompletionItem> {
+    const operation = this.queue.then(async () => {
+      await this.ready;
+      this.assertUsable();
+      await this.initializeSession();
+      await this.syncDocument(uri, text, version);
+      const result = await this.sendRequest("completionItem/resolve", item);
+      if (!result || typeof result !== "object")
+        throw new Error("Ruby completion detail could not be resolved.");
+      return result as LspCompletionItem;
+    });
+    this.queue = operation.catch(() => undefined);
+    return operation;
+  }
+
+  private async initializeSession(): Promise<void> {
+    if (!this.initialized) {
+      await this.sendRequest("initialize", {
+        processId: null,
+        rootUri: "file:///playground",
+        capabilities: {
+          general: { positionEncodings: ["utf-16"] },
+          textDocument: {
+            completion: {
+              completionItem: {
+                resolveSupport: { properties: ["detail", "documentation"] },
+              },
+            },
+          },
+        },
+        initializationOptions: {
+          enabledFeatures: ["completion"],
+          formatter: "none",
+          linters: [],
+        },
+      });
+      await this.sendNotification("initialized", {});
+      this.initialized = true;
+    }
+  }
+
+  private async syncDocument(
+    uri: string,
+    text: string,
+    version: number,
+  ): Promise<void> {
+    if (this.documentUri !== uri) {
+      if (this.documentUri)
+        await this.sendNotification("textDocument/didClose", {
+          textDocument: { uri: this.documentUri },
+        });
+      await this.sendNotification("textDocument/didOpen", {
+        textDocument: { uri, languageId: "ruby", version, text },
+      });
+      this.documentUri = uri;
+      this.documentVersion = version;
+    } else if (version > this.documentVersion) {
+      await this.sendNotification("textDocument/didChange", {
+        textDocument: { uri, version },
+        contentChanges: [{ text }],
+      });
+      this.documentVersion = version;
+    }
   }
 
   dispose(): void {

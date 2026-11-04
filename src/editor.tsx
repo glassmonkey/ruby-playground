@@ -8,6 +8,7 @@ import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { useEffect, useRef, useState } from "react";
 import { CompletionClient } from "./lsp/client";
 import { requestForStableSnapshot } from "./lsp/completion-request";
+import { shouldApplyCompletionResolve } from "./lsp/resolve-guard";
 import {
   rebaseCompletionEndColumn,
   utf8ByteColumnToUtf16,
@@ -57,7 +58,9 @@ export default function RubyEditor({
     let active = true;
     onStatus.current?.("loading");
     const current = new CompletionClient(
-      new Worker(new URL("./lsp/worker.ts", import.meta.url), { type: "module" }),
+      new Worker(new URL("./lsp/worker.ts", import.meta.url), {
+        type: "module",
+      }),
       (status) => {
         if (active) onStatus.current?.(status);
       },
@@ -116,16 +119,70 @@ export default function RubyEditor({
             return { suggestions: [] };
           const suggestions = result.value
             .map((item) =>
-              toMonacoCompletion(item, model, result.snapshot.position, position),
+              toMonacoCompletion(
+                item,
+                model,
+                result.snapshot.position,
+                position,
+              ),
             )
             .filter(
-              (item): item is monaco.languages.CompletionItem => item !== undefined,
+              (item): item is monaco.languages.CompletionItem =>
+                item !== undefined,
             );
           return {
             suggestions,
           };
         } catch {
           return { suggestions: [] };
+        }
+      },
+      resolveCompletionItem: async (item, token) => {
+        const current = client.current;
+        const model = editor.current?.getModel();
+        const original = (item as MonacoRubyCompletion).rubyLspItem;
+        if (!current || !model || model.isDisposed() || !original) return item;
+        const version = model.getVersionId();
+        const uri = model.uri.toString();
+        try {
+          const resolved = await current.resolve(
+            uri,
+            model.getValue(),
+            version,
+            original,
+          );
+          if (
+            !shouldApplyCompletionResolve({
+              cancelled: token.isCancellationRequested,
+              modelDisposed: model.isDisposed(),
+              editorStillOwnsModel: editor.current?.getModel() === model,
+              requestVersion: version,
+              currentVersion: model.getVersionId(),
+              clientStillCurrent: client.current === current,
+            })
+          )
+            return item;
+          const documentation = resolved.documentation;
+          const detail =
+            typeof resolved.detail === "string" ? resolved.detail : item.detail;
+          return {
+            ...item,
+            detail,
+            documentation:
+              typeof documentation === "string"
+                ? documentation
+                : documentation && typeof documentation === "object"
+                  ? {
+                      value: String(
+                        (documentation as { value?: unknown }).value ?? "",
+                      ),
+                      supportHtml: false,
+                      supportThemeIcons: false,
+                    }
+                  : item.documentation,
+          };
+        } catch {
+          return item;
         }
       },
     });
@@ -184,6 +241,9 @@ type LspCompletionItem = {
         newText: string;
       };
 };
+type MonacoRubyCompletion = monaco.languages.CompletionItem & {
+  rubyLspItem: LspCompletionItem;
+};
 
 function toMonacoCompletion(
   item: LspCompletionItem,
@@ -204,8 +264,7 @@ function toMonacoCompletion(
     )
       return undefined;
     const line = model.getLineContent(lineNumber);
-    const startColumn =
-      utf8ByteColumnToUtf16(line, range.start.character) + 1;
+    const startColumn = utf8ByteColumnToUtf16(line, range.start.character) + 1;
     const responseEndColumn =
       utf8ByteColumnToUtf16(line, range.end.character) + 1;
     const endColumn = rebaseCompletionEndColumn(
@@ -221,9 +280,7 @@ function toMonacoCompletion(
     return new monaco.Range(lineNumber, startColumn, lineNumber, endColumn);
   };
   let monacoRange:
-    | monaco.Range
-    | monaco.languages.CompletionItemRanges
-    | undefined;
+    monaco.Range | monaco.languages.CompletionItemRanges | undefined;
   if (edit) {
     if ("range" in edit) {
       monacoRange = toMonacoRange(edit.range);
@@ -254,14 +311,13 @@ function toMonacoCompletion(
     kind: completionKind(item.kind),
     detail: item.detail,
     documentation:
-      typeof documentation === "string"
-        ? documentation
-        : documentation?.value,
+      typeof documentation === "string" ? documentation : documentation?.value,
     sortText: item.sortText,
     filterText: item.filterText,
     insertText: edit?.newText ?? item.insertText ?? label,
     range: monacoRange,
-  };
+    rubyLspItem: item,
+  } as MonacoRubyCompletion;
 }
 
 function completionKind(kind?: number): monaco.languages.CompletionItemKind {
