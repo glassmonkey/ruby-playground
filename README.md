@@ -85,6 +85,12 @@ request. Browser unmount cleanup and forced in-flight response/timeout races
 also remain unverified by this E2E run. Runtime resolve work is pending; these
 results do not establish completion AC acceptance.
 
+Browser history navigation also preserves the current completion status when
+only the source code changes and the Ruby version and enabled setting stay the
+same. Changing either completion setting recalculates the status; code-only
+history moves keep an existing ready or unavailable state and reuse the current
+analysis Worker.
+
 ## Security and privacy
 
 - Code runs in your browser in a Web Worker. Each run uses a new Worker and

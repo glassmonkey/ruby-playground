@@ -264,6 +264,65 @@ test("analysis failure leaves editing and Ruby execution available", async ({
   await expect(page.getByText("Unavailable", { exact: true })).toBeVisible({
     timeout: 30_000,
   });
+
+  const codeOnlyHistoryUrl = buildShareUrl(page.url(), {
+    code: 'puts "code-only navigation after completion error"',
+    version: "4.0",
+    completionEnabled: true,
+  });
+  await page.evaluate((url) => {
+    window.history.pushState(null, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, codeOnlyHistoryUrl);
+  await expect(
+    page.getByText("Unavailable", { exact: true }),
+  ).toBeVisible();
+  await expectRubyOutput(page, "code-only navigation after completion error\n");
+});
+
+test("code-only history navigation preserves ready completion and natural suggestions", async ({
+  page,
+}) => {
+  test.setTimeout(90_000);
+  await watchAnalysisWorkers(page);
+  await page.goto("./?v=4.0");
+  await expect(page.getByText("On", { exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+
+  const codeOnlyHistoryUrl = buildShareUrl(page.url(), {
+    code: 'greeting = "hi"\nputs ',
+    version: "4.0",
+    completionEnabled: true,
+  });
+  await page.evaluate((url) => {
+    window.history.pushState(null, "", url);
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  }, codeOnlyHistoryUrl);
+  await expect(page.locator(".monaco-editor .view-lines")).toContainText(
+    'greeting = "hi"',
+  );
+  await expect(page.getByText("On", { exact: true })).toBeVisible();
+  expect(await analysisWorkerUrls(page)).toHaveLength(1);
+
+  await editRuby(page, 'greeting = "hi"\nputs ');
+  await page.keyboard.type("gree");
+  const greeting = page
+    .getByRole("listbox", { name: "Suggest" })
+    .getByRole("listitem", { name: "greeting, Variable", exact: true });
+  await expect(greeting).toBeVisible({ timeout: 30_000 });
+  await greeting.click();
+  await expect(page.locator(".monaco-editor .view-line")).toHaveText([
+    'greeting = "hi"',
+    "puts greeting",
+  ]);
+  await expectRubyOutput(page, "hi\n");
+  expect(await analysisWorkerUrls(page)).toHaveLength(1);
+  expect(
+    (await lspObservations(page)).filter(
+      (observation) => observation.direction === "initialize",
+    ),
+  ).toHaveLength(1);
 });
 
 test("natural input completes put as puts and preserves text after the edit", async ({

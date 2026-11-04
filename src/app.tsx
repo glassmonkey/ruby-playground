@@ -43,6 +43,11 @@ export default function App() {
   const [completionStatus, setCompletionStatus] = useState<
     "disabled" | "loading" | "ready" | "unsupported" | "error"
   >(initial.completionEnabled ? "loading" : "disabled");
+  const completionSettings = useRef({
+    enabled: initial.completionEnabled,
+    version: initial.version,
+  });
+  completionSettings.current = { enabled: completionEnabled, version };
   const [revision, setRevision] = useState(0);
   const [warning, setWarning] = useState(initial.warning ?? "");
   const [environment, setEnvironment] = useState<{
@@ -97,10 +102,22 @@ export default function App() {
       run.current?.cancel();
       run.current = undefined;
       const state = parseShareUrl(window.location.href, INITIAL_CODE);
+      const previousCompletionSettings = completionSettings.current;
+      completionSettings.current = {
+        enabled: state.completionEnabled,
+        version: state.version,
+      };
       setCode(state.code);
       setVersion(state.version);
       setCompletionEnabled(state.completionEnabled);
-      setCompletionStatus(completionStatusFor(state.completionEnabled, state.version));
+      if (
+        previousCompletionSettings.enabled !== state.completionEnabled ||
+        previousCompletionSettings.version !== state.version
+      ) {
+        setCompletionStatus(
+          completionStatusFor(state.completionEnabled, state.version),
+        );
+      }
       setRevision((value) => value + 1);
       setWarning(state.warning ?? "");
       setResult(EMPTY_RESULT);
