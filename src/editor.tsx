@@ -6,6 +6,7 @@ import "monaco-editor/languages/definitions/ruby/register.js";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { useEffect, useRef, useState } from "react";
 import { CompletionClient } from "./lsp/client";
+import { utf8ByteColumnToUtf16 } from "./lsp/positions";
 import { isLspRubyVersion } from "./lsp/versions";
 import { DEFAULT_RUBY_VERSION, type RubyVersion } from "./versions";
 
@@ -166,9 +167,15 @@ function toMonacoCompletion(
     const range = "range" in edit ? edit.range : edit.replace;
     monacoRange = new monaco.Range(
       range.start.line + 1,
-      utf8ByteToUtf16Column(model, range.start.line, range.start.character) + 1,
+      utf8ByteColumnToUtf16(
+        model.getLineContent(range.start.line + 1),
+        range.start.character,
+      ) + 1,
       range.end.line + 1,
-      utf8ByteToUtf16Column(model, range.end.line, range.end.character) + 1,
+      utf8ByteColumnToUtf16(
+        model.getLineContent(range.end.line + 1),
+        range.end.character,
+      ) + 1,
     );
   } else {
     const range = model.getWordUntilPosition(position);
@@ -193,25 +200,6 @@ function toMonacoCompletion(
     insertText: edit?.newText ?? item.insertText ?? label,
     range: monacoRange,
   };
-}
-
-// Ruby LSP completion text edits use UTF-8 byte columns while Monaco uses
-// UTF-16 code units. Convert each returned line column at the editor boundary.
-function utf8ByteToUtf16Column(
-  model: MonacoEditor.ITextModel,
-  zeroBasedLine: number,
-  byteColumn: number,
-): number {
-  const line = model.getLineContent(zeroBasedLine + 1);
-  let bytes = 0;
-  let codeUnits = 0;
-  for (const character of line) {
-    const characterBytes = new TextEncoder().encode(character).length;
-    if (bytes + characterBytes > byteColumn) break;
-    bytes += characterBytes;
-    codeUnits += character.length;
-  }
-  return codeUnits;
 }
 
 function completionKind(kind?: number): monaco.languages.CompletionItemKind {

@@ -43,7 +43,7 @@ for (const version of ["3.3", "4.0", "3.3"]) {
   const rpc = createRpc(server, vm);
   const uri = "file:///playground/main.rb";
   let documentVersion = 0;
-  await rpc("initialize", {
+  const initializeResult = await rpc("initialize", {
     processId: null,
     rootUri: "file:///playground",
     capabilities: { general: { positionEncodings: ["utf-16"] } },
@@ -53,6 +53,7 @@ for (const version of ["3.3", "4.0", "3.3"]) {
       linters: [],
     },
   });
+  metrics.positionEncoding = initializeResult?.capabilities?.positionEncoding ?? "utf-16 (default)";
   await rpc("initialized", {});
   await rpc("textDocument/didOpen", {
     textDocument: { uri, languageId: "ruby", version: ++documentVersion, text: "" },
@@ -100,6 +101,14 @@ for (const version of ["3.3", "4.0", "3.3"]) {
       label: "名前",
       present: true,
       editStart: { line: 1, character: 0 },
+      editEnd: { line: 1, character: 3 },
+    },
+    {
+      text: '\"😀\".upc',
+      label: "upcase",
+      present: true,
+      editStart: { line: 0, character: 7 },
+      editEnd: { line: 0, character: 10 },
     },
     {
       text: 'class Mine; def rfind; 42; end; end; Mine.new.rf',
@@ -138,12 +147,13 @@ for (const version of ["3.3", "4.0", "3.3"]) {
       assert.ok(item.textEdit, `${version}: ${text} omitted textEdit`);
       assert.equal(item.textEdit.newText, testCase.label);
       assert.deepEqual(item.textEdit.range.start, testCase.editStart);
-      const expectedEnd = text.includes("名前")
-        ? { line: 1, character: 3 }
-        : endPosition(text);
-      assert.deepEqual(item.textEdit.range.end, expectedEnd, `${version}: ${text}`);
-      const startOffset = offsetAt(text, item.textEdit.range.start);
-      const endOffset = offsetAt(text, item.textEdit.range.end);
+      assert.deepEqual(
+        item.textEdit.range.end,
+        testCase.editEnd ?? endPosition(text),
+        `${version}: ${text}`,
+      );
+      const startOffset = lspOffsetAt(text, item.textEdit.range.start);
+      const endOffset = lspOffsetAt(text, item.textEdit.range.end);
       const inserted =
         text.slice(0, startOffset) + item.textEdit.newText + text.slice(endOffset);
       assert.equal(inserted, text.slice(0, startOffset) + testCase.label);
@@ -210,6 +220,19 @@ function createRpc(server, vm) {
 function endPosition(text) {
   const lines = text.split("\n");
   return { line: lines.length - 1, character: lines.at(-1).length };
+}
+
+function lspOffsetAt(text, position) {
+  const line = text.split("\n")[position.line];
+  let bytes = 0;
+  let codeUnits = 0;
+  for (const character of line) {
+    const characterBytes = Buffer.byteLength(character, "utf8");
+    if (bytes + characterBytes > position.character) break;
+    bytes += characterBytes;
+    codeUnits += character.length;
+  }
+  return offsetAt(text, { ...position, character: codeUnits });
 }
 
 function offsetAt(text, position) {

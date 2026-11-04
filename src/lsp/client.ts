@@ -54,6 +54,9 @@ export class CompletionClient {
       this.readyResolve = resolve;
       this.readyReject = reject;
     });
+    // Keep boot failures safe when no completion request is awaiting ready yet.
+    // Awaiters still observe the original rejection and receive the failure.
+    void this.ready.catch(() => undefined);
     this.bootTimer = setTimeout(
       () => this.fail(new Error("Ruby completion initialization timed out.")),
       LSP_BOOT_TIMEOUT_MS,
