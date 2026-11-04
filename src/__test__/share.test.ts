@@ -55,6 +55,7 @@ describe("shared playground URLs", () => {
     expect(parseShareUrl(url, fallback)).toEqual({
       code,
       version: "4.0",
+      completionEnabled: true,
     });
     expect(new URL(url).searchParams.get("theme")).toBe("dark");
     expect(new URL(url).hash).toBe("#editor");
@@ -68,7 +69,11 @@ describe("shared playground URLs", () => {
       // Act
       const got = parseShareUrl(url, fallback);
       // Assert
-      expect(got).toEqual({ code: 'puts "legacy"', version: "3.4" });
+      expect(got).toEqual({
+        code: 'puts "legacy"',
+        version: "3.4",
+        completionEnabled: true,
+      });
     },
   );
 
@@ -88,6 +93,7 @@ describe("shared playground URLs", () => {
     expect(parseShareUrl(base, fallback)).toEqual({
       code: fallback,
       version: "4.0",
+      completionEnabled: true,
     });
   });
 
@@ -101,6 +107,25 @@ describe("shared playground URLs", () => {
       version: "4.0",
     });
     expect(parsed.warning).toContain("Ruby 4.0");
+  });
+
+  it("round trips ac=0 and treats legacy URLs as completion enabled", () => {
+    const url = buildShareUrl(base, {
+      code: 'puts "hi"',
+      version: "3.3",
+      completionEnabled: false,
+    });
+    expect(new URL(url).searchParams.get("ac")).toBe("0");
+    expect(parseShareUrl(url, fallback)).toEqual({
+      code: 'puts "hi"',
+      version: "3.3",
+      completionEnabled: false,
+    });
+    expect(parseShareUrl(encodedUrl('puts "legacy"'), fallback)).toEqual({
+      code: 'puts "legacy"',
+      version: "4.0",
+      completionEnabled: true,
+    });
   });
 
   it.each(["", "%", "!!!", "A", "B", "zzzzzz", "Qgarbage", "Q$"])(
@@ -196,6 +221,7 @@ it.each(["4.0", "3.4", "3.3", "3.2", "4.1"] as const)(
     const state = {
       code: "puts RUBY_VERSION",
       version,
+      completionEnabled: true,
     };
     expect(
       parseShareUrl(
