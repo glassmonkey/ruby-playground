@@ -1,0 +1,9 @@
+source "https://rubygems.org"
+
+gem "ruby_wasm", "2.10.1"
+gem "js", "2.10.1"
+gem "ruby-lsp", "0.26.11"
+gem "language_server-protocol", "3.17.0.6"
+gem "prism", "1.7.0"
+gem "rbs", "3.9.5"
+gem "logger", "1.7.0"
