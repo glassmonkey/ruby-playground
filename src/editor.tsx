@@ -8,7 +8,10 @@ import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import { useEffect, useRef, useState } from "react";
 import { CompletionClient } from "./lsp/client";
 import { requestForStableSnapshot } from "./lsp/completion-request";
-import { utf8ByteColumnToUtf16 } from "./lsp/positions";
+import {
+  rebaseCompletionEndColumn,
+  utf8ByteColumnToUtf16,
+} from "./lsp/positions";
 import { isLspRubyVersion } from "./lsp/versions";
 import { DEFAULT_RUBY_VERSION, type RubyVersion } from "./versions";
 
@@ -105,11 +108,21 @@ export default function RubyEditor({
               !model.isDisposed() &&
               client.current === current,
           );
-          if (!result || model.isDisposed()) return { suggestions: [] };
+          if (
+            !result ||
+            model.isDisposed() ||
+            result.snapshot.position.lineNumber !== position.lineNumber
+          )
+            return { suggestions: [] };
+          const suggestions = result.value
+            .map((item) =>
+              toMonacoCompletion(item, model, result.snapshot.position, position),
+            )
+            .filter(
+              (item): item is monaco.languages.CompletionItem => item !== undefined,
+            );
           return {
-            suggestions: result.value.map((item) =>
-              toMonacoCompletion(item, model, result.snapshot.position),
-            ),
+            suggestions,
           };
         } catch {
           return { suggestions: [] };
@@ -175,34 +188,66 @@ type LspCompletionItem = {
 function toMonacoCompletion(
   item: LspCompletionItem,
   model: MonacoEditor.ITextModel,
-  position: Position,
-): monaco.languages.CompletionItem {
+  responsePosition: Position,
+  requestPosition: Position,
+): monaco.languages.CompletionItem | undefined {
   const label = typeof item.label === "string" ? item.label : item.label.label;
   const edit = item.textEdit;
-  let monacoRange: monaco.Range;
-  if (edit) {
-    const range = "range" in edit ? edit.range : edit.replace;
-    monacoRange = new monaco.Range(
-      range.start.line + 1,
-      utf8ByteColumnToUtf16(
-        model.getLineContent(range.start.line + 1),
-        range.start.character,
-      ) + 1,
-      range.end.line + 1,
-      utf8ByteColumnToUtf16(
-        model.getLineContent(range.end.line + 1),
-        range.end.character,
-      ) + 1,
+  const toMonacoRange = (range: {
+    start: { line: number; character: number };
+    end: { line: number; character: number };
+  }): monaco.Range | undefined => {
+    const lineNumber = responsePosition.lineNumber;
+    if (
+      range.start.line !== lineNumber - 1 ||
+      range.end.line !== lineNumber - 1
+    )
+      return undefined;
+    const line = model.getLineContent(lineNumber);
+    const startColumn =
+      utf8ByteColumnToUtf16(line, range.start.character) + 1;
+    const responseEndColumn =
+      utf8ByteColumnToUtf16(line, range.end.character) + 1;
+    const endColumn = rebaseCompletionEndColumn(
+      responseEndColumn,
+      requestPosition.column,
+      responsePosition.column,
     );
+    if (
+      endColumn < startColumn ||
+      endColumn > model.getLineMaxColumn(lineNumber)
+    )
+      return undefined;
+    return new monaco.Range(lineNumber, startColumn, lineNumber, endColumn);
+  };
+  let monacoRange:
+    | monaco.Range
+    | monaco.languages.CompletionItemRanges
+    | undefined;
+  if (edit) {
+    if ("range" in edit) {
+      monacoRange = toMonacoRange(edit.range);
+    } else {
+      const insert = toMonacoRange(edit.insert);
+      const replace = toMonacoRange(edit.replace);
+      if (insert && replace) monacoRange = { insert, replace };
+    }
   } else {
-    const range = model.getWordUntilPosition(position);
-    monacoRange = new monaco.Range(
-      position.lineNumber,
-      range.startColumn,
-      position.lineNumber,
+    const range = model.getWordUntilPosition(responsePosition);
+    const endColumn = rebaseCompletionEndColumn(
       range.endColumn,
+      requestPosition.column,
+      responsePosition.column,
+    );
+    if (endColumn < range.startColumn) return undefined;
+    monacoRange = new monaco.Range(
+      responsePosition.lineNumber,
+      range.startColumn,
+      responsePosition.lineNumber,
+      endColumn,
     );
   }
+  if (!monacoRange) return undefined;
   const documentation = item.documentation;
   return {
     label,

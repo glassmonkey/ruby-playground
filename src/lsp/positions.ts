@@ -10,3 +10,16 @@ export function utf8ByteColumnToUtf16(line: string, byteColumn: number): number 
   }
   return codeUnits;
 }
+
+/**
+ * Monaco inserts relative to the provider's original cursor even when an async
+ * result was requested again after the cursor moved. Rebase the LSP range end
+ * from the response cursor to that original cursor before returning the item.
+ */
+export function rebaseCompletionEndColumn(
+  endColumn: number,
+  requestedColumn: number,
+  responseColumn: number,
+): number {
+  return endColumn - (responseColumn - requestedColumn);
+}
