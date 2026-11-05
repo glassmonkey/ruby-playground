@@ -12,9 +12,11 @@ export const MAX_SHARE_URL_BYTES = 8_000;
 export type ShareState = {
   code: string;
   version?: RubyVersion;
+  completionEnabled?: boolean;
 };
 export type ParsedShareState = ShareState & {
   version: RubyVersion;
+  completionEnabled: boolean;
   warning?: string;
 };
 
@@ -96,6 +98,7 @@ export function parseShareUrl(
   const state: ParsedShareState = {
     code: fallbackCode,
     version: DEFAULT_RUBY_VERSION,
+    completionEnabled: true,
   };
   let parsed: URL;
   try {
@@ -113,6 +116,7 @@ export function parseShareUrl(
     warnings.push("Unsupported Ruby version; using Ruby 4.0.");
   }
   const compressed = parsed.searchParams.get("c");
+  state.completionEnabled = parsed.searchParams.get("ac") !== "0";
   if (compressed !== null) {
     try {
       // Reject before decoding or allocating a decoded dictionary. URLSearchParams
@@ -157,6 +161,8 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   const version = state.version ?? DEFAULT_RUBY_VERSION;
   if (!isRubyVersion(version)) throw new Error("Unsupported Ruby version.");
   result.searchParams.set("v", version);
+  if (state.completionEnabled === false) result.searchParams.set("ac", "0");
+  else result.searchParams.delete("ac");
   // Ignore legacy HTML-preview settings; all output is now plain text.
   result.searchParams.delete("f");
   const shareUrl = result.toString();

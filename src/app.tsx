@@ -17,6 +17,7 @@ import type { RunResult, RuntimeInfo } from "./runtime";
 import { startRubyRun, type RunHandle } from "./workers/client";
 import { RUBY_RELEASES, type RubyVersion } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
+import { isLspRubyVersion } from "./lsp/versions";
 
 import Output from "./output";
 import RuntimeInfoPanel from "./runtime-info";
@@ -36,6 +37,17 @@ export default function App() {
   );
   const [code, setCode] = useState(initial.code);
   const [version, setVersion] = useState(initial.version);
+  const [completionEnabled, setCompletionEnabled] = useState(
+    initial.completionEnabled,
+  );
+  const [completionStatus, setCompletionStatus] = useState<
+    "disabled" | "loading" | "ready" | "unsupported" | "error"
+  >(initial.completionEnabled ? "loading" : "disabled");
+  const completionSettings = useRef({
+    enabled: initial.completionEnabled,
+    version: initial.version,
+  });
+  completionSettings.current = { enabled: completionEnabled, version };
   const [revision, setRevision] = useState(0);
   const [warning, setWarning] = useState(initial.warning ?? "");
   const [environment, setEnvironment] = useState<{
@@ -90,8 +102,22 @@ export default function App() {
       run.current?.cancel();
       run.current = undefined;
       const state = parseShareUrl(window.location.href, INITIAL_CODE);
+      const previousCompletionSettings = completionSettings.current;
+      completionSettings.current = {
+        enabled: state.completionEnabled,
+        version: state.version,
+      };
       setCode(state.code);
       setVersion(state.version);
+      setCompletionEnabled(state.completionEnabled);
+      if (
+        previousCompletionSettings.enabled !== state.completionEnabled ||
+        previousCompletionSettings.version !== state.version
+      ) {
+        setCompletionStatus(
+          completionStatusFor(state.completionEnabled, state.version),
+        );
+      }
       setRevision((value) => value + 1);
       setWarning(state.warning ?? "");
       setResult(EMPTY_RESULT);
@@ -108,7 +134,7 @@ export default function App() {
     } catch (error) {
       // A stale URL must not silently share the previous editor contents.
       const url = new URL(window.location.href);
-      for (const key of ["c", "v", "f"]) url.searchParams.delete(key);
+      for (const key of ["c", "v", "f", "ac"]) url.searchParams.delete(key);
       window.history.replaceState(window.history.state, "", url);
       setWarning(error instanceof Error ? error.message : String(error));
     }
@@ -196,7 +222,10 @@ export default function App() {
                   stop();
                   const next = event.target.value as RubyVersion;
                   setVersion(next);
-                  updateUrl({ code, version: next });
+                  setCompletionStatus(
+                    completionStatusFor(completionEnabled, next),
+                  );
+                  updateUrl({ code, version: next, completionEnabled });
                 }}
               >
                 {RUBY_RELEASES.map((release) => (
@@ -205,6 +234,32 @@ export default function App() {
                   </option>
                 ))}
               </Select>
+            </Flex>
+            <Flex align="center" gap={2}>
+              <Text as="label" htmlFor="completion-enabled" fontSize="xs">
+                Code completion:
+              </Text>
+              <Switch
+                id="completion-enabled"
+                aria-label="Code completion"
+                size="lg"
+                colorScheme="ruby"
+                isChecked={completionEnabled}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setCompletionEnabled(next);
+                  setCompletionStatus(next ? "loading" : "disabled");
+                  updateUrl({ code, version, completionEnabled: next });
+                }}
+              />
+              <Text
+                fontSize="xs"
+                role="status"
+                aria-live="polite"
+                aria-label={`Code completion status: ${completionLabel(completionEnabled, version, completionStatus)}`}
+              >
+                {completionLabel(completionEnabled, version, completionStatus)}
+              </Text>
             </Flex>
             <Flex gap={2} align="center">
               <Text as="label" htmlFor="ui-theme" fontSize="xs">
@@ -233,6 +288,11 @@ export default function App() {
             </Flex>
           </Flex>
         </Flex>
+        <Text id="completion-guidance" fontSize="sm" color="mutedText" mb={3}>
+          {completionEnabled
+            ? 'Type after a receiver or local variable, for example `puts "hello".upc`, then select a candidate to insert it. When available, candidate documentation appears beside the suggestions.'
+            : "Turn on Code completion to see and insert suggestions while you type."}
+        </Text>
         <RuntimeInfoPanel
           info={environment?.version === version ? environment.info : undefined}
           isLoading={status !== "done"}
@@ -280,11 +340,14 @@ export default function App() {
               <Suspense fallback={<Spinner aria-label="Loading editor" />}>
                 <RubyEditor
                   code={code}
+                  version={version}
+                  completionEnabled={completionEnabled}
+                  onCompletionStatusChange={setCompletionStatus}
                   onChange={(next) => {
                     if (next === code) return;
                     stop();
                     setCode(next);
-                    updateUrl({ code: next, version });
+                    updateUrl({ code: next, version, completionEnabled });
                   }}
                 />
               </Suspense>
@@ -439,4 +502,25 @@ export default function App() {
       </Box>
     </Box>
   );
+}
+
+function completionLabel(
+  enabled: boolean,
+  version: RubyVersion,
+  status: "disabled" | "loading" | "ready" | "unsupported" | "error",
+): string {
+  if (!enabled || status === "disabled") return "Off";
+  if (!isLspRubyVersion(version) || status === "unsupported")
+    return `Unavailable for Ruby ${version}`;
+  if (status === "error") return "Unavailable";
+  if (status === "ready") return "On";
+  return "Loading";
+}
+
+function completionStatusFor(
+  enabled: boolean,
+  version: RubyVersion,
+): "disabled" | "loading" | "unsupported" {
+  if (!enabled) return "disabled";
+  return isLspRubyVersion(version) ? "loading" : "unsupported";
 }
