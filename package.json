@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
-    "lsp:build": "BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle install && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle exec ruby scripts/lsp/build-analysis.rb && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle exec ruby scripts/lsp/build-assets.rb",
+    "lsp:build": "ruby scripts/lsp/test-wasi-sdk-head-diagnostics.rb && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle install && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle exec ruby scripts/lsp/build-analysis.rb && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle exec ruby scripts/lsp/build-assets.rb",
     "lsp:verify": "node scripts/lsp/verify-runtime.mjs",
     "preview": "vite preview --port 8888",
     "typecheck": "tsc --noEmit",
