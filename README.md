@@ -59,37 +59,66 @@ whose lessons run code in the page.
 ## Ruby completion verification
 
 The completion-only Chromium suite runs against a production Vite build with
-`PORT=6645 npx playwright test --config=e2e/completion.config.ts`. On runtime
-head `0cabb96d3efef65a132cf286e70bf38153c45da3`, all 11 tests passed. The run
-covered natural `upcase` and `greeting` completion, `put`→`puts`, midline suffix
-preservation, Japanese and emoji input, version-specific candidates, completion
-disable/unsupported-version behavior, asset-fetch failure, and local HTTP and
-browser timing. Traces, screenshots, protocol captures, and measurements are
-archived under `test-results/archive/0cabb96d3efef65a132cf286e70bf38153c45da3/`.
+`PORT=6645 npx playwright test --config=e2e/completion.config.ts`. The isolated
+config starts only Vite preview and matches `completion.spec.ts`; it does not
+start or reuse the gem proxy or workerd. The last full run on UI source head
+`c60ee92b84bcdd979e68a9b6fa698469d19e8524` passed all 14 tests. Its command,
+screenshots, traces and protocol captures are archived under
+`test-results/archive/c60ee92b84bcdd979e68a9b6fa698469d19e8524/completion-e2e-full-run2/`.
+A run on the final committed UI head is recorded in the corresponding
+head-keyed archive before this PR is updated.
 
 That run used manifest SHA-256
 `c93e49dc7769caf55ff2e14a70af56a042bfaa894b956b944db44d715edc3e13` and
 analysis WASM SHA-256
 `913e37a91777a0e9e5ef6114eb0b3dc8e1d3ac990a15c144c6a0afc606daae5c` (67,732,288
-bytes). The WASM was copied from the runtime worktree into this worktree's
-ignored build input and assets were generated from this branch's LSP adapter;
-the adapter did not change on 0cabb, so assets were not regenerated for that
-head. In this local run, navigation to completion-ready took 2,075 ms, Worker
-initialization 1,267 ms, first candidate 1,312 ms, and a warm candidate 87 ms.
-The five LSP HTTP response bodies totaled 20,698,694 bytes. These are local
-measurements, not production-network timings.
+bytes). The WASM was copied from the runtime worktree to this worktree's
+ignored build input; the asset manifest was generated from this branch's
+adapter. The adapter did not change on runtime heads 0cabb, e598 or ecee, so
+the WASM was not rebuilt. An earlier local measurement recorded 2,075 ms to
+completion-ready, 1,267 ms Worker initialization, 1,312 ms to first candidate,
+87 ms to a warm candidate, and 20,698,694 bytes across five LSP HTTP response
+bodies. These are local measurements, not production-network timings.
 
-Fiber#raise's cause-argument detail is still unverified: this UI run received no
-`completionItem/resolve` response and did not send a resolve or signature-help
-request. Browser unmount cleanup and forced in-flight response/timeout races
-also remain unverified by this E2E run. Runtime resolve work is pending; these
-results do not establish completion AC acceptance.
+The completion E2E covers natural `upcase` and `greeting` insertion and Ruby
+execution, `put`→`puts`, midline suffix preservation, Japanese and emoji UTF-16
+positions, `Mine#rfind` shadowing/removal, version-specific API candidates,
+the Fiber details matrix, completion OFF and URL/history restoration, initial
+OFF without LSP asset fetch, unsupported versions 3.2/3.4/4.1, analysis failure,
+Worker disposal/recreation, no-result behavior, and a forced completion
+response delivered after OFF disposes its Worker. The late-response test is
+E2E-only instrumentation; no production editor, client or Worker code is
+changed by it.
 
-Browser history navigation also preserves the current completion status when
-only the source code changes and the Ruby version and enabled setting stay the
-same. Changing either completion setting recalculates the status; code-only
-history moves keep an existing ready or unavailable state and reuse the current
-analysis Worker.
+The Fiber UI matrix on UI source head
+`c60ee92b84bcdd979e68a9b6fa698469d19e8524` used an uncommitted probe diff SHA-256
+`afbcbbf24e81069fb832517d3de0d18b0a6af4fdf7933b5f43003a2fc0f9c10c`. The
+analysis-ready generations were `3.3` / worker 1, `4.0` / worker 2 and restored
+`3.3` / worker 3. Each completion token 6 and resolve token 7 matched the same
+worker, document version and candidate identity (`raise`, data and textEdit).
+The rendered details showed `raise(msg = <default>)` without `cause` in 3.3
+and `raise(msg = <default>, cause: <default>)` in 4.0. Raw responses, rendered
+DOM, screenshots and trace are archived under
+`test-results/archive/c60ee92b84bcdd979e68a9b6fa698469d19e8524/fiber-visible-signature-run2/`.
+
+The test compares the first rendered line in `.suggest-details .docs` because
+the LSP completion item has no `detail` field: Monaco's `.header .type` is
+therefore empty, and list labels such as `raise, Method` do not carry the
+version-specific signature. The displayed documentation is the public UI
+result of resolving and rendering the candidate.
+
+`npm run test:ci` passed 225 tests, and typecheck, lint, LSP asset verification
+and production build passed on the current source. The full repository
+proxy/general E2E suite and CI are separate and are not represented by the
+completion-only suite. A public UI action that unmounts the editor was not
+available for a direct browser unmount test; unit tests cover disposal,
+cancellation, stale replies and timeout handling. CI is monitored by the
+secretary.
+
+Browser history navigation preserves the completion status when only the
+source changes while the Ruby version and enabled setting stay the same.
+Changing either setting recalculates status; code-only history moves keep the
+existing ready or unavailable state and reuse the current analysis Worker.
 
 ## Security and privacy
 

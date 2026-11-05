@@ -1,202 +1,26 @@
-import { expect, test, type Page } from "@playwright/test";
+import { mkdir, writeFile } from "node:fs/promises";
+import { expect, test } from "@playwright/test";
 import { editRuby, expectRubyOutput } from "./editor";
 import { buildShareUrl } from "../src/share";
+import {
+  analysisWorkerTerminations,
+  analysisWorkerUrls,
+  heldCompletionResponses,
+  latestRawCompletion,
+  lspObservations,
+  releaseHeldCompletionResponse,
+  watchAnalysisWorkers,
+  type ObservedCompletionItem,
+} from "./completion-lsp-observer";
 
-type CompletionDiagnosticWindow = Window & {
-  __analysisWorkerUrls?: string[];
-  __lspObservations?: Array<Record<string, unknown>>;
-  __lspTerminationEvents?: Array<{ url: string; at: number }>;
-};
-
-async function watchAnalysisWorkers(page: Page): Promise<void> {
-  await page.addInitScript(() => {
-    const diagnosticWindow = window as unknown as CompletionDiagnosticWindow;
-    const urls: string[] = [];
-    const observations: Array<Record<string, unknown>> = [];
-    const terminationEvents = JSON.parse(
-      sessionStorage.getItem("completion-worker-terminations") ?? "[]",
-    ) as Array<{ url: string; at: number }>;
-    diagnosticWindow.__analysisWorkerUrls = urls;
-    diagnosticWindow.__lspObservations = observations;
-    diagnosticWindow.__lspTerminationEvents = terminationEvents;
-    const NativeWorker = window.Worker;
-    const InstrumentedWorker = function (
-      url: string | URL,
-      options?: WorkerOptions,
-    ) {
-      const resolvedUrl = new URL(url, window.location.href);
-      if (/\/worker-[^/]+\.js$/.test(resolvedUrl.pathname)) {
-        urls.push(resolvedUrl.pathname);
-        const worker = new NativeWorker(url, options);
-        const pending = new Map<number, { method: string; startedAt: number }>();
-        const nativePostMessage = worker.postMessage.bind(worker);
-        const nativeTerminate = worker.terminate.bind(worker);
-        worker.terminate = (() => {
-          terminationEvents.push({
-            url: resolvedUrl.pathname,
-            at: performance.now(),
-          });
-          sessionStorage.setItem(
-            "completion-worker-terminations",
-            JSON.stringify(terminationEvents),
-          );
-          nativeTerminate();
-        }) as typeof worker.terminate;
-        worker.postMessage = ((message: unknown, transfer?: Transferable[]) => {
-          const request = message as {
-            type?: string;
-            target?: string;
-            token?: number;
-            message?: {
-              method?: string;
-              params?: {
-                textDocument?: { version?: number };
-                position?: unknown;
-              };
-            };
-          };
-          if (request.type === "initialize") {
-            observations.push({ direction: "initialize", target: request.target });
-          } else if (request.type === "request" && typeof request.token === "number") {
-            const method = request.message?.method ?? "unknown";
-            const startedAt = performance.now();
-            pending.set(request.token, { method, startedAt });
-            observations.push({
-              direction: "request",
-              token: request.token,
-              method,
-              documentVersion: request.message?.params?.textDocument?.version,
-              position: request.message?.params?.position,
-            });
-          }
-          if (transfer) nativePostMessage(message, transfer);
-          else nativePostMessage(message);
-        }) as typeof worker.postMessage;
-        worker.addEventListener("message", (event: MessageEvent<unknown>) => {
-          const response = event.data as {
-            type?: string;
-            version?: string;
-            wasmSha256?: string;
-            timings?: unknown;
-            token?: number;
-            elapsedMs?: number;
-            responses?: Array<{
-              id?: number;
-              result?: unknown;
-              error?: unknown;
-            }>;
-            error?: string;
-          };
-          if (response.type === "ready" || response.type === "fatal") {
-            observations.push({
-              direction: response.type,
-              version: response.version,
-              wasmSha256: response.wasmSha256,
-              timings: response.timings,
-              error: response.error,
-            });
-            return;
-          }
-          if (response.type !== "response" || typeof response.token !== "number")
-            return;
-          const request = pending.get(response.token);
-          if (!request) return;
-          pending.delete(response.token);
-          const rpc = response.responses?.find((entry) => "id" in entry);
-          const result = rpc?.result as
-            | {
-                items?: Array<{
-                  label?: string | { label?: string };
-                  kind?: number;
-                  detail?: string;
-                  textEdit?: unknown;
-                }>;
-                signatures?: Array<{ label?: string }>;
-              }
-            | Array<{
-                label?: string | { label?: string };
-                kind?: number;
-                detail?: string;
-                textEdit?: unknown;
-              }>
-            | undefined;
-          const rawItems = Array.isArray(result)
-            ? result
-            : Array.isArray(result?.items)
-              ? result.items
-              : [];
-          observations.push({
-            direction: "response",
-            token: response.token,
-            method: request.method,
-            responseMs: performance.now() - request.startedAt,
-            workerElapsedMs: response.elapsedMs,
-            candidateCount: rawItems.length,
-            candidates: rawItems.map((item) => ({
-              label:
-                typeof item.label === "string"
-                  ? item.label
-                  : item.label?.label,
-              kind: item.kind,
-              detail: item.detail,
-              textEdit: item.textEdit,
-            })),
-            signatures:
-              !Array.isArray(result) && Array.isArray(result?.signatures)
-                ? result.signatures.map((signature) => signature.label)
-                : undefined,
-          });
-        });
-        return worker;
-      }
-      return new NativeWorker(url, options);
-    } as unknown as typeof Worker;
-    InstrumentedWorker.prototype = NativeWorker.prototype;
-    window.Worker = InstrumentedWorker;
-  });
+function completionItemLabel(item: unknown): string | undefined {
+  if (!item || typeof item !== "object") return undefined;
+  const label = (item as ObservedCompletionItem).label;
+  return typeof label === "string" ? label : label?.label;
 }
 
-async function analysisWorkerUrls(page: Page): Promise<string[]> {
-  return page.evaluate(
-    () =>
-      (window as unknown as CompletionDiagnosticWindow)
-        .__analysisWorkerUrls ?? [],
-  );
-}
-
-async function lspObservations(page: Page): Promise<Array<Record<string, unknown>>> {
-  return page.evaluate(
-    () =>
-      (window as unknown as CompletionDiagnosticWindow).__lspObservations ?? [],
-  );
-}
-
-async function analysisWorkerTerminations(
-  page: Page,
-): Promise<Array<{ url: string; at: number }>> {
-  return page.evaluate(
-    () =>
-      (window as unknown as CompletionDiagnosticWindow)
-        .__lspTerminationEvents ?? [],
-  );
-}
-
-function latestRawCompletion(events: Array<Record<string, unknown>>) {
-  const event = events
-    .filter(
-      (entry) =>
-        entry.direction === "response" &&
-        entry.method === "textDocument/completion",
-    )
-    .at(-1);
-  return event
-    ? (event.candidates as Array<{
-        label?: string;
-        kind?: number;
-        detail?: string;
-        textEdit?: unknown;
-      }>)
-    : [];
+function sameJsonValue(left: unknown, right: unknown): boolean {
+  return JSON.stringify(left) === JSON.stringify(right);
 }
 
 test("language server completions insert and execute in the browser", async ({
@@ -274,9 +98,7 @@ test("analysis failure leaves editing and Ruby execution available", async ({
     window.history.pushState(null, "", url);
     window.dispatchEvent(new PopStateEvent("popstate"));
   }, codeOnlyHistoryUrl);
-  await expect(
-    page.getByText("Unavailable", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Unavailable", { exact: true })).toBeVisible();
   await expectRubyOutput(page, "code-only navigation after completion error\n");
 });
 
@@ -357,7 +179,9 @@ test("natural input completes put as puts and preserves text after the edit", as
   await expect(page.locator(".monaco-editor .view-line")).toHaveText(
     'puts "hello".upc + "!"',
   );
-  await page.screenshot({ path: testInfo.outputPath("midline-prefix-input.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("midline-prefix-input.png"),
+  });
   const upcase = page
     .getByRole("listbox", { name: "Suggest" })
     .getByRole("listitem", { name: "upcase, Method", exact: true });
@@ -367,7 +191,9 @@ test("natural input completes put as puts and preserves text after the edit", as
     'puts "hello".upcase + "!"',
   );
   await expectRubyOutput(page, "HELLO!\n");
-  await page.screenshot({ path: testInfo.outputPath("midline-suffix-preserved.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("midline-suffix-preserved.png"),
+  });
 });
 
 test("natural input completion handles Japanese identifiers and emoji UTF-16 positions", async ({
@@ -390,7 +216,9 @@ test("natural input completion handles Japanese identifiers and emoji UTF-16 pos
     'puts "😀".upcase',
   );
   await expectRubyOutput(page, "😀\n");
-  await page.screenshot({ path: testInfo.outputPath("emoji-utf16-inserted.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("emoji-utf16-inserted.png"),
+  });
 
   await editRuby(page, '名前 = "Ruby"\nputs ');
   await page.keyboard.type("名");
@@ -404,7 +232,9 @@ test("natural input completion handles Japanese identifiers and emoji UTF-16 pos
     "puts 名前",
   ]);
   await expectRubyOutput(page, "Ruby\n");
-  await page.screenshot({ path: testInfo.outputPath("japanese-variable-inserted.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("japanese-variable-inserted.png"),
+  });
 });
 
 test("Mine#rfind and Array#rfind remain distinct after declaration removal", async ({
@@ -416,7 +246,10 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
     timeout: 60_000,
   });
 
-  await editRuby(page, 'class Mine; def rfind; "custom"; end; end\nputs Mine.new.r');
+  await editRuby(
+    page,
+    'class Mine; def rfind; "custom"; end; end\nputs Mine.new.r',
+  );
   await page.keyboard.type("f");
   const customMethod = page
     .getByRole("listbox", { name: "Suggest" })
@@ -428,9 +261,11 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
     "puts Mine.new.rfind",
   ]);
   await expectRubyOutput(page, "custom\n");
-  await page.screenshot({ path: testInfo.outputPath("mine-rfind-inserted.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("mine-rfind-inserted.png"),
+  });
 
-  await editRuby(page, 'puts [1,2].');
+  await editRuby(page, "puts [1,2].");
   await page.keyboard.type("rf");
   const arrayMethod = page
     .getByRole("listbox", { name: "Suggest" })
@@ -440,7 +275,9 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
   await expect(page.locator(".monaco-editor .view-line")).toHaveText(
     "puts [1,2].rfind",
   );
-  await page.screenshot({ path: testInfo.outputPath("array-rfind-after-deletion.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("array-rfind-after-deletion.png"),
+  });
 });
 
 test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata", async ({
@@ -464,7 +301,9 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     .getByRole("listitem", { name: "raise, Method", exact: true });
 
   let responseCount = (await lspObservations(page)).filter(
-    (event) => event.direction === "response" && event.method === "textDocument/completion",
+    (event) =>
+      event.direction === "response" &&
+      event.method === "textDocument/completion",
   ).length;
   await editRuby(page, "Ractor.");
   await page.keyboard.type("yi");
@@ -473,12 +312,18 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   expect(rawItems.some((item) => item.label === "yield" && item.textEdit)).toBe(
     true,
   );
-  await page.screenshot({ path: testInfo.outputPath("ruby-3.3-ractor-yield.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("ruby-3.3-ractor-yield.png"),
+  });
   await yieldItem.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText("Ractor.yield");
+  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+    "Ractor.yield",
+  );
 
   responseCount = (await lspObservations(page)).filter(
-    (event) => event.direction === "response" && event.method === "textDocument/completion",
+    (event) =>
+      event.direction === "response" &&
+      event.method === "textDocument/completion",
   ).length;
   await editRuby(page, "puts [1,2].");
   await page.keyboard.type("rf");
@@ -496,7 +341,9 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   rawItems = latestRawCompletion(await lspObservations(page));
   expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
   await expect(rfind).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("ruby-3.3-rfind-absent.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("ruby-3.3-rfind-absent.png"),
+  });
 
   await page.getByLabel("Ruby version").selectOption("4.0");
   await expect(page.getByLabel("Ruby version")).toHaveValue("4.0");
@@ -505,7 +352,9 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   });
 
   responseCount = (await lspObservations(page)).filter(
-    (event) => event.direction === "response" && event.method === "textDocument/completion",
+    (event) =>
+      event.direction === "response" &&
+      event.method === "textDocument/completion",
   ).length;
   await editRuby(page, "Ractor.");
   await page.keyboard.type("yi");
@@ -523,10 +372,14 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   rawItems = latestRawCompletion(await lspObservations(page));
   expect(rawItems.some((item) => item.label === "yield")).toBe(false);
   await expect(yieldItem).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("ruby-4.0-ractor-yield-absent.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("ruby-4.0-ractor-yield-absent.png"),
+  });
 
   responseCount = (await lspObservations(page)).filter(
-    (event) => event.direction === "response" && event.method === "textDocument/completion",
+    (event) =>
+      event.direction === "response" &&
+      event.method === "textDocument/completion",
   ).length;
   await editRuby(page, "puts [1,2].");
   await page.keyboard.type("rf");
@@ -546,7 +399,9 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   rawItems = latestRawCompletion(await lspObservations(page));
   const rawRaise40 = rawItems.find((item) => item.label === "raise");
   expect(rawRaise40?.textEdit).toBeDefined();
-  await page.screenshot({ path: testInfo.outputPath("ruby-4.0-fiber-raise.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("ruby-4.0-fiber-raise.png"),
+  });
 
   await page.getByLabel("Ruby version").selectOption("3.3");
   await expect(page.getByLabel("Ruby version")).toHaveValue("3.3");
@@ -555,7 +410,9 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   });
 
   responseCount = (await lspObservations(page)).filter(
-    (event) => event.direction === "response" && event.method === "textDocument/completion",
+    (event) =>
+      event.direction === "response" &&
+      event.method === "textDocument/completion",
   ).length;
   await editRuby(page, "puts [1,2].");
   await page.keyboard.type("rf");
@@ -573,7 +430,9 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   rawItems = latestRawCompletion(await lspObservations(page));
   expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
   await expect(rfind).toHaveCount(0);
-  await page.screenshot({ path: testInfo.outputPath("ruby-3.3-rfind-restored-absent.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("ruby-3.3-rfind-restored-absent.png"),
+  });
 
   await editRuby(page, "puts Fiber.new.");
   await page.keyboard.type("rai");
@@ -581,27 +440,452 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   rawItems = latestRawCompletion(await lspObservations(page));
   const rawRaise33 = rawItems.find((item) => item.label === "raise");
   expect(rawRaise33?.textEdit).toBeDefined();
-  await page.screenshot({ path: testInfo.outputPath("ruby-3.3-fiber-raise.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("ruby-3.3-fiber-raise.png"),
+  });
 
   const observations = await lspObservations(page);
   const protocolMethods = observations
     .filter((event) => event.direction === "request")
     .map((event) => event.method);
+  const protocol = {
+    observations,
+    signatures: {
+      ruby33FiberRaiseDetail: rawRaise33?.detail,
+      ruby40FiberRaiseDetail: rawRaise40?.detail,
+    },
+    protocolMethods,
+  };
+  const serializedProtocol = JSON.stringify(protocol, null, 2);
+  await writeFile(
+    testInfo.outputPath("lsp-protocol.json"),
+    serializedProtocol,
+    "utf8",
+  );
   await testInfo.attach("lsp-protocol.json", {
-    body: JSON.stringify(
-      {
-        observations,
-        signatures: {
-          ruby33FiberRaiseDetail: rawRaise33?.detail,
-          ruby40FiberRaiseDetail: rawRaise40?.detail,
-        },
-        protocolMethods,
-      },
-      null,
-      2,
-    ),
+    body: serializedProtocol,
     contentType: "application/json",
   });
+});
+
+test("Fiber#raise details resolve against the selected Ruby version", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(120_000);
+  await mkdir(testInfo.outputPath(), { recursive: true });
+  await watchAnalysisWorkers(page);
+  await page.goto("./?v=3.3");
+  const detailsByVersion: Array<Record<string, unknown>> = [];
+
+  try {
+    for (const [index, version] of ["3.3", "4.0", "3.3"].entries()) {
+      const record: Record<string, unknown> = {
+        index,
+        version,
+        startedAt: Date.now(),
+      };
+      detailsByVersion.push(record);
+      try {
+        const selectedVersion = new URL(page.url()).searchParams.get("v");
+        const needsNewWorker = selectedVersion !== version;
+        const observationsBefore = await lspObservations(page);
+        const readyCountBefore = observationsBefore.filter(
+          (event) => event.direction === "ready",
+        ).length;
+        const workerCountBefore = (await analysisWorkerUrls(page)).length;
+        const priorWorkerId =
+          detailsByVersion.at(-2)?.workerReady &&
+          (detailsByVersion.at(-2)?.workerReady as Record<string, unknown>)
+            .workerId;
+        if (needsNewWorker) {
+          await page.getByLabel("Ruby version").selectOption(version);
+        }
+        await expect(page.getByLabel("Ruby version")).toHaveValue(version);
+        await expect(page.getByText("On", { exact: true })).toBeVisible({
+          timeout: 60_000,
+        });
+        const patchVersion = version === "3.3" ? "3.3.3" : "4.0.0";
+        await expect(
+          page
+            .getByRole("region", { name: "Ruby runtime environment" })
+            .getByRole("heading", {
+              name: `Ruby ${patchVersion}`,
+              exact: true,
+            }),
+        ).toBeVisible();
+        await expect
+          .poll(
+            async () => {
+              const observations = await lspObservations(page);
+              return observations
+                .filter((event) => event.direction === "ready")
+                .slice(needsNewWorker ? readyCountBefore : 0)
+                .some((event) => {
+                  return (
+                    event.version === version &&
+                    (!needsNewWorker || event.workerId !== priorWorkerId)
+                  );
+                });
+            },
+            { timeout: 60_000 },
+          )
+          .toBe(true);
+
+        let observations = await lspObservations(page);
+        const ready = observations
+          .filter((event) => event.direction === "ready")
+          .slice(needsNewWorker ? readyCountBefore : 0)
+          .find(
+            (event) =>
+              event.version === version &&
+              (!needsNewWorker || event.workerId !== priorWorkerId),
+          );
+        const initialize = observations
+          .filter((event) => event.direction === "initialize")
+          .filter((event) => event.workerId === ready?.workerId)
+          .at(-1);
+        record.workerReady = ready;
+        record.initialize = initialize;
+        record.readyGeneration =
+          observations
+            .filter((event) => event.direction === "ready")
+            .findIndex((event) => event.workerId === ready?.workerId) + 1;
+        record.readyCountBefore = readyCountBefore;
+        record.workerCountBefore = workerCountBefore;
+        record.workerCountAfter = (await analysisWorkerUrls(page)).length;
+        record.wasmSha256 = ready?.wasmSha256;
+        expect(ready?.version).toBe(version);
+        expect(ready?.wasmSha256).toBe(
+          "913e37a91777a0e9e5ef6114eb0b3dc8e1d3ac990a15c144c6a0afc606daae5c",
+        );
+        expect(initialize?.target).toBe(version);
+        if (needsNewWorker) {
+          expect(ready?.workerId).not.toBe(priorWorkerId);
+          expect(record.workerCountAfter).toBe(workerCountBefore + 1);
+        }
+
+        const completionRequestsBefore = observations.filter(
+          (event) =>
+            event.direction === "request" &&
+            event.method === "textDocument/completion" &&
+            event.workerId === ready?.workerId,
+        );
+        const previousCompletionTokens = new Set(
+          completionRequestsBefore.map((event) => event.token),
+        );
+        const interactionStartedAt = await page.evaluate(() =>
+          performance.now(),
+        );
+        record.interactionStartedAt = interactionStartedAt;
+        await editRuby(page, "Fiber.new {}.");
+        await page.keyboard.type("ra", { delay: 120 });
+        await expect(page.locator(".monaco-editor .view-lines")).toHaveText(
+          "Fiber.new {}.ra",
+        );
+        const raiseItem = page
+          .locator(".suggest-widget .monaco-list-row")
+          .filter({ hasText: /raise$/ });
+        await expect(raiseItem).toHaveCount(1, { timeout: 30_000 });
+        await expect(raiseItem).toBeVisible({ timeout: 30_000 });
+        observations = await lspObservations(page);
+        await expect
+          .poll(
+            async () =>
+              (await lspObservations(page)).some(
+                (event) =>
+                  event.direction === "request" &&
+                  event.method === "textDocument/completion" &&
+                  event.workerId === ready?.workerId &&
+                  !previousCompletionTokens.has(event.token),
+              ),
+            { timeout: 30_000 },
+          )
+          .toBe(true);
+        observations = await lspObservations(page);
+        const completionRequest = observations
+          .filter(
+            (event) =>
+              event.direction === "request" &&
+              event.method === "textDocument/completion" &&
+              event.workerId === ready?.workerId &&
+              !previousCompletionTokens.has(event.token),
+          )
+          .at(-1);
+        record.completionRequest = completionRequest;
+        expect(completionRequest).toBeDefined();
+        await expect
+          .poll(
+            async () =>
+              (await lspObservations(page)).some(
+                (event) =>
+                  event.direction === "response" &&
+                  event.method === "textDocument/completion" &&
+                  event.workerId === ready?.workerId &&
+                  event.token === completionRequest?.token,
+              ),
+            { timeout: 30_000 },
+          )
+          .toBe(true);
+        observations = await lspObservations(page);
+        const rawRaiseEvent = observations.find(
+          (event) =>
+            event.direction === "response" &&
+            event.method === "textDocument/completion" &&
+            event.workerId === ready?.workerId &&
+            event.token === completionRequest?.token,
+        );
+        const rawRaise = (
+          (rawRaiseEvent?.candidates as Array<{
+            label?: string;
+            detail?: string;
+            documentation?: string;
+            data?: unknown;
+            textEdit?: unknown;
+            labelDetails?: unknown;
+            insertText?: string;
+          }>) ?? []
+        ).find((item) => item.label === "raise");
+        record.rawRaise = rawRaise;
+        record.rawCompletionResponse = rawRaiseEvent;
+        record.completionDocumentVersion = completionRequest?.documentVersion;
+        record.rawRaiseIdentity = rawRaise
+          ? {
+              workerId: rawRaiseEvent?.workerId,
+              documentVersion: rawRaiseEvent?.documentVersion,
+              completionToken: rawRaiseEvent?.token,
+              label: rawRaise.label,
+              data: rawRaise.data,
+              textEdit: rawRaise.textEdit,
+            }
+          : undefined;
+        expect(rawRaise).toBeDefined();
+
+        const isResolveForCurrentItem = (event: Record<string, unknown>) => {
+          const item = event.item as ObservedCompletionItem | undefined;
+          return (
+            event.direction === "request" &&
+            event.method === "completionItem/resolve" &&
+            event.workerId === ready?.workerId &&
+            event.documentVersion === completionRequest?.documentVersion &&
+            Number(event.at) >= interactionStartedAt &&
+            completionItemLabel(item) === rawRaise?.label &&
+            sameJsonValue(item?.data, rawRaise?.data) &&
+            sameJsonValue(item?.textEdit, rawRaise?.textEdit)
+          );
+        };
+        const findResolveForCurrentItem = (
+          events: Array<Record<string, unknown>>,
+        ) => events.find(isResolveForCurrentItem);
+        record.matchingResolveFoundBeforeHover = Boolean(
+          findResolveForCurrentItem(observations),
+        );
+        record.hoverStartedAt = await page.evaluate(() => performance.now());
+        await raiseItem.hover();
+        record.hoverCompletedAt = await page.evaluate(() => performance.now());
+        observations = await lspObservations(page);
+        let resolveRequest = findResolveForCurrentItem(observations);
+        if (!resolveRequest) {
+          await expect
+            .poll(
+              async () =>
+                Boolean(findResolveForCurrentItem(await lspObservations(page))),
+              { timeout: 30_000 },
+            )
+            .toBe(true);
+          observations = await lspObservations(page);
+          resolveRequest = findResolveForCurrentItem(observations);
+        }
+        record.matchingResolveFoundAfterHover = Boolean(resolveRequest);
+        record.resolveRequest = resolveRequest;
+        expect(resolveRequest).toBeDefined();
+        record.resolveRequestToken = resolveRequest?.token;
+        record.resolveRequestItem = resolveRequest?.item;
+        record.resolveRequestDocumentVersion = resolveRequest?.documentVersion;
+        await expect
+          .poll(
+            async () =>
+              (await lspObservations(page)).some(
+                (event) =>
+                  event.direction === "response" &&
+                  event.method === "completionItem/resolve" &&
+                  event.workerId === ready?.workerId &&
+                  event.documentVersion ===
+                    completionRequest?.documentVersion &&
+                  event.token === resolveRequest?.token,
+              ),
+            { timeout: 30_000 },
+          )
+          .toBe(true);
+
+        observations = await lspObservations(page);
+        const resolveResponses = observations.filter(
+          (event) =>
+            event.direction === "response" &&
+            event.method === "completionItem/resolve" &&
+            event.workerId === ready?.workerId &&
+            event.documentVersion === completionRequest?.documentVersion &&
+            event.token === resolveRequest?.token,
+        );
+        const resolved = resolveResponses.at(-1);
+        const resolvedRaise = (
+          (resolved?.candidates as ObservedCompletionItem[]) ?? []
+        ).find(
+          (item) =>
+            completionItemLabel(item) === rawRaise?.label &&
+            sameJsonValue(item.data, rawRaise?.data) &&
+            sameJsonValue(item.textEdit, rawRaise?.textEdit),
+        );
+        record.resolveRequestCount = observations.filter(
+          (event) =>
+            event.direction === "request" &&
+            event.method === "completionItem/resolve" &&
+            event.workerId === ready?.workerId,
+        ).length;
+        record.resolveResponseCount = resolveResponses.length;
+        record.resolveResponse = resolved;
+        record.resolvedRaise = resolvedRaise;
+        record.resolvedText = `${resolvedRaise?.detail ?? ""}\n${resolvedRaise?.documentation ?? ""}`;
+        expect(resolvedRaise).toBeDefined();
+        expect(String(record.resolvedText)).toContain("raise");
+        expect(String(record.resolvedText).includes("cause")).toBe(
+          version === "4.0",
+        );
+
+        const detailsPanel = page.locator(".suggest-details");
+        record.detailsVisibleBeforeOpen = await detailsPanel
+          .isVisible()
+          .catch(() => false);
+        if (!record.detailsVisibleBeforeOpen) {
+          const moreInfo = raiseItem.locator(".codicon-suggest-more-info");
+          record.moreInfoCount = await moreInfo.count();
+          record.moreInfoVisible = await moreInfo
+            .isVisible()
+            .catch(() => false);
+          record.moreInfoClass = await moreInfo
+            .getAttribute("class")
+            .catch(() => null);
+          await expect(moreInfo).toBeVisible({ timeout: 10_000 });
+          await moreInfo.click();
+        }
+        await expect(detailsPanel).toBeVisible({ timeout: 15_000 });
+        const visibleDetails = await detailsPanel.innerText();
+        observations = await lspObservations(page);
+        record.visibleDetails = visibleDetails;
+        record.visibleDocumentation = await detailsPanel
+          .locator(".docs")
+          .innerText();
+        record.visibleSignatureSource =
+          ".suggest-details .docs first rendered line";
+        record.visibleSignature = String(record.visibleDocumentation)
+          .split("\n", 1)[0]
+          .trim();
+        record.dom = await page.evaluate(() =>
+          [
+            ...document.querySelectorAll(
+              ".suggest-details, .suggest-widget .monaco-list-row",
+            ),
+          ].map((element) => ({
+            selector: element.matches(".suggest-details")
+              ? ".suggest-details"
+              : ".suggest-widget .monaco-list-row",
+            text: element.textContent,
+            visible: element.getBoundingClientRect().width > 0,
+            classes: element.className,
+          })),
+        );
+        expect(String(record.visibleSignature)).toContain("raise");
+        expect(String(record.visibleSignature).includes("cause")).toBe(
+          version === "4.0",
+        );
+        await page.screenshot({
+          path: testInfo.outputPath(
+            `fiber-raise-${version}-resolved-detail-${index}.png`,
+          ),
+        });
+        record.passed = true;
+      } catch (error) {
+        record.failure = error instanceof Error ? error.message : String(error);
+        record.failureStack = error instanceof Error ? error.stack : undefined;
+        throw error;
+      } finally {
+        record.finishedAt = Date.now();
+        record.observations = await lspObservations(page).catch((error) =>
+          String(error),
+        );
+        record.finalDom = await page
+          .evaluate(() => ({
+            details: [...document.querySelectorAll(".suggest-details")].map(
+              (element) => ({
+                text: element.textContent,
+                visible: element.getBoundingClientRect().width > 0,
+              }),
+            ),
+            rows: [
+              ...document.querySelectorAll(".suggest-widget .monaco-list-row"),
+            ].map((element) => ({
+              text: element.textContent,
+              ariaLabel: element.getAttribute("aria-label"),
+              classes: element.className,
+            })),
+            disclosures: [
+              ...document.querySelectorAll(
+                ".suggest-widget .codicon-suggest-more-info",
+              ),
+            ].map((element) => ({
+              text: element.textContent,
+              ariaLabel: element.getAttribute("aria-label"),
+              title: element.getAttribute("title"),
+              classes: element.className,
+              visible: element.getBoundingClientRect().width > 0,
+            })),
+            source: document.querySelector(".monaco-editor .view-lines")
+              ?.textContent,
+          }))
+          .catch((error) => String(error));
+        await page
+          .screenshot({
+            path: testInfo.outputPath(`fiber-final-${version}-${index}.png`),
+          })
+          .then(() => {
+            record.screenshot = `fiber-final-${version}-${index}.png`;
+          })
+          .catch((error) => {
+            record.screenshotFailure = String(error);
+          });
+        await writeFile(
+          testInfo.outputPath(`fiber-resolve-${version}-${index}.json`),
+          JSON.stringify(record, null, 2),
+          "utf8",
+        );
+        await testInfo.attach(`fiber-resolve-${version}-${index}.json`, {
+          body: JSON.stringify(record, null, 2),
+          contentType: "application/json",
+        });
+      }
+    }
+  } finally {
+    const matrixRecord = {
+      uiCommit:
+        process.env.COMPLETION_UI_HEAD ??
+        process.env.GITHUB_SHA ??
+        "not-recorded",
+      runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      probeDiffSha256:
+        process.env.COMPLETION_PROBE_DIFF_SHA256 ?? "not-provided",
+      matrix: detailsByVersion,
+      observations: await lspObservations(page).catch((error) => String(error)),
+    };
+    const serializedMatrix = JSON.stringify(matrixRecord, null, 2);
+    await writeFile(
+      testInfo.outputPath("fiber-resolve-version-matrix.json"),
+      serializedMatrix,
+      "utf8",
+    );
+    await testInfo.attach("fiber-resolve-version-matrix.json", {
+      body: serializedMatrix,
+      contentType: "application/json",
+    });
+  }
 });
 
 test("measure cold and warm completion startup, response, and HTTP asset transfer", async ({
@@ -652,7 +936,9 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
     'puts "cold".upcase',
   );
   await expectRubyOutput(page, "COLD\n");
-  await page.screenshot({ path: testInfo.outputPath("cold-upcase-inserted.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("cold-upcase-inserted.png"),
+  });
 
   await editRuby(page, 'puts "warm"');
   const warmQueryStartedAt = Date.now();
@@ -667,7 +953,9 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
     'puts "warm".upcase',
   );
   await expectRubyOutput(page, "WARM\n");
-  await page.screenshot({ path: testInfo.outputPath("warm-upcase-inserted.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("warm-upcase-inserted.png"),
+  });
 
   const observations = await lspObservations(page);
   const httpAssets = await Promise.all(httpAssetResponses);
@@ -684,7 +972,11 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
     }));
   const ready = observations.filter((event) => event.direction === "ready");
   const metrics = {
-    head: "f55a5ee4f0b9621aaccdb00b3e4c0be5df2f16b3",
+    head:
+      process.env.COMPLETION_UI_HEAD ??
+      process.env.GITHUB_SHA ??
+      "not-recorded",
+    runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
     version: "4.0",
     manifestSha256:
       "c93e49dc7769caf55ff2e14a70af56a042bfaa894b956b944db44d715edc3e13",
@@ -697,8 +989,14 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
     completionResponses: completions,
     httpAssets,
   };
+  const serializedMetrics = JSON.stringify(metrics, null, 2);
+  await writeFile(
+    testInfo.outputPath("browser-metrics.json"),
+    serializedMetrics,
+    "utf8",
+  );
   await testInfo.attach("browser-metrics.json", {
-    body: JSON.stringify(metrics, null, 2),
+    body: serializedMetrics,
     contentType: "application/json",
   });
 });
@@ -726,48 +1024,191 @@ test("OFF and Ruby version changes dispose and recreate analysis workers", async
   await completionToggle.click();
   await expect(page.getByText("Off", { exact: true })).toBeVisible();
   await expect(page.getByRole("listbox", { name: "Suggest" })).toBeHidden();
-  await expect.poll(async () => (await analysisWorkerTerminations(page)).length).toBe(1);
+  await expect
+    .poll(async () => (await analysisWorkerTerminations(page)).length)
+    .toBe(1);
   await expectRubyOutput(page, "HELLO\n");
-  await page.screenshot({ path: testInfo.outputPath("off-disposed-worker.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("off-disposed-worker.png"),
+  });
 
   await completionToggle.click();
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  await expect.poll(async () => (await analysisWorkerUrls(page)).length).toBe(2);
+  await expect
+    .poll(async () => (await analysisWorkerUrls(page)).length)
+    .toBe(2);
 
   await page.getByLabel("Ruby version").selectOption("3.4");
   await expect(page.getByLabel("Ruby version")).toHaveValue("3.4");
   await expect(
     page.getByText("Unavailable for Ruby 3.4", { exact: true }),
   ).toBeVisible();
-  await expect.poll(async () => (await analysisWorkerTerminations(page)).length).toBe(2);
+  await expect
+    .poll(async () => (await analysisWorkerTerminations(page)).length)
+    .toBe(2);
   expect(await analysisWorkerUrls(page)).toHaveLength(2);
   await expect(page.getByRole("listbox", { name: "Suggest" })).toBeHidden();
-  await page.screenshot({ path: testInfo.outputPath("unsupported-disposed-worker.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("unsupported-disposed-worker.png"),
+  });
 
   await page.getByLabel("Ruby version").selectOption("3.3");
   await expect(page.getByLabel("Ruby version")).toHaveValue("3.3");
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
-  await expect.poll(async () => (await analysisWorkerUrls(page)).length).toBe(3);
+  await expect
+    .poll(async () => (await analysisWorkerUrls(page)).length)
+    .toBe(3);
   await editRuby(page, 'puts "worker recreated"');
   await expectRubyOutput(page, "worker recreated\n");
-  await page.screenshot({ path: testInfo.outputPath("worker-recreated-3.3.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("worker-recreated-3.3.png"),
+  });
 
+  const lifecycle = {
+    workerUrls: await analysisWorkerUrls(page),
+    terminations: await analysisWorkerTerminations(page),
+    observations: await lspObservations(page),
+  };
+  const serializedLifecycle = JSON.stringify(lifecycle, null, 2);
+  await writeFile(
+    testInfo.outputPath("lifecycle.json"),
+    serializedLifecycle,
+    "utf8",
+  );
   await testInfo.attach("lifecycle.json", {
-    body: JSON.stringify(
-      {
-        workerUrls: await analysisWorkerUrls(page),
-        terminations: await analysisWorkerTerminations(page),
-        observations: await lspObservations(page),
-      },
-      null,
-      2,
-    ),
+    body: serializedLifecycle,
     contentType: "application/json",
   });
+});
+
+test("ignores a forced late completion response after OFF disposes its worker", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  await mkdir(testInfo.outputPath(), { recursive: true });
+  await watchAnalysisWorkers(page, { holdCompletionResponses: true });
+  const record: Record<string, unknown> = {
+    uiHead:
+      process.env.COMPLETION_UI_HEAD ??
+      process.env.GITHUB_SHA ??
+      "not-recorded",
+    runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+    probeDiffSha256: process.env.COMPLETION_PROBE_DIFF_SHA256 ?? "not-provided",
+    startedAt: Date.now(),
+  };
+
+  try {
+    await page.goto("./?v=4.0");
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    await editRuby(page, 'puts "hello"');
+    await page.keyboard.type(".upc");
+    await expect
+      .poll(async () => (await heldCompletionResponses(page)).length, {
+        timeout: 30_000,
+      })
+      .toBeGreaterThan(0);
+
+    const held = await heldCompletionResponses(page);
+    record.heldBeforeOff = held;
+    record.requestsBeforeOff = await lspObservations(page);
+    const delayedCompletion = held.find(
+      (entry) => entry.method === "textDocument/completion",
+    );
+    expect(delayedCompletion).toBeDefined();
+    record.delayedCompletion = delayedCompletion;
+
+    await page.locator('label[for="completion-enabled"]').click();
+    await expect(page.getByText("Off", { exact: true })).toBeVisible();
+    await expect
+      .poll(async () => analysisWorkerTerminations(page), { timeout: 10_000 })
+      .toHaveLength(1);
+    await expect(page.getByRole("listbox", { name: "Suggest" })).toBeHidden();
+    record.terminatedBeforeLateDelivery = true;
+
+    const released: Array<Record<string, unknown>> = [];
+    for (const response of held) {
+      const releaseSucceeded = await releaseHeldCompletionResponse(
+        page,
+        response.workerId,
+        response.token,
+      );
+      released.push({
+        workerId: response.workerId,
+        token: response.token,
+        releaseSucceeded,
+      });
+    }
+    record.releasedAfterDispose = released;
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+
+    await expect(page.getByText("Off", { exact: true })).toBeVisible();
+    await expect(page.getByRole("listbox", { name: "Suggest" })).toBeHidden();
+    expect(await analysisWorkerTerminations(page)).toHaveLength(1);
+    expect(await analysisWorkerUrls(page)).toHaveLength(1);
+    record.observationsAfterLateDelivery = await lspObservations(page);
+    record.finalSource = await page
+      .locator(".monaco-editor .view-lines")
+      .innerText();
+    await editRuby(page, 'puts "OFF still permits Ruby execution"');
+    await expectRubyOutput(page, "OFF still permits Ruby execution\n");
+    record.executionAfterOff = "OFF still permits Ruby execution";
+    record.passed = true;
+  } catch (error) {
+    record.failure = error instanceof Error ? error.message : String(error);
+    record.failureStack = error instanceof Error ? error.stack : undefined;
+    throw error;
+  } finally {
+    record.finishedAt = Date.now();
+    record.finalObservations = await lspObservations(page).catch((error) =>
+      String(error),
+    );
+    record.finalWorkerUrls = await analysisWorkerUrls(page).catch((error) =>
+      String(error),
+    );
+    record.finalTerminations = await analysisWorkerTerminations(page).catch(
+      (error) => String(error),
+    );
+    record.finalDom = await page
+      .evaluate(() => ({
+        completionStatus: document.body.innerText.match(
+          /\b(On|Off|Loading|Unavailable)\b/g,
+        ),
+        suggestions: [...document.querySelectorAll(".suggest-widget")].map(
+          (element) => ({
+            text: element.textContent,
+            visible: element.getBoundingClientRect().width > 0,
+          }),
+        ),
+        source: document.querySelector(".monaco-editor .view-lines")
+          ?.textContent,
+      }))
+      .catch((error) => String(error));
+    await page
+      .screenshot({
+        path: testInfo.outputPath("late-completion-off-final.png"),
+      })
+      .catch((error) => {
+        record.screenshotFailure = String(error);
+      });
+    await writeFile(
+      testInfo.outputPath("late-completion-off.json"),
+      JSON.stringify(record, null, 2),
+      "utf8",
+    );
+    await testInfo.attach("late-completion-off.json", {
+      body: JSON.stringify(record, null, 2),
+      contentType: "application/json",
+    });
+  }
 });
 
 test("natural input with no matching completion leaves text and execution intact", async ({
@@ -787,7 +1228,9 @@ test("natural input with no matching completion leaves text and execution intact
   await expect(page.locator(".monaco-editor .view-line")).toHaveText(
     'puts "hello".unknownMethodPrefix',
   );
-  await page.screenshot({ path: testInfo.outputPath("no-matching-completion.png") });
+  await page.screenshot({
+    path: testInfo.outputPath("no-matching-completion.png"),
+  });
   await expect(page.getByRole("status")).toHaveText("Error");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "undefined method 'unknownMethodPrefix'",
@@ -818,7 +1261,9 @@ test("completion OFF skips analysis assets on first load, reload, and history na
   });
 
   await page.goto(offURL);
-  await expect(page.getByRole("checkbox", { name: "Code completion" })).not.toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Code completion" }),
+  ).not.toBeChecked();
   await expectRubyOutput(page, "completion off\n");
   await page.screenshot({ path: testInfo.outputPath("completion-off.png") });
   expect(new URL(page.url()).searchParams.get("ac")).toBe("0");
@@ -826,13 +1271,17 @@ test("completion OFF skips analysis assets on first load, reload, and history na
   expect(analysisAssetRequests).toEqual([]);
 
   await page.reload();
-  await expect(page.getByRole("checkbox", { name: "Code completion" })).not.toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Code completion" }),
+  ).not.toBeChecked();
   await expectRubyOutput(page, "completion off\n");
   expect(await analysisWorkerUrls(page)).toEqual([]);
   expect(analysisAssetRequests).toEqual([]);
 
   await page.goto(onURL);
-  await expect(page.getByRole("checkbox", { name: "Code completion" })).toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Code completion" }),
+  ).toBeChecked();
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -842,13 +1291,17 @@ test("completion OFF skips analysis assets on first load, reload, and history na
   expect(analysisAssetRequests).toContain("/lsp/manifest.json");
 
   await page.goBack();
-  await expect(page.getByRole("checkbox", { name: "Code completion" })).not.toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Code completion" }),
+  ).not.toBeChecked();
   await expectRubyOutput(page, "completion off\n");
   expect(new URL(page.url()).searchParams.get("ac")).toBe("0");
   expect(await analysisWorkerUrls(page)).toEqual([]);
 
   await page.goForward();
-  await expect(page.getByRole("checkbox", { name: "Code completion" })).toBeChecked();
+  await expect(
+    page.getByRole("checkbox", { name: "Code completion" }),
+  ).toBeChecked();
   await expect(page.locator(".monaco-editor .view-lines")).toContainText(
     "completion on",
   );
