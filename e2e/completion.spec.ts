@@ -870,8 +870,10 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
         process.env.GITHUB_SHA ??
         "not-recorded",
       runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
-      probeDiffSha256:
-        process.env.COMPLETION_PROBE_DIFF_SHA256 ?? "not-provided",
+      testSourceSha256:
+        process.env.COMPLETION_TEST_SOURCE_SHA256 ?? "not-provided",
+      observerSourceSha256:
+        process.env.COMPLETION_OBSERVER_SOURCE_SHA256 ?? "not-provided",
       matrix: detailsByVersion,
       observations: await lspObservations(page).catch((error) => String(error)),
     };
@@ -1097,7 +1099,10 @@ test("ignores a forced late completion response after OFF disposes its worker", 
       process.env.GITHUB_SHA ??
       "not-recorded",
     runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
-    probeDiffSha256: process.env.COMPLETION_PROBE_DIFF_SHA256 ?? "not-provided",
+    testSourceSha256:
+      process.env.COMPLETION_TEST_SOURCE_SHA256 ?? "not-provided",
+    observerSourceSha256:
+      process.env.COMPLETION_OBSERVER_SOURCE_SHA256 ?? "not-provided",
     startedAt: Date.now(),
   };
 
