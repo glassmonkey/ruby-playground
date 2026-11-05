@@ -6,7 +6,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     # Production and development each run the versioned WASM lesson matrix.
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
