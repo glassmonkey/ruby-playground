@@ -95,7 +95,12 @@ const RESOLVER = `
 -> do
   require "rubygems"
   require "rubygems/resolver"
-  require "rubygems/vendor/uri/lib/uri"
+  begin
+    require "rubygems/vendor/uri/lib/uri"
+  rescue LoadError => error
+    raise unless error.path == "rubygems/vendor/uri/lib/uri"
+    require "uri"
+  end
   require "stringio"
   missing_error = Class.new(StandardError)
   ruby_version = Gem::Version.new(RUBY_VERSION)
@@ -107,10 +112,14 @@ const RESOLVER = `
     define_method(:versions) do |name|
       return @data[name] if @data.key?(name)
       raise missing_error, name unless File.exist?(index_path.(name))
-      lines(File.read(index_path.(name))).each do |line|
-        number, platform, dependencies, requirements = parse_gem(line)
+      index_lines = File.read(index_path.(name)).split("\n")
+      header = index_lines.index("---")
+      parser = Gem::Resolver::APISet::GemParser.new
+      index_lines.drop(header ? header + 1 : 0).each do |line|
+        number, platform, dependencies, requirements = parser.parse(line)
+        platform ||= "ruby"
         @data[name] << {
-          name: name, number: number, platform: platform || "ruby",
+          name: name, number: number, platform: platform, suffix: platform,
           dependencies: dependencies.map { |dep, reqs| [dep, reqs.join(", ")] },
           requirements: requirements.map { |key, reqs| [key.to_sym, reqs] }.to_h,
         }

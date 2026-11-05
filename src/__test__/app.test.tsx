@@ -11,7 +11,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import { parseShareUrl, buildShareUrl } from "../share";
 import type { startGemInstall, startRubyRun } from "../workers/client";
 import App from "../app";
-import { INITIAL_CODE } from "../sample";
+import { INITIAL_CODE, INITIAL_GEMFILE, SHARE_FALLBACK_CODE } from "../sample";
 import { formatLockfile } from "../lockfile";
 vi.mock("../editor", () => ({
   default: ({
@@ -50,22 +50,49 @@ afterEach(() => {
   install.mockClear();
   window.history.replaceState(null, "", "/");
 });
-const setup = () =>
+const renderApp = () =>
   render(
     <ChakraProvider>
       <App />
     </ChakraProvider>,
   );
+const setupShared = (url: string | URL) => {
+  window.history.replaceState(null, "", url);
+  return renderApp();
+};
+const setupBare = (url: string | URL) => {
+  window.history.replaceState(null, "", url);
+  return renderApp();
+};
+const codeOnlyUrl = (code = INITIAL_CODE) =>
+  buildShareUrl(window.location.href, { code });
 describe("playground UI", () => {
-  it("automatically runs initial code and accepts empty edits without a Run button", async () => {
-    setup();
+  it("shows Source and Gemfile as accessible tabs", async () => {
+    setupShared(buildShareUrl(window.location.href, { code: INITIAL_CODE }));
+    const sourceTab = screen.getByRole("tab", { name: "Source" });
+    const gemfileTab = screen.getByRole("tab", { name: "Gemfile" });
+
+    expect(sourceTab.getAttribute("aria-selected")).toBe("true");
+    expect(gemfileTab.getAttribute("aria-selected")).toBe("false");
+
+    fireEvent.click(gemfileTab);
+
+    await waitFor(() => {
+      expect(sourceTab.getAttribute("aria-selected")).toBe("false");
+      expect(gemfileTab.getAttribute("aria-selected")).toBe("true");
+    });
+  });
+
+  it("runs code from a code-only share and accepts empty edits without a Run button", async () => {
+    const code = 'puts "shared code"';
+    setupShared(buildShareUrl(window.location.href, { code }));
     const editor = (await screen.findByRole("textbox", {
       name: "Ruby source",
     })) as HTMLTextAreaElement;
     expect(screen.queryByRole("button", { name: /^(Run|Rerun)$/ })).toBeNull();
     await waitFor(() =>
       expect(start).toHaveBeenCalledWith(
-        INITIAL_CODE,
+        code,
         undefined,
         undefined,
         "4.0",
@@ -86,8 +113,158 @@ describe("playground UI", () => {
       ),
     );
   });
+
+  it("loads the poster and pinned gem without sharing a bare entry", async () => {
+    setupBare(new URL("/?campaign=poster#preview", window.location.href));
+
+    const editor = (await screen.findByRole("textbox", {
+      name: "Ruby source",
+    })) as HTMLTextAreaElement;
+    expect(editor.value).toBe(INITIAL_CODE);
+    await waitFor(() =>
+      expect(install).toHaveBeenCalledWith(
+        INITIAL_GEMFILE,
+        "4.0",
+        expect.any(Function),
+      ),
+    );
+    await waitFor(() =>
+      expect(start).toHaveBeenLastCalledWith(
+        INITIAL_CODE,
+        undefined,
+        undefined,
+        "4.0",
+        expect.any(Function),
+        { gemfile: INITIAL_GEMFILE, lock: [] },
+      ),
+    );
+    const url = new URL(window.location.href);
+    expect({
+      sharedParams: ["c", "g", "l", "v", "f"].filter((key) =>
+        url.searchParams.has(key),
+      ),
+      campaign: url.searchParams.get("campaign"),
+      hash: url.hash,
+    }).toEqual({
+      sharedParams: [],
+      campaign: "poster",
+      hash: "#preview",
+    });
+  });
+
+  it("saves an edited source and lock if the source changes during bare install", async () => {
+    const lock = [
+      { name: "artii", version: "2.1.2", source: "rubygems" as const },
+    ];
+    const outcomes: Array<(result: { lock: typeof lock }) => void> = [];
+    install.mockImplementation(() => ({
+      promise: new Promise((resolve) => outcomes.push(resolve)),
+      cancel: vi.fn(),
+    }));
+    setupBare("/");
+    await waitFor(() => expect(install).toHaveBeenCalledTimes(1));
+    const editor = (await screen.findByRole("textbox", {
+      name: "Ruby source",
+    })) as HTMLTextAreaElement;
+    const code = 'puts "edited during install"';
+
+    fireEvent.change(editor, { target: { value: code } });
+    await act(async () => outcomes[0]({ lock }));
+
+    await waitFor(() =>
+      expect(start).toHaveBeenLastCalledWith(
+        code,
+        undefined,
+        undefined,
+        "4.0",
+        expect.any(Function),
+        { gemfile: INITIAL_GEMFILE, lock },
+      ),
+    );
+    expect(parseShareUrl(window.location.href, SHARE_FALLBACK_CODE)).toEqual({
+      code,
+      version: "4.0",
+      gemfile: INITIAL_GEMFILE,
+      lock,
+    });
+  });
+
+  it("keeps a code-only share free of the default gem", async () => {
+    const codeOnly = buildShareUrl(window.location.href, {
+      code: "puts :shared",
+    });
+    setupShared(codeOnly);
+    const codeOnlyEditor = (await screen.findByRole("textbox", {
+      name: "Ruby source",
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
+    expect({
+      code: codeOnlyEditor.value,
+      gemfile: install.mock.calls,
+      run: start.mock.calls[0][5],
+    }).toEqual({
+      code: "puts :shared",
+      gemfile: [],
+      run: { gemfile: "" },
+    });
+  });
+
+  it.each(["/?c=", "/?c=%25"])(
+    "uses a gem-free fallback for an invalid shared source at %s",
+    async (path) => {
+      setupShared(new URL(path, window.location.href));
+      const invalidEditor = (await screen.findByRole("textbox", {
+        name: "Ruby source",
+      })) as HTMLTextAreaElement;
+      expect({
+        code: invalidEditor.value,
+        gemfile: install.mock.calls,
+        warning: screen.getByRole("alert").textContent,
+      }).toEqual({
+        code: SHARE_FALLBACK_CODE,
+        gemfile: [],
+        warning:
+          "Shared code is invalid or exceeds the 50,000-character limit. The default code was restored.",
+      });
+    },
+  );
+
+  it("keeps a Gemfile-only URL and uses the gem-free source fallback", async () => {
+    const url = new URL(
+      buildShareUrl(window.location.href, {
+        code: "puts :ignored",
+        gemfile: INITIAL_GEMFILE,
+      }),
+    );
+    url.searchParams.delete("c");
+    setupShared(url);
+    const invalidEditor = (await screen.findByRole("textbox", {
+      name: "Ruby source",
+    })) as HTMLTextAreaElement;
+    await waitFor(() => expect(install).toHaveBeenCalledTimes(1));
+    expect({
+      code: invalidEditor.value,
+      gemfile: parseShareUrl(url, SHARE_FALLBACK_CODE).gemfile,
+    }).toEqual({
+      code: SHARE_FALLBACK_CODE,
+      gemfile: INITIAL_GEMFILE,
+    });
+  });
+
+  it("does not apply the poster dependency to a lock-only URL", () => {
+    setupShared(new URL("/?l=bad-lock", window.location.href));
+    expect({
+      code: (
+        screen.getByRole("textbox", {
+          name: "Ruby source",
+        }) as HTMLTextAreaElement
+      ).value,
+      installCalls: install.mock.calls,
+    }).toEqual({ code: SHARE_FALLBACK_CODE, installCalls: [] });
+  });
+
   it("labels editor and output sections and links to the safety pages", () => {
-    setup();
+    setupShared(codeOnlyUrl());
     expect(screen.getByRole("region", { name: "Editor" })).toBeTruthy();
     expect(screen.getByRole("region", { name: "Output" })).toBeTruthy();
     const navigation = screen.getByRole("navigation", {
@@ -111,8 +288,11 @@ describe("playground UI", () => {
     "automatically saves edited source %j with version",
     async (code) => {
       // Arrange
-      window.history.replaceState(null, "", "/?campaign=ruby#about");
-      setup();
+      const sharedUrl = buildShareUrl(
+        new URL("/?campaign=ruby#about", window.location.href),
+        { code: INITIAL_CODE },
+      );
+      setupShared(sharedUrl);
       const editor = await screen.findByRole("textbox", {
         name: "Ruby source",
       });
@@ -137,9 +317,9 @@ describe("playground UI", () => {
       });
     },
   );
-  it("restores editor and version when browser history changes", async () => {
+  it("restores shared state and the bare poster on browser history changes", async () => {
     // Arrange
-    setup();
+    setupShared(codeOnlyUrl());
     const editor = await screen.findByRole("textbox", { name: "Ruby source" });
     // Act
     window.history.pushState(
@@ -157,10 +337,23 @@ describe("playground UI", () => {
       version: (screen.getByLabelText("Ruby version") as HTMLSelectElement)
         .value,
     }).toEqual({ code: "puts 42", version: "3.3" });
+
+    window.history.pushState(null, "", new URL("/", window.location.href));
+    fireEvent(window, new PopStateEvent("popstate"));
+    await waitFor(() =>
+      expect((editor as HTMLTextAreaElement).value).toBe(INITIAL_CODE),
+    );
+    await waitFor(() =>
+      expect(install).toHaveBeenCalledWith(
+        INITIAL_GEMFILE,
+        "4.0",
+        expect.any(Function),
+      ),
+    );
   });
   it("shows loading immediately on edits and hides it when execution finishes", async () => {
     // Arrange
-    setup();
+    setupShared(codeOnlyUrl());
     const editor = await screen.findByRole("textbox", { name: "Ruby source" });
     await screen.findByText("No output");
     // Act
@@ -170,7 +363,7 @@ describe("playground UI", () => {
     await waitFor(() => expect(screen.queryByLabelText("Running")).toBeNull());
   });
   it("keeps editor content and reports when the complete share URL is too long", async () => {
-    setup();
+    setupShared(codeOnlyUrl());
     const editor = (await screen.findByRole("textbox", {
       name: "Ruby source",
     })) as HTMLTextAreaElement;
@@ -211,7 +404,7 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
       promise: new Promise((resolve) => completions.push(resolve)),
     };
   });
-  setup();
+  setupShared(codeOnlyUrl());
   const editor = await screen.findByRole("textbox", { name: "Ruby source" });
   await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
   fireEvent.change(editor, { target: { value: "puts :old" } });
@@ -244,7 +437,7 @@ it("debounces rapid edits, cancels active work, and ignores stale version result
 
 it("updates environment independently and rejects a cancelled run's late metadata", async () => {
   // Arrange
-  setup();
+  setupShared(codeOnlyUrl());
   await waitFor(() => expect(start).toHaveBeenCalledTimes(1));
   const oldInfo = start.mock.calls[0][4]!;
   const ruby40 = {
@@ -285,7 +478,7 @@ it("installs from the Gemfile tab, shares the lockfile and treats Gemfile edits 
     promise: Promise.resolve({ lock }),
     cancel: vi.fn(),
   }));
-  setup();
+  setupShared(codeOnlyUrl());
   fireEvent.click(await screen.findByRole("tab", { name: "Gemfile" }));
   const editor = await screen.findByRole("textbox", { name: "Ruby source" });
   fireEvent.change(editor, { target: { value: 'gem "faker"\n' } });
@@ -346,7 +539,7 @@ it("can retry an install after its worker timeout and run with the recovered loc
     promise: new Promise((resolve) => outcomes.push(resolve)),
     cancel: vi.fn(),
   }));
-  setup();
+  setupShared(codeOnlyUrl());
   fireEvent.click(await screen.findByRole("tab", { name: "Gemfile" }));
   const editor = await screen.findByRole("textbox", { name: "Ruby source" });
   fireEvent.change(editor, { target: { value: gemfile } });
@@ -409,7 +602,7 @@ it("installs silently when opened without a lockfile and after switching Ruby", 
     buildShareUrl(window.location.href, { code: "puts 1", gemfile }),
   );
   // Act
-  setup();
+  setupShared(window.location.href);
   await waitFor(() => expect(install).toHaveBeenCalledTimes(1));
   await new Promise((resolve) => setTimeout(resolve, 400));
   const runsBeforeInstall = start.mock.calls.length;
@@ -453,7 +646,7 @@ it("guides a missing require to the Gemfile without guessing the gem name", asyn
     "",
     buildShareUrl(window.location.href, { code: 'require "faker"' }),
   );
-  setup();
+  setupShared(window.location.href);
   // Act
   const open = await screen.findByRole("button", { name: "Open Gemfile" });
   const search = screen.getByRole("link", {
@@ -490,7 +683,7 @@ it("searches rubygems.org with slashes turned into spaces", async () => {
     buildShareUrl(window.location.href, { code: 'require "rack/test"' }),
   );
   // Act
-  setup();
+  setupShared(window.location.href);
   const search = await screen.findByRole("link", {
     name: 'Search rubygems.org for "rack test"',
   });
@@ -517,7 +710,7 @@ it("keeps a LoadError in the output while the Gemfile is edited", async () => {
     "",
     buildShareUrl(window.location.href, { code: 'require "faker"' }),
   );
-  setup();
+  setupShared(window.location.href);
   fireEvent.click(await screen.findByRole("button", { name: "Open Gemfile" }));
   const editor = await screen.findByRole("textbox", { name: "Ruby source" });
   // Act
@@ -545,7 +738,7 @@ it("points a missing native extension to an issue instead of the Gemfile", async
     cancel: vi.fn(),
   }));
   // Act
-  setup();
+  setupShared(codeOnlyUrl());
   const issue = await screen.findByRole("link", { name: "Open an issue" });
   // Assert
   expect({

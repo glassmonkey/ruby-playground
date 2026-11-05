@@ -40,7 +40,7 @@ import {
   searchUrl,
 } from "./missing-require";
 
-import { INITIAL_CODE } from "./sample";
+import { INITIAL_CODE, INITIAL_GEMFILE, SHARE_FALLBACK_CODE } from "./sample";
 
 const RubyEditor = lazy(() => import("./editor"));
 export const LIVE_DELAY_MS = 350;
@@ -49,16 +49,35 @@ const IDLE_INSTALL: InstallState = { status: "idle", log: [] };
 
 /** A lockfile is valid only for the Gemfile text and Ruby version it was made from. */
 type GemLock = { gemfile: string; version: RubyVersion; gems: ResolvedGem[] };
-// Each file's output sits in the same right-hand frame: main.rb prints, the
+// Each editor's output sits in the same right-hand frame: Source prints, the
 // Gemfile produces Gemfile.lock. Errors and guidance stay at the top of it.
 const EDITOR_TABS = ["main.rb", "Gemfile"] as const;
 type EditorTab = (typeof EDITOR_TABS)[number];
+const editorTabLabel = (tab: EditorTab) => (tab === "main.rb" ? "Source" : tab);
+
+function hasSharePayload(url: string | URL): boolean {
+  const params = new URL(url.toString()).searchParams;
+  return ["c", "g", "l"].some((key) => params.has(key));
+}
+
+function hasShareParameters(url: string | URL): boolean {
+  const params = new URL(url.toString()).searchParams;
+  return ["c", "g", "l", "v", "f"].some((key) => params.has(key));
+}
+
+function parseAppUrl(url: string | URL) {
+  const parsed = new URL(url.toString());
+  if (hasSharePayload(parsed))
+    return parseShareUrl(parsed, SHARE_FALLBACK_CODE);
+
+  const state = parseShareUrl(parsed, INITIAL_CODE);
+  state.gemfile = INITIAL_GEMFILE;
+  return state;
+}
 
 export default function App() {
   const { colorMode, toggleColorMode } = useColorMode();
-  const [initial] = useState(() =>
-    parseShareUrl(window.location.href, INITIAL_CODE),
-  );
+  const [initial] = useState(() => parseAppUrl(window.location.href));
   const [code, setCode] = useState(initial.code);
   const [version, setVersion] = useState(initial.version);
   const [gemfile, setGemfile] = useState(initial.gemfile);
@@ -103,7 +122,7 @@ export default function App() {
     install.status === "installing"
       ? "Running bundle install…"
       : activeLock
-        ? "Gemfile.lock matches the Gemfile. main.rb downloads these versions when it runs."
+        ? "Gemfile.lock matches the Gemfile. Source downloads these versions when it runs."
         : lock
           ? "The Gemfile or Ruby version changed, so Gemfile.lock is out of date. Run bundle install to update it."
           : hasGems
@@ -159,9 +178,9 @@ export default function App() {
     installRun.current = undefined;
     setInstall(IDLE_INSTALL);
   };
-  const runInstall = async () => {
+  const runInstall = async (options: { preserveBareUrl?: boolean } = {}) => {
     installRun.current?.cancel();
-    const target = { gemfile, version };
+    const target = { ...latest.current };
     const handle = startGemInstall(gemfile, version, (line) => {
       if (installRun.current === handle)
         setInstall((state) => ({ ...state, log: [...state.log, line] }));
@@ -180,10 +199,16 @@ export default function App() {
       return;
     }
     const gems = outcome.lock ?? [];
-    setLock({ ...target, gems });
+    setLock({ gemfile: target.gemfile, version: target.version, gems });
     setGemfileEdited(false);
     setInstall((state) => ({ ...state, status: "done" }));
-    updateUrl({ ...latest.current, lock: gems });
+    const canKeepBareUrl =
+      options.preserveBareUrl &&
+      !hasShareParameters(window.location.href) &&
+      target.code === latest.current.code &&
+      target.version === latest.current.version &&
+      target.gemfile === latest.current.gemfile;
+    if (!canKeepBareUrl) updateUrl({ ...latest.current, lock: gems });
   };
   useEffect(() => {
     if (!waitingForGems) return;
@@ -191,7 +216,9 @@ export default function App() {
     const key = `${version}\n${gemfile}`;
     if (autoInstalled.current === key) return;
     autoInstalled.current = key;
-    void runInstall();
+    void runInstall({
+      preserveBareUrl: !hasShareParameters(window.location.href),
+    });
   }, [waitingForGems, gemfile, version]);
   useEffect(() => {
     const navigate = () => {
@@ -199,7 +226,7 @@ export default function App() {
       clearTimeout(scheduled.current);
       run.current?.cancel();
       run.current = undefined;
-      const state = parseShareUrl(window.location.href, INITIAL_CODE);
+      const state = parseAppUrl(window.location.href);
       setCode(state.code);
       setVersion(state.version);
       setGemfile(state.gemfile);
@@ -404,14 +431,34 @@ export default function App() {
               </Heading>
               <Tabs
                 size="sm"
-                variant="soft-rounded"
-                colorScheme="ruby"
                 index={EDITOR_TABS.indexOf(tab)}
                 onChange={(index) => setTab(EDITOR_TABS[index])}
               >
-                <TabList>
+                <TabList gap={1} alignItems="stretch">
                   {EDITOR_TABS.map((name) => (
-                    <Tab key={name}>{name}</Tab>
+                    <Tab
+                      key={name}
+                      px={4}
+                      borderTopRadius="md"
+                      borderBottomWidth="3px"
+                      borderBottomColor="transparent"
+                      bg="frameBg"
+                      color="text"
+                      fontWeight="semibold"
+                      _selected={{
+                        bg: "panelBg",
+                        color: "text",
+                        borderBottomColor: "accent",
+                      }}
+                      _focusVisible={{
+                        outline: "2px solid",
+                        outlineColor: "accent",
+                        outlineOffset: "2px",
+                        zIndex: 1,
+                      }}
+                    >
+                      {editorTabLabel(name)}
+                    </Tab>
                   ))}
                 </TabList>
               </Tabs>
@@ -469,7 +516,9 @@ export default function App() {
                     )
                   }
                   onClick={
-                    install.status === "installing" ? stopInstall : runInstall
+                    install.status === "installing"
+                      ? stopInstall
+                      : () => runInstall()
                   }
                 >
                   {install.status === "installing" ? "Stop" : "bundle install"}

@@ -4,10 +4,13 @@ import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
 import { executeRuby } from "../runtime";
 import { parseGemfile, type GemRequest, type ResolvedGem } from "../gems";
+import { INITIAL_CODE, INITIAL_GEMFILE } from "../sample";
 import { RUBY_VERSIONS, type RubyVersion } from "../versions";
 
 let module: WebAssembly.Module;
 let rainbowArchive: Uint8Array;
+let artiiArchive: Uint8Array;
+let artiiInfo: string;
 let pastelArchive: Uint8Array;
 let ttyColorArchive: Uint8Array;
 let fileutilsArchive: Uint8Array;
@@ -35,6 +38,19 @@ function wasmFor(version: RubyVersion): Promise<WebAssembly.Module> {
 
 beforeAll(async () => {
   module = await wasmFor("4.0");
+  artiiArchive = await readFile(
+    new URL(
+      "../../proxy/test-fixtures/cassettes/gems/artii-2.1.2.gem",
+      import.meta.url,
+    ),
+  );
+  artiiInfo = await readFile(
+    new URL(
+      "../../proxy/test-fixtures/cassettes/info/artii.body",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   rainbowArchive = await readFile(
     new URL(
       "../../proxy/test-fixtures/cassettes/gems/rainbow-3.1.1.gem",
@@ -60,6 +76,75 @@ beforeAll(async () => {
     new URL("./fixtures/fileutils-1.7.2.synthetic.gem", import.meta.url),
   );
 }, 30_000);
+
+const POSTER_OUTPUT = [
+  "+-----------------------------+",
+  "|     ____        __          |",
+  "|    / __ \\__  __/ /_  __  __ |",
+  "|   / /_/ / / / / __ \\/ / / / |",
+  "|  / _, _/ /_/ / /_/ / /_/ /  |",
+  "| /_/ |_|\\__,_/_.___/\\__, /   |",
+  "|                   /____/    |",
+  "|                             |",
+  "| Made with Ruby + gems       |",
+  "+-----------------------------+",
+  "",
+].join("\n");
+
+const posterRuntimeCases = [
+  {
+    version: "3.2",
+    wantStderr: [
+      "Ignoring debug-1.7.1 because its extensions are not built. Try: gem pristine debug --version 1.7.1",
+      "Ignoring rbs-2.8.2 because its extensions are not built. Try: gem pristine rbs --version 2.8.2",
+      "",
+    ].join("\n"),
+  },
+  { version: "3.3", wantStderr: "" },
+  { version: "3.4", wantStderr: "" },
+  { version: "4.0", wantStderr: "" },
+  { version: "4.1", wantStderr: "" },
+] as const satisfies readonly {
+  version: RubyVersion;
+  wantStderr: string;
+}[];
+
+describe("default poster sample", () => {
+  it.each(posterRuntimeCases)(
+    "resolves and runs the recorded Artii sample on Ruby $version",
+    async ({ version, wantStderr }) => {
+      const requested: string[] = [];
+      const result = await executeRuby(
+        await wasmFor(version),
+        INITIAL_CODE,
+        undefined,
+        {
+          requests: parseGemfile(INITIAL_GEMFILE),
+          fetchInfo: async (name) => {
+            requested.push(`/info/${name}`);
+            return artiiInfo;
+          },
+          fetchGem: async (fileName) => {
+            requested.push(`/gems/${fileName}`);
+            return artiiArchive;
+          },
+        },
+      );
+
+      expect({
+        error: result.error,
+        stderr: result.stderr,
+        stdout: result.stdout,
+        requested,
+      }).toEqual({
+        error: undefined,
+        stderr: wantStderr,
+        stdout: POSTER_OUTPUT,
+        requested: ["/info/artii", "/gems/artii-2.1.2.gem"],
+      });
+    },
+  );
+});
 
 const COMPACT_INDEX: Record<string, string> = {
   faker: [
@@ -200,6 +285,41 @@ describe("dependency resolution in the real Ruby WASM runtime", () => {
       ],
     });
   });
+  it.each(RUBY_VERSIONS)(
+    "selects the Ruby-compatible pure build on Ruby %s",
+    async (version) => {
+      // Synthetic compact-index component fixture: exclude native and future-Ruby builds.
+      const index = [
+        "---",
+        "1.0.0 |checksum:0,ruby:>= 3.2",
+        "2.0.0-x86_64-linux |checksum:0,ruby:>= 3.2",
+        "3.0.0 |checksum:0,ruby:>= 9.0",
+      ].join("\n");
+      const fetched: string[] = [];
+      let resolved: ResolvedGem[] = [];
+      const result = await executeRuby(await wasmFor(version), "", undefined, {
+        requests: [{ name: "platform-choice", requirements: [] }],
+        fetchInfo: async (name) => {
+          fetched.push(name);
+          return index;
+        },
+        fetchGem: async () => {
+          throw new Error("offline");
+        },
+        onResolved: (gems) => {
+          resolved = gems;
+        },
+      });
+
+      expect({ error: result.error, fetched, resolved }).toEqual({
+        error: "offline",
+        fetched: ["platform-choice"],
+        resolved: [
+          { name: "platform-choice", version: "1.0.0", source: "rubygems" },
+        ],
+      });
+    },
+  );
   it("reports a requirement that no published version satisfies", async () => {
     const { result, resolved } = await resolveWith(["~> 9.0"]);
     expect({ error: result.error, resolved }).toEqual({

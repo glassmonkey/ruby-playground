@@ -2,7 +2,7 @@
 import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { beforeAll, describe, expect, it } from "vitest";
-import { INITIAL_CODE } from "../sample";
+import { SHARE_FALLBACK_CODE } from "../sample";
 import { RUBY_VERSIONS, RUBY_PATCH_VERSIONS } from "../versions";
 import { runtimeCases } from "./fixtures/runtime-cases";
 import { executeRuby, type RuntimeInfo } from "../runtime";
@@ -150,9 +150,9 @@ it("reports real VM information before user code prints or raises", async () => 
   });
 });
 
-it("executes the initial ruby word-art sample with aligned plain-text output", async () => {
+it("executes the pure-Ruby share fallback word-art with aligned plain-text output", async () => {
   // Act
-  const result = await executeRuby(module, INITIAL_CODE);
+  const result = await executeRuby(module, SHARE_FALLBACK_CODE);
   // Assert
   const rows = result.output.trimEnd().split("\n");
   expect({

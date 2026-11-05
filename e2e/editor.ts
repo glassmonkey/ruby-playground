@@ -1,4 +1,6 @@
 import { expect, type Page } from "@playwright/test";
+import LZString from "lz-string";
+import { SHARE_FALLBACK_CODE } from "../src/sample";
 
 export const INITIAL_OUTPUT = [
   "                                ruby",
@@ -9,6 +11,14 @@ export const INITIAL_OUTPUT = [
   "ruby            ruby    ruby    ruby    ruby            ruby",
   "ruby                rubyruby    rubyruby        rubyruby",
 ].join("\n");
+
+/** Load deterministic Ruby without using the Gemfile-backed initial Poster. */
+export function codeOnlyUrl(code = SHARE_FALLBACK_CODE) {
+  const query = new URLSearchParams({
+    c: LZString.compressToEncodedURIComponent(code),
+  });
+  return `./?${query}`;
+}
 
 /** Edit through Monaco's accessible input, just as a keyboard user would. */
 export async function editRuby(
@@ -41,8 +51,8 @@ export async function expectRubyOutput(page: Page, output: string | RegExp) {
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 }
 
-/** Initial source stays plain console output; environment data is independent. */
-export async function expectInitialRuby(page: Page) {
+/** Check the explicit code-only letters fixture, independent of app defaults. */
+export async function expectLettersSample(page: Page) {
   await expect(
     page.getByRole("region", { name: "Ruby runtime environment" }),
   ).toContainText("wasm32-wasi", { timeout: 30_000 });
