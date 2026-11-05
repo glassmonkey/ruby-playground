@@ -84,6 +84,15 @@ completion-ready, 1,267 ms Worker initialization, 1,312 ms to first candidate,
 87 ms to a warm candidate, and 20,698,694 bytes across five LSP HTTP response
 bodies. These are local measurements, not production-network timings.
 
+On the later 4d6 product build, the archived browser metrics recorded 4,337 ms
+from navigation to completion-ready, 3,077 ms Worker initialization, 2,391 ms
+from natural `.upc` input to the first candidate, and 118 ms for a warm
+candidate. The five HTTP LSP bodies totaled 20,698,694 bytes: 20,245,121 bytes
+for the compressed analysis WASM, 450,443 bytes for the compressed Ruby 4.0
+core, and 3,130 bytes for the manifest/adapter/source files. The run's head and
+test-source hash fields were mistyped; actual values are read back in
+`test-results/archive/4d6f0a1f68d49159d32488723eb20400f8f7751f/completion-final-run1/run-readback.json`.
+
 The earlier completion E2E covers natural `upcase` and `greeting` insertion and Ruby
 execution, `put`→`puts`, midline suffix preservation, Japanese and emoji UTF-16
 positions, `Mine#rfind` shadowing/removal, version-specific API candidates,
