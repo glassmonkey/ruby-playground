@@ -126,25 +126,56 @@ were merged. After merging runtime test-only commit
 `a3ffd23fb6bda3ad09f1beab69866cdccb310d3d`, `npm run test:ci` passed 227 tests
 in 22 files; typecheck and lint also passed. The full repository
 proxy/general E2E suite and CI are separate and are not represented by the
-completion-only suite. A public UI action that unmounts the editor was not
-No public UI action unmounts the editor, so that browser path remains
+completion-only suite. No public UI action unmounts the editor, so that browser path remains
 unverified. The runtime component-boundary tests in `src/editor.test.tsx`
 unmount `RubyEditor` while completion or resolve is pending, then check Worker
 termination, Monaco provider disposal and suppression of a delayed result. The
 tests use React Testing Library and a fake Worker; they are component tests,
 not a browser-page unmount test. The UI lane's one-case observer diagnostic
-succeeded: on the midline input, Worker 1 returned `+` and `+@` for document
+succeeded on the midline input: Worker 1 returned `+` and `+@` for document
 version 32, then `upcase` and `upcase!` for version 35; the UI inserted
 `upcase` and Ruby printed `HELLO!`. The preceding full-run failure remains
-unexplained because that run has no corresponding Worker log. The successful
-diagnostic does not turn the full run into a pass. The raw records, source
-hashes and original failed output are preserved at
-`test-results/archive/4d6f0a1f68d49159d32488723eb20400f8f7751f/midline-diagnostic-run1/`.
+unexplained because that run has no corresponding Worker log. Its historical
+failure and the later successful diagnostic remain separate records at
+`test-results/archive/4d6f0a1f68d49159d32488723eb20400f8f7751f/`.
 
 Browser history navigation preserves the completion status when only the
 source changes while the Ruby version and enabled setting stay the same.
 Changing either setting recalculates status; code-only history moves keep the
 existing ready or unavailable state and reuse the current analysis Worker.
+
+After merging runtime completion request fix `765943e3866c2136de8631660e6756db757cafd4`,
+the full isolated Chromium completion suite passed 14/14 on UI merge head
+`7659f5c883d99257ba27db790e822e30a01d0ccb`. The run includes the previously
+failing midline case: natural `.upc` input preserved the following ` + "!`,
+inserted `upcase`, and Ruby printed `HELLO!`. The full repository unit suite
+passed 231 tests in 22 files on that head. Typecheck, lint, production build,
+asset verification, and `git diff --check` also passed. This new successful
+run does not establish the cause of the earlier 4d6 failure; its trace did not
+contain the matching Worker request data.
+
+The exact full-run command, source hashes, output screenshots, protocol files,
+traces and result marker are archived at
+`test-results/archive/7659f5c883d99257ba27db790e822e30a01d0ccb/completion-final-run1/`.
+The full-run `.last-run.json` reports `passed` with no failed tests. The
+midline-only run and the focused five-test priority run have separate archives
+under the same head directory. All runs used manifest SHA-256
+`c93e49dc7769caf55ff2e14a70af56a042bfaa894b956b944db44d715edc3e13` and
+analysis WASM SHA-256
+`913e37a91777a0e9e5ef6114eb0b3dc8e1d3ac990a15c144c6a0afc606daae5c`
+(67,732,288 bytes). The WASM is the ignored build input copied from the
+runtime worktree; assets were built from this branch's adapter. The runtime
+change does not modify the Ruby adapter or asset source, so no WASM rebuild
+was done. Focused measurements on the same product head are documented in
+`completion-priority-run1/README.md`; they use local Vite preview and are not
+production-network timings.
+
+This UI result verifies component-level Worker/provider disposal through the
+runtime's two `RubyEditor` unmount tests, including pending completion/resolve.
+It does not verify unmount through a public browser-page control because the
+product exposes no such control. PR acceptance, CI status and the separate
+runtime investigation into stale-response behavior remain manager/secretary
+work; this local run does not claim those decisions.
 
 ## Security and privacy
 
