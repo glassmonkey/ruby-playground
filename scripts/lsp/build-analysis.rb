@@ -14,8 +14,8 @@ RubyWasm::CrossRubyProduct.prepend(Module.new do
   end
 end)
 
-# ruby 4.0.0 already ships Prism 1.7.0. Avoid linking a second copy into the
-# same VM; the Gemfile pins the same Prism API for the host-side adapter.
+# Ruby 4.0.0 already ships Prism 1.7.0. Avoid linking a second copy into the
+# same VM; TypeProf and the version adapter use that bundled Prism API.
 RubyWasm::Packager.prepend(Module.new do
   def specs
     super.reject { |spec| spec.name == "prism" }
@@ -60,5 +60,5 @@ RubyWasm::CLI.new(stdout: $stdout, stderr: $stderr).run([
   "--ruby-version", "4.0",
   "--dest-dir", File.join(stage, "toolchain"),
   "--clean",
-  "-o", File.join(stage, "ruby-lsp-analysis.wasm"),
+  "-o", File.join(stage, "typeprof-analysis.wasm"),
 ])

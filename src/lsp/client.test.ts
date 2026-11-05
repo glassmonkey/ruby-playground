@@ -6,6 +6,7 @@ class FakeWorker extends EventTarget {
   terminated = false;
   respond = true;
   responseError?: string;
+  resolveSupported = true;
 
   postMessage(value: unknown): void {
     const workerMessage = value as { type?: string };
@@ -26,17 +27,25 @@ class FakeWorker extends EventTarget {
                 jsonrpc: "2.0",
                 id: request.message.id,
                 result:
-                  request.message.method === "textDocument/completion"
-                    ? [{ label: "upcase" }]
-                    : request.message.method === "completionItem/resolve"
-                      ? {
-                          ...(request.message.params as object),
-                          documentation: {
-                            kind: "markdown",
-                            value: "resolved",
+                  request.message.method === "initialize"
+                    ? {
+                        capabilities: {
+                          completionProvider: {
+                            resolveProvider: this.resolveSupported,
                           },
-                        }
-                      : {},
+                        },
+                      }
+                    : request.message.method === "textDocument/completion"
+                      ? [{ label: "upcase" }]
+                      : request.message.method === "completionItem/resolve"
+                        ? {
+                            ...(request.message.params as object),
+                            documentation: {
+                              kind: "markdown",
+                              value: "resolved",
+                            },
+                          }
+                        : {},
               },
             ];
       this.dispatchEvent(
@@ -202,6 +211,9 @@ describe("CompletionClient", () => {
               },
             },
           },
+          workspaceFolders: [
+            { uri: "file:///playground", name: "Ruby Playground" },
+          ],
           initializationOptions: {
             enabledFeatures: ["completion"],
             formatter: "none",
@@ -212,6 +224,35 @@ describe("CompletionClient", () => {
           ...rawItem,
           documentation: { kind: "markdown", value: "resolved" },
         },
+      });
+    } finally {
+      sut.dispose();
+    }
+  });
+
+  it("returns TypeProf's initial details without sending unsupported resolve", async () => {
+    const worker = new FakeWorker();
+    worker.resolveSupported = false;
+    const sut = start(worker);
+    const rawItem = {
+      label: "raise",
+      kind: 2,
+      detail: "Fiber#raise : (?string msg, ?cause: Exception?) -> untyped",
+    };
+    try {
+      const got = await sut.resolve(
+        "file:///main.rb",
+        "Fiber.new {}.ra",
+        1,
+        rawItem,
+      );
+      const methods = worker.messages.map(
+        (entry) => (entry as { message: { method: string } }).message.method,
+      );
+
+      expect({ got, methods }).toEqual({
+        got: rawItem,
+        methods: ["initialize", "initialized"],
       });
     } finally {
       sut.dispose();

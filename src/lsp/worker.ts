@@ -23,7 +23,9 @@ const coreVersions: Record<LspRubyVersion, string> = {
   "4.0": "3.10.0",
 };
 let queue = Promise.resolve();
-let server: { call: (method: string, ...args: string[]) => { toString(): string } };
+let server: {
+  call: (method: string, ...args: string[]) => { toString(): string };
+};
 let rubyVm: { eval: (source: string) => { toString(): string } };
 let stage = "startup";
 
@@ -48,35 +50,37 @@ self.onmessage = (event: MessageEvent<WorkerMessage>) => {
     return;
   }
   if (request?.type !== "request") return;
-  queue = queue.then(async () => {
-    await ready;
-    const started = performance.now();
-    try {
-      const json = JSON.stringify(request.message);
-      const rubyArgument = rubyVm.eval(rubyString(json));
-      const rubyResult = server
-        .call("dispatch", rubyArgument as unknown as string)
-        .toString();
-      self.postMessage({
-        type: "response",
-        token: request.token,
-        responses: JSON.parse(rubyResult),
-        elapsedMs: performance.now() - started,
-      });
-    } catch (error) {
+  queue = queue
+    .then(async () => {
+      await ready;
+      const started = performance.now();
+      try {
+        const json = JSON.stringify(request.message);
+        const rubyArgument = rubyVm.eval(rubyString(json));
+        const rubyResult = server
+          .call("dispatch", rubyArgument as unknown as string)
+          .toString();
+        self.postMessage({
+          type: "response",
+          token: request.token,
+          responses: JSON.parse(rubyResult),
+          elapsedMs: performance.now() - started,
+        });
+      } catch (error) {
+        self.postMessage({
+          type: "response",
+          token: request.token,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    })
+    .catch((error: unknown) => {
       self.postMessage({
         type: "response",
         token: request.token,
         error: error instanceof Error ? error.message : String(error),
       });
-    }
-  }).catch((error: unknown) => {
-    self.postMessage({
-      type: "response",
-      token: request.token,
-      error: error instanceof Error ? error.message : String(error),
     });
-  });
 };
 
 let resolveInitialized!: () => void;
@@ -98,24 +102,35 @@ async function initialize(version: LspRubyVersion): Promise<void> {
     cache: "no-cache",
   });
   if (!manifestResponse.ok)
-    throw new Error(`Ruby completion manifest download failed (${manifestResponse.status}).`);
+    throw new Error(
+      `Ruby completion manifest download failed (${manifestResponse.status}).`,
+    );
   const manifest = (await manifestResponse.json()) as LspManifest;
   const asset = (path: string) => {
     const entry = manifest.files[path];
-    if (!entry) throw new Error(`Ruby completion asset ${path} is not in its manifest.`);
+    if (!entry)
+      throw new Error(`Ruby completion asset ${path} is not in its manifest.`);
     const compressed = Boolean(entry.gzipSha256);
     const url = new URL(compressed ? `${path}.gz` : path, root);
-    url.searchParams.set("sha256", compressed ? entry.gzipSha256! : entry.sha256);
+    url.searchParams.set(
+      "sha256",
+      compressed ? entry.gzipSha256! : entry.sha256,
+    );
     return fetch(url, { cache: "force-cache" });
   };
   const [wasmResponse, adapterResponse, versionAdapterResponse, coreResponse] =
     await Promise.all([
-      asset("ruby-lsp-analysis.wasm"),
+      asset("typeprof-analysis.wasm"),
       asset("analysis_server.rb"),
       asset("versioned/adapter.rb"),
       asset(`versioned/core-${version}.json`),
     ]);
-  const responses = [wasmResponse, adapterResponse, versionAdapterResponse, coreResponse];
+  const responses = [
+    wasmResponse,
+    adapterResponse,
+    versionAdapterResponse,
+    coreResponse,
+  ];
   if (responses.some((response) => !response.ok))
     throw new Error("Ruby completion assets could not be downloaded.");
   const [adapter, versionAdapter] = await Promise.all([
@@ -123,7 +138,7 @@ async function initialize(version: LspRubyVersion): Promise<void> {
     versionAdapterResponse.text(),
   ]);
   const [wasmBytes, core] = await Promise.all([
-    readAssetBytes(wasmResponse, manifest.files["ruby-lsp-analysis.wasm"]),
+    readAssetBytes(wasmResponse, manifest.files["typeprof-analysis.wasm"]),
     readAssetJson<Record<string, string>>(
       coreResponse,
       manifest.files[`versioned/core-${version}.json`],
@@ -146,18 +161,23 @@ async function initialize(version: LspRubyVersion): Promise<void> {
   const wasi = new WASI(
     [],
     [],
-    [new OpenFile(new File([])), stdout, stderr, new PreopenDirectory("/", rootEntries)],
+    [
+      new OpenFile(new File([])),
+      stdout,
+      stderr,
+      new PreopenDirectory("/", rootEntries),
+    ],
   );
-  stage = "Ruby LSP initialization";
+  stage = "TypeProf initialization";
   ({ vm: rubyVm } = await RubyVM.instantiateModule({ module, wasip1: wasi }));
   rubyVm.eval('require "/bundle/setup"');
-  rubyVm.eval(adapter);
   rubyVm.eval(versionAdapter);
+  rubyVm.eval(adapter);
   server = rubyVm.eval(
-    `VersionedAnalysisServer.new(${rubyString(version)}, "/versioned-core")`,
+    `PlaygroundTypeProf.new(${rubyString(version)}, "/versioned-core")`,
   ) as typeof server;
-  const wasmHash = manifest.files["ruby-lsp-analysis.wasm"].sha256;
-  if (wasmBytes.byteLength !== manifest.files["ruby-lsp-analysis.wasm"].bytes)
+  const wasmHash = manifest.files["typeprof-analysis.wasm"].sha256;
+  if (wasmBytes.byteLength !== manifest.files["typeprof-analysis.wasm"].bytes)
     throw new Error("Ruby completion WASM size did not match its manifest.");
   self.postMessage({
     type: "ready",
@@ -174,7 +194,12 @@ function fileTree(files: Record<string, string>): Directory {
   for (const [path, contents] of Object.entries(files)) {
     const components = path.split("/");
     const name = components.pop();
-    if (!name || components.some((component) => !component || component === "." || component === ".."))
+    if (
+      !name ||
+      components.some(
+        (component) => !component || component === "." || component === "..",
+      )
+    )
       throw new Error("Invalid path in Ruby completion core.");
     let entries: Map<string, Inode> = root;
     for (const component of components) {
@@ -187,7 +212,8 @@ function fileTree(files: Record<string, string>): Directory {
         throw new Error("Invalid Ruby completion core directory.");
       entries = directory.contents;
     }
-    if (entries.has(name)) throw new Error("Duplicate Ruby completion core path.");
+    if (entries.has(name))
+      throw new Error("Duplicate Ruby completion core path.");
     entries.set(name, new File(new TextEncoder().encode(contents)));
   }
   return new Directory(root);
@@ -214,14 +240,17 @@ async function readAssetJson<T>(
   response: Response,
   entry: AssetManifestEntry | undefined,
 ): Promise<T> {
-  return JSON.parse(new TextDecoder().decode(await readAssetBytes(response, entry))) as T;
+  return JSON.parse(
+    new TextDecoder().decode(await readAssetBytes(response, entry)),
+  ) as T;
 }
 
 async function readAssetBytes(
   response: Response,
   entry: AssetManifestEntry | undefined,
 ): Promise<ArrayBuffer> {
-  if (!entry) throw new Error("Ruby completion asset is missing its manifest entry.");
+  if (!entry)
+    throw new Error("Ruby completion asset is missing its manifest entry.");
   const body = await response.arrayBuffer();
   const bytes = new Uint8Array(body);
   const compressed = bytes[0] === 0x1f && bytes[1] === 0x8b;

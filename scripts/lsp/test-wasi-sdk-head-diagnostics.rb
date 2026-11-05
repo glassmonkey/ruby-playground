@@ -26,7 +26,7 @@ class WasiSdkHeadDiagnosticsTest < Minitest::Test
       @calls = []
     end
 
-    def head(path, headers = nil, destination = nil)
+    def head(path, headers = {}, destination = nil)
       @calls << [path, headers, destination]
       raise @result if @result.is_a?(Exception)
 
@@ -120,7 +120,7 @@ class WasiSdkHeadDiagnosticsTest < Minitest::Test
 
       assert_same response, returned
       assert_empty stderr
-      assert_equal [[path, nil, nil]], http.calls
+      assert_equal [[path, {}, nil]], http.calls
     end
   end
 
