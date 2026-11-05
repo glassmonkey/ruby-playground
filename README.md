@@ -178,6 +178,43 @@ product exposes no such control. PR acceptance, CI status and the separate
 runtime investigation into stale-response behavior remain manager/secretary
 work; this local run does not claim those decisions.
 
+## TypeProf rewrite in progress
+
+The user requested a TypeProf rewrite, and the manager accepted the TypeProf
+0.33.2 PoC's Ruby 3.3/4.0 versioned core feasibility after checking the
+version-matrix script and artifact hashes. That PoC proves raw inference and
+adapter examples only; Monaco/provider insertion and the production runtime
+integration are still pending. The current public preview and the historical
+14-case Ruby LSP results above are not TypeProf results.
+
+The UI already preserves the completion toggle, `ac=0` URL state, selected Ruby
+version, and loading/ready/unsupported/error status through the existing
+`RubyEditor` props. The UI lane adds an accessible live status and a short
+natural-input instruction. A component test uses a mocked editor callback only
+to verify status presentation; it does not simulate TypeProf candidates or
+claim runtime behavior. The separate `e2e/typeprof.spec.ts` maps inference,
+full-document updates, prefix/suffix and UTF-16 insertion, Fiber detail display,
+and stale-response cases to the public editor path. Do not run it as a product
+verification until the manager supplies the exact TypeProf runtime integration
+head.
+
+When that head is integrated, build the production preview and run the isolated
+suite with:
+
+```sh
+npm run build
+COMPLETION_TEST_MATCH=typeprof.spec.ts \
+COMPLETION_ARTIFACT_KEY=typeprof-<exact-ui-head> \
+PORT=6645 npx playwright test --config=e2e/completion.config.ts
+```
+
+No TypeProf trial URL is available yet. The existing preview still runs the
+Ruby LSP implementation; generate share URLs only after the TypeProf-integrated
+build has passed the intended public UI checks. The formal TypeProf requirement
+draft remains `/private/tmp/gla187-typeprof-requirements.md`; owner Issue/plan
+save is pending recovery of operation `543d09b0...` by the manager. This lane
+does not retry or route around that owner operation.
+
 ## Security and privacy
 
 - Code runs in your browser in a Web Worker. Each run uses a new Worker and

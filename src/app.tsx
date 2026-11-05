@@ -222,7 +222,9 @@ export default function App() {
                   stop();
                   const next = event.target.value as RubyVersion;
                   setVersion(next);
-                  setCompletionStatus(completionStatusFor(completionEnabled, next));
+                  setCompletionStatus(
+                    completionStatusFor(completionEnabled, next),
+                  );
                   updateUrl({ code, version: next, completionEnabled });
                 }}
               >
@@ -250,7 +252,12 @@ export default function App() {
                   updateUrl({ code, version, completionEnabled: next });
                 }}
               />
-              <Text fontSize="xs">
+              <Text
+                fontSize="xs"
+                role="status"
+                aria-live="polite"
+                aria-label={`Code completion status: ${completionLabel(completionEnabled, version, completionStatus)}`}
+              >
                 {completionLabel(completionEnabled, version, completionStatus)}
               </Text>
             </Flex>
@@ -281,6 +288,11 @@ export default function App() {
             </Flex>
           </Flex>
         </Flex>
+        <Text id="completion-guidance" fontSize="sm" color="mutedText" mb={3}>
+          {completionEnabled
+            ? 'Type after a receiver or local variable, for example `puts "hello".upc`, then select a candidate to insert it. When available, candidate documentation appears beside the suggestions.'
+            : "Turn on Code completion to see and insert suggestions while you type."}
+        </Text>
         <RuntimeInfoPanel
           info={environment?.version === version ? environment.info : undefined}
           isLoading={status !== "done"}
