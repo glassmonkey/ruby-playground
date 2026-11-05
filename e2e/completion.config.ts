@@ -5,7 +5,7 @@ const artifactKey = process.env.COMPLETION_ARTIFACT_KEY || "completion-local";
 
 export default defineConfig({
   testDir: ".",
-  testMatch: "completion.spec.ts",
+  testMatch: process.env.COMPLETION_TEST_MATCH || "completion.spec.ts",
   outputDir: `../test-results/${artifactKey}`,
   workers: 1,
   use: {

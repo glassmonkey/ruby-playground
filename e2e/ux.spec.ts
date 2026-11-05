@@ -247,6 +247,21 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
   await page.keyboard.press("Tab");
   await expect(page.getByLabel("Ruby version")).toBeFocused();
   await page.keyboard.press("Tab");
+  const completionSwitch = page.getByRole("checkbox", {
+    name: "Code completion",
+    exact: true,
+  });
+  await expect(completionSwitch).toBeFocused();
+  await expect(completionSwitch).toBeChecked();
+  await page.keyboard.press("Space");
+  await expect(completionSwitch).not.toBeChecked();
+  await expect(page.getByText("Off", { exact: true })).toBeVisible();
+  await page.keyboard.press("Space");
+  await expect(completionSwitch).toBeChecked();
+  await expect(page.getByText("On", { exact: true })).toBeVisible({
+    timeout: 60_000,
+  });
+  await page.keyboard.press("Tab");
   await expect(
     page.getByRole("checkbox", { name: "Light theme", exact: true }),
   ).toBeFocused();
