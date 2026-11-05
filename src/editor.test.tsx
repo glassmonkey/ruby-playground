@@ -166,14 +166,20 @@ const rawCompletion = {
 };
 
 function makeModel() {
+  let text = "x.";
+  let version = 1;
   return {
     uri: { toString: () => "inmemory://model/unmount" },
     isDisposed: () => false,
-    getValue: () => "x.",
-    getVersionId: () => 1,
-    getLineContent: () => "x.",
-    getLineMaxColumn: () => 3,
+    getValue: () => text,
+    getVersionId: () => version,
+    getLineContent: () => text,
+    getLineMaxColumn: () => text.length + 1,
     getWordUntilPosition: () => ({ startColumn: 2, endColumn: 3 }),
+    setSnapshot: (nextText: string, nextVersion: number) => {
+      text = nextText;
+      version = nextVersion;
+    },
   };
 }
 
@@ -181,10 +187,14 @@ function createTestContext() {
   const model = makeModel();
   const statuses: string[] = [];
   const providerDispose = vi.fn();
+  let position: { lineNumber: number; column: number } = {
+    lineNumber: 1,
+    column: 3,
+  };
   harness.provider = undefined;
   harness.editorInstance = {
     getModel: () => model as unknown as editor.ITextModel,
-    getPosition: () => ({ lineNumber: 1, column: 3 }),
+    getPosition: () => position,
   };
   harness.registerCompletionItemProvider.mockImplementation(
     (_language: string, provider: languages.CompletionItemProvider) => {
@@ -213,6 +223,9 @@ function createTestContext() {
     worker,
     statuses,
     providerDispose,
+    setPosition: (nextPosition: { lineNumber: number; column: number }) => {
+      position = nextPosition;
+    },
   };
 }
 
@@ -289,6 +302,106 @@ describe("RubyEditor unmount cleanup", () => {
         position: { line: 0, character: 2 },
       },
     });
+  });
+
+  it("re-requests after two stale responses and returns the stopped input at its current cursor", async () => {
+    // Arrange
+    FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
+    const sut = createTestContext();
+    sut.model.setSnapshot('puts "hello".', 15);
+    sut.setPosition({ lineNumber: 1, column: 14 });
+    await waitFor(() => expect(harness.provider).toBeDefined());
+    act(() => sut.worker.announceReady());
+    const pending = harness.provider!.provideCompletionItems!(
+      sut.model as unknown as editor.ITextModel,
+      { lineNumber: 1, column: 14 } as Position,
+      { triggerKind: 1 },
+      { isCancellationRequested: false } as CancellationToken,
+    );
+    const nextCompletionRequest = async (count: number) => {
+      await waitFor(() =>
+        expect(
+          sut.worker.messages.filter(
+            ({ message }) => message.method === "textDocument/completion",
+          ),
+        ).toHaveLength(count),
+      );
+      return sut.worker.messages.filter(
+        ({ message }) => message.method === "textDocument/completion",
+      )[count - 1];
+    };
+    const first = await nextCompletionRequest(1);
+
+    // Act
+    sut.model.setSnapshot('puts "hello".up', 17);
+    sut.setPosition({ lineNumber: 1, column: 16 });
+    sut.worker.reply(first, [{ ...rawCompletion, label: "stale-v15" }]);
+    const second = await nextCompletionRequest(2);
+    sut.model.setSnapshot('puts "hello".upc', 18);
+    sut.setPosition({ lineNumber: 1, column: 17 });
+    sut.worker.reply(second, [{ ...rawCompletion, label: "stale-v17" }]);
+    const third = await nextCompletionRequest(3);
+    sut.worker.reply(third, [
+      {
+        ...rawCompletion,
+        label: "upcase",
+        textEdit: {
+          range: {
+            start: { line: 0, character: 13 },
+            end: { line: 0, character: 16 },
+          },
+          newText: "upcase",
+        },
+      },
+    ]);
+    const got = await pending;
+
+    // Assert
+    expect(got).toEqual({
+      suggestions: [
+        expect.objectContaining({
+          label: "upcase",
+          insertText: "upcase",
+          detail: undefined,
+          documentation: undefined,
+        }),
+      ],
+    });
+    expect([first, second, third].map(({ message }) => message.params)).toEqual(
+      [
+        {
+          textDocument: { uri: "inmemory://model/unmount" },
+          position: { line: 0, character: 13 },
+        },
+        {
+          textDocument: { uri: "inmemory://model/unmount" },
+          position: { line: 0, character: 15 },
+        },
+        {
+          textDocument: { uri: "inmemory://model/unmount" },
+          position: { line: 0, character: 16 },
+        },
+      ],
+    );
+    expect(
+      sut.worker.messages
+        .filter(({ message }) => message.method === "textDocument/didChange")
+        .map(({ message }) => message.params),
+    ).toEqual([
+      {
+        textDocument: { uri: "inmemory://model/unmount", version: 17 },
+        contentChanges: [{ text: 'puts "hello".up' }],
+      },
+      {
+        textDocument: { uri: "inmemory://model/unmount", version: 18 },
+        contentChanges: [{ text: 'puts "hello".upc' }],
+      },
+    ]);
+    expect(
+      sut.worker.messages.filter(
+        ({ message }) => message.method === "textDocument/completion",
+      ),
+    ).toHaveLength(3);
   });
 
   it("returns the original candidate and does not apply delayed resolve details after unmount", async () => {

@@ -91,9 +91,9 @@ export default function RubyEditor({
         const current = client.current;
         if (!current || model.isDisposed()) return { suggestions: [] };
         try {
-          // A dot triggers the provider before the user finishes typing a method.
-          // If WASM answers after that edit, query the latest snapshot once instead
-          // of returning stale text edits or leaving Monaco without candidates.
+          // A dot can trigger the provider before the user finishes typing a method.
+          // Retry a bounded number of times against newer snapshots so stale text
+          // edits are discarded without leaving a stopped input with no candidates.
           const result = await requestForStableSnapshot(
             () => {
               const activeEditor = editor.current;

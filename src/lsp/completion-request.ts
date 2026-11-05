@@ -1,8 +1,12 @@
-export type CompletionSnapshot<Position extends { lineNumber: number; column: number }> = {
+export type CompletionSnapshot<
+  Position extends { lineNumber: number; column: number },
+> = {
   text: string;
   version: number;
   position: Position;
 };
+
+const MAX_COMPLETION_SNAPSHOT_REQUESTS = 3;
 
 export async function requestForStableSnapshot<
   T,
@@ -12,7 +16,7 @@ export async function requestForStableSnapshot<
   request: (snapshot: CompletionSnapshot<Position>) => Promise<T>,
   isActive: () => boolean,
 ): Promise<{ snapshot: CompletionSnapshot<Position>; value: T } | undefined> {
-  for (let attempt = 0; attempt < 2; attempt++) {
+  for (let attempt = 0; attempt < MAX_COMPLETION_SNAPSHOT_REQUESTS; attempt++) {
     if (!isActive()) return undefined;
     const snapshot = getSnapshot();
     if (!snapshot) return undefined;
