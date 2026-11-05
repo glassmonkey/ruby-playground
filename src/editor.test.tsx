@@ -7,6 +7,10 @@ import type {
   languages,
 } from "monaco-editor";
 import RubyEditor from "./editor";
+import {
+  COMPLETION_SNAPSHOT_BUDGET_MS,
+  COMPLETION_SNAPSHOT_SETTLE_MS,
+} from "./lsp/completion-request";
 
 const harness = vi.hoisted(() => ({
   provider: undefined as languages.CompletionItemProvider | undefined,
@@ -239,6 +243,7 @@ describe("RubyEditor unmount cleanup", () => {
 
   afterEach(() => {
     cleanup();
+    vi.useRealTimers();
     vi.unstubAllGlobals();
   });
 
@@ -304,7 +309,7 @@ describe("RubyEditor unmount cleanup", () => {
     });
   });
 
-  it("re-requests after two stale responses and returns the stopped input at its current cursor", async () => {
+  it("coalesces rapid edits and returns the stopped input after multiple stale responses", async () => {
     // Arrange
     FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
     const sut = createTestContext();
@@ -333,22 +338,27 @@ describe("RubyEditor unmount cleanup", () => {
     const first = await nextCompletionRequest(1);
 
     // Act
-    sut.model.setSnapshot('puts "hello".up', 17);
-    sut.setPosition({ lineNumber: 1, column: 16 });
+    sut.model.setSnapshot('puts "hello".up', 16);
+    sut.model.setSnapshot('puts "hello".upc', 17);
+    sut.setPosition({ lineNumber: 1, column: 17 });
     sut.worker.reply(first, [{ ...rawCompletion, label: "stale-v15" }]);
     const second = await nextCompletionRequest(2);
-    sut.model.setSnapshot('puts "hello".upc', 18);
-    sut.setPosition({ lineNumber: 1, column: 17 });
+    sut.model.setSnapshot('puts "hello".upca', 18);
+    sut.setPosition({ lineNumber: 1, column: 18 });
     sut.worker.reply(second, [{ ...rawCompletion, label: "stale-v17" }]);
     const third = await nextCompletionRequest(3);
-    sut.worker.reply(third, [
+    sut.model.setSnapshot('puts "hello".upcas', 19);
+    sut.setPosition({ lineNumber: 1, column: 19 });
+    sut.worker.reply(third, [{ ...rawCompletion, label: "stale-v18" }]);
+    const fourth = await nextCompletionRequest(4);
+    sut.worker.reply(fourth, [
       {
         ...rawCompletion,
         label: "upcase",
         textEdit: {
           range: {
             start: { line: 0, character: 13 },
-            end: { line: 0, character: 16 },
+            end: { line: 0, character: 18 },
           },
           newText: "upcase",
         },
@@ -357,32 +367,78 @@ describe("RubyEditor unmount cleanup", () => {
     const got = await pending;
 
     // Assert
-    expect(got).toEqual({
-      suggestions: [
-        expect.objectContaining({
-          label: "upcase",
-          insertText: "upcase",
-          detail: undefined,
-          documentation: undefined,
-        }),
-      ],
+    expect(got?.suggestions).toHaveLength(1);
+    const candidate = got!.suggestions[0] as languages.CompletionItem & {
+      rubyLspItem: unknown;
+      range: {
+        startLineNumber: number;
+        startColumn: number;
+        endLineNumber: number;
+        endColumn: number;
+      };
+    };
+    expect({
+      label: candidate.label,
+      kind: candidate.kind,
+      detail: candidate.detail,
+      documentation: candidate.documentation,
+      sortText: candidate.sortText,
+      filterText: candidate.filterText,
+      insertText: candidate.insertText,
+      range: {
+        startLineNumber: candidate.range.startLineNumber,
+        startColumn: candidate.range.startColumn,
+        endLineNumber: candidate.range.endLineNumber,
+        endColumn: candidate.range.endColumn,
+      },
+      rubyLspItem: candidate.rubyLspItem,
+    }).toEqual({
+      label: "upcase",
+      kind: 1,
+      detail: undefined,
+      documentation: undefined,
+      sortText: undefined,
+      filterText: undefined,
+      insertText: "upcase",
+      range: {
+        startLineNumber: 1,
+        startColumn: 14,
+        endLineNumber: 1,
+        endColumn: 14,
+      },
+      rubyLspItem: {
+        label: "upcase",
+        kind: 2,
+        textEdit: {
+          range: {
+            start: { line: 0, character: 13 },
+            end: { line: 0, character: 18 },
+          },
+          newText: "upcase",
+        },
+        data: { owner_name: "Fiber", guessed_type: false },
+      },
     });
-    expect([first, second, third].map(({ message }) => message.params)).toEqual(
-      [
-        {
-          textDocument: { uri: "inmemory://model/unmount" },
-          position: { line: 0, character: 13 },
-        },
-        {
-          textDocument: { uri: "inmemory://model/unmount" },
-          position: { line: 0, character: 15 },
-        },
-        {
-          textDocument: { uri: "inmemory://model/unmount" },
-          position: { line: 0, character: 16 },
-        },
-      ],
-    );
+    expect(
+      [first, second, third, fourth].map(({ message }) => message.params),
+    ).toEqual([
+      {
+        textDocument: { uri: "inmemory://model/unmount" },
+        position: { line: 0, character: 13 },
+      },
+      {
+        textDocument: { uri: "inmemory://model/unmount" },
+        position: { line: 0, character: 16 },
+      },
+      {
+        textDocument: { uri: "inmemory://model/unmount" },
+        position: { line: 0, character: 17 },
+      },
+      {
+        textDocument: { uri: "inmemory://model/unmount" },
+        position: { line: 0, character: 18 },
+      },
+    ]);
     expect(
       sut.worker.messages
         .filter(({ message }) => message.method === "textDocument/didChange")
@@ -390,18 +446,124 @@ describe("RubyEditor unmount cleanup", () => {
     ).toEqual([
       {
         textDocument: { uri: "inmemory://model/unmount", version: 17 },
-        contentChanges: [{ text: 'puts "hello".up' }],
+        contentChanges: [{ text: 'puts "hello".upc' }],
       },
       {
         textDocument: { uri: "inmemory://model/unmount", version: 18 },
-        contentChanges: [{ text: 'puts "hello".upc' }],
+        contentChanges: [{ text: 'puts "hello".upca' }],
+      },
+      {
+        textDocument: { uri: "inmemory://model/unmount", version: 19 },
+        contentChanges: [{ text: 'puts "hello".upcas' }],
       },
     ]);
     expect(
       sut.worker.messages.filter(
         ({ message }) => message.method === "textDocument/completion",
       ),
-    ).toHaveLength(3);
+    ).toHaveLength(4);
+  });
+
+  it("returns no stale result when the overall completion budget expires", async () => {
+    // Arrange
+    FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
+    const sut = createTestContext();
+    sut.model.setSnapshot('puts "hello".', 15);
+    sut.setPosition({ lineNumber: 1, column: 14 });
+    await waitFor(() => expect(harness.provider).toBeDefined());
+    act(() => sut.worker.announceReady());
+    vi.useFakeTimers();
+    const pending = harness.provider!.provideCompletionItems!(
+      sut.model as unknown as editor.ITextModel,
+      { lineNumber: 1, column: 14 } as Position,
+      { triggerKind: 1 },
+      { isCancellationRequested: false } as CancellationToken,
+    );
+    await act(async () => {
+      for (let turn = 0; turn < 40; turn++) await Promise.resolve();
+    });
+    const first = sut.worker.messages.find(
+      ({ message }) => message.method === "textDocument/completion",
+    )!;
+
+    // Act
+    await vi.advanceTimersByTimeAsync(COMPLETION_SNAPSHOT_BUDGET_MS / 2);
+    sut.model.setSnapshot('puts "hello".upc', 18);
+    sut.setPosition({ lineNumber: 1, column: 17 });
+    sut.worker.reply(first, [{ ...rawCompletion, label: "stale-v15" }]);
+    await vi.advanceTimersByTimeAsync(COMPLETION_SNAPSHOT_SETTLE_MS);
+    await act(async () => {
+      for (let turn = 0; turn < 40; turn++) await Promise.resolve();
+    });
+    const requests = sut.worker.messages.filter(
+      ({ message }) => message.method === "textDocument/completion",
+    );
+    await vi.advanceTimersByTimeAsync(
+      COMPLETION_SNAPSHOT_BUDGET_MS / 2 - COMPLETION_SNAPSHOT_SETTLE_MS,
+    );
+    const got = await pending;
+    sut.worker.reply(requests[1], [rawCompletion]);
+    await act(async () => {
+      for (let turn = 0; turn < 10; turn++) await Promise.resolve();
+    });
+
+    // Assert
+    expect(got).toEqual({ suggestions: [] });
+    expect(requests.map(({ message }) => message.params)).toEqual([
+      {
+        textDocument: { uri: "inmemory://model/unmount" },
+        position: { line: 0, character: 13 },
+      },
+      {
+        textDocument: { uri: "inmemory://model/unmount" },
+        position: { line: 0, character: 16 },
+      },
+    ]);
+    expect(
+      sut.worker.messages.filter(
+        ({ message }) => message.method === "textDocument/completion",
+      ),
+    ).toHaveLength(2);
+    expect(sut.statuses).toEqual(["loading", "ready"]);
+  });
+
+  it("does not issue a newer request after the Monaco cancellation token is cancelled", async () => {
+    // Arrange
+    FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
+    const sut = createTestContext();
+    await waitFor(() => expect(harness.provider).toBeDefined());
+    act(() => sut.worker.announceReady());
+    const token = { isCancellationRequested: false };
+    const pending = harness.provider!.provideCompletionItems!(
+      sut.model as unknown as editor.ITextModel,
+      { lineNumber: 1, column: 3 } as Position,
+      { triggerKind: 1 },
+      token as CancellationToken,
+    );
+    await waitFor(() =>
+      expect(
+        sut.worker.messages.filter(
+          ({ message }) => message.method === "textDocument/completion",
+        ),
+      ).toHaveLength(1),
+    );
+    const request = sut.worker.messages.find(
+      ({ message }) => message.method === "textDocument/completion",
+    )!;
+
+    // Act
+    sut.model.setSnapshot("x.up", 2);
+    token.isCancellationRequested = true;
+    sut.worker.reply(request, [rawCompletion]);
+    const got = await pending;
+
+    // Assert
+    expect(got).toEqual({ suggestions: [] });
+    expect(
+      sut.worker.messages.filter(
+        ({ message }) => message.method === "textDocument/completion",
+      ),
+    ).toHaveLength(1);
   });
 
   it("returns the original candidate and does not apply delayed resolve details after unmount", async () => {

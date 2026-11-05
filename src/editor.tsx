@@ -92,8 +92,8 @@ export default function RubyEditor({
         if (!current || model.isDisposed()) return { suggestions: [] };
         try {
           // A dot can trigger the provider before the user finishes typing a method.
-          // Retry a bounded number of times against newer snapshots so stale text
-          // edits are discarded without leaving a stopped input with no candidates.
+          // Coalesce newer snapshots during the quiet window and stop at the overall
+          // deadline so stale text edits are never returned and retries stay bounded.
           const result = await requestForStableSnapshot(
             () => {
               const activeEditor = editor.current;
