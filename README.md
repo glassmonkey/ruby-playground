@@ -61,12 +61,16 @@ whose lessons run code in the page.
 The completion-only Chromium suite runs against a production Vite build with
 `PORT=6645 npx playwright test --config=e2e/completion.config.ts`. The isolated
 config starts only Vite preview and matches `completion.spec.ts`; it does not
-start or reuse the gem proxy or workerd. The last full run on UI source head
-`c60ee92b84bcdd979e68a9b6fa698469d19e8524` passed all 14 tests. Its command,
-screenshots, traces and protocol captures are archived under
+start or reuse the gem proxy or workerd. An earlier full run on UI source head
+`c60ee92b84bcdd979e68a9b6fa698469d19e8524` passed all 14 tests. Its screenshots,
+traces and protocol captures are archived under
 `test-results/archive/c60ee92b84bcdd979e68a9b6fa698469d19e8524/completion-e2e-full-run2/`.
-A run on the final committed UI head is recorded in the corresponding
-head-keyed archive before this PR is updated.
+A later full run on local UI head `4d6f0a1f68d49159d32488723eb20400f8f7751f`
+passed 13 tests and failed one midline `upcase` candidate wait. Its failure
+trace and a readback correcting the invocation's mistyped head/hash metadata
+are documented under
+`test-results/archive/4d6f0a1f68d49159d32488723eb20400f8f7751f/completion-final-run1/`.
+The run was executed from local head 4d6f; the published PR was still at c60.
 
 That run used manifest SHA-256
 `c93e49dc7769caf55ff2e14a70af56a042bfaa894b956b944db44d715edc3e13` and
@@ -80,7 +84,7 @@ completion-ready, 1,267 ms Worker initialization, 1,312 ms to first candidate,
 87 ms to a warm candidate, and 20,698,694 bytes across five LSP HTTP response
 bodies. These are local measurements, not production-network timings.
 
-The completion E2E covers natural `upcase` and `greeting` insertion and Ruby
+The earlier completion E2E covers natural `upcase` and `greeting` insertion and Ruby
 execution, `put`→`puts`, midline suffix preservation, Japanese and emoji UTF-16
 positions, `Mine#rfind` shadowing/removal, version-specific API candidates,
 the Fiber details matrix, completion OFF and URL/history restoration, initial
@@ -107,13 +111,26 @@ therefore empty, and list labels such as `raise, Method` do not carry the
 version-specific signature. The displayed documentation is the public UI
 result of resolving and rendering the candidate.
 
-`npm run test:ci` passed 225 tests, and typecheck, lint, LSP asset verification
-and production build passed on the current source. The full repository
+On local head `4d6f0a1f68d49159d32488723eb20400f8f7751f`,
+`npm run test:ci` passed 225 tests before the runtime unmount component tests
+were merged. After merging runtime test-only commit
+`a3ffd23fb6bda3ad09f1beab69866cdccb310d3d`, `npm run test:ci` passed 227 tests
+in 22 files; typecheck and lint also passed. The full repository
 proxy/general E2E suite and CI are separate and are not represented by the
 completion-only suite. A public UI action that unmounts the editor was not
-available for a direct browser unmount test; unit tests cover disposal,
-cancellation, stale replies and timeout handling. CI is monitored by the
-secretary.
+No public UI action unmounts the editor, so that browser path remains
+unverified. The runtime component-boundary tests in `src/editor.test.tsx`
+unmount `RubyEditor` while completion or resolve is pending, then check Worker
+termination, Monaco provider disposal and suppression of a delayed result. The
+tests use React Testing Library and a fake Worker; they are component tests,
+not a browser-page unmount test. The UI lane's one-case observer diagnostic
+succeeded: on the midline input, Worker 1 returned `+` and `+@` for document
+version 32, then `upcase` and `upcase!` for version 35; the UI inserted
+`upcase` and Ruby printed `HELLO!`. The preceding full-run failure remains
+unexplained because that run has no corresponding Worker log. The successful
+diagnostic does not turn the full run into a pass. The raw records, source
+hashes and original failed output are preserved at
+`test-results/archive/4d6f0a1f68d49159d32488723eb20400f8f7751f/midline-diagnostic-run1/`.
 
 Browser history navigation preserves the completion status when only the
 source changes while the Ruby version and enabled setting stay the same.

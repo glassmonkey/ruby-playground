@@ -151,49 +151,184 @@ test("natural input completes put as puts and preserves text after the edit", as
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
-  await page.goto("./?v=4.0");
-  await expect(page.getByText("On", { exact: true })).toBeVisible({
-    timeout: 60_000,
+  await mkdir(testInfo.outputPath(), { recursive: true });
+  await watchAnalysisWorkers(page);
+  const diagnostic: Record<string, unknown> = {
+    uiHead:
+      process.env.COMPLETION_UI_HEAD ??
+      process.env.GITHUB_SHA ??
+      "not-recorded",
+    runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+    testSourceSha256:
+      process.env.COMPLETION_TEST_SOURCE_SHA256 ?? "not-provided",
+    observerSourceSha256:
+      process.env.COMPLETION_OBSERVER_SOURCE_SHA256 ?? "not-provided",
+    startedAt: Date.now(),
+    startedMonotonicMs: await page.evaluate(() => performance.now()),
+    pageErrors: [] as string[],
+    consoleErrors: [] as string[],
+    milestones: [] as Array<Record<string, unknown>>,
+  };
+  page.on("pageerror", (error) => {
+    (diagnostic.pageErrors as string[]).push(error.stack ?? error.message);
+  });
+  page.on("console", (message) => {
+    if (message.type() === "error")
+      (diagnostic.consoleErrors as string[]).push(message.text());
   });
 
-  await editRuby(page, 'put "Ruby"');
-  for (let index = 0; index < 7; index += 1)
-    await page.keyboard.press("ArrowLeft");
-  await page.keyboard.type("s");
-  const puts = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "puts, Method", exact: true });
-  await expect(puts).toBeVisible({ timeout: 30_000 });
-  await page.screenshot({ path: testInfo.outputPath("puts-candidate.png") });
-  await puts.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    'puts "Ruby"',
-  );
-  await expectRubyOutput(page, "Ruby\n");
-  await page.screenshot({ path: testInfo.outputPath("puts-inserted.png") });
+  try {
+    await page.goto("./?v=4.0");
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
 
-  await editRuby(page, 'puts "hello" + "!"');
-  for (let index = 0; index < 6; index += 1)
-    await page.keyboard.press("ArrowLeft");
-  await page.keyboard.type(".upc");
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    'puts "hello".upc + "!"',
-  );
-  await page.screenshot({
-    path: testInfo.outputPath("midline-prefix-input.png"),
-  });
-  const upcase = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "upcase, Method", exact: true });
-  await expect(upcase).toBeVisible({ timeout: 30_000 });
-  await upcase.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    'puts "hello".upcase + "!"',
-  );
-  await expectRubyOutput(page, "HELLO!\n");
-  await page.screenshot({
-    path: testInfo.outputPath("midline-suffix-preserved.png"),
-  });
+    await editRuby(page, 'put "Ruby"');
+    for (let index = 0; index < 7; index += 1)
+      await page.keyboard.press("ArrowLeft");
+    await page.keyboard.type("s");
+    const puts = page
+      .getByRole("listbox", { name: "Suggest" })
+      .getByRole("listitem", { name: "puts, Method", exact: true });
+    await expect(puts).toBeVisible({ timeout: 30_000 });
+    await page.screenshot({ path: testInfo.outputPath("puts-candidate.png") });
+    await puts.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+      'puts "Ruby"',
+    );
+    await expectRubyOutput(page, "Ruby\n");
+    await page.screenshot({ path: testInfo.outputPath("puts-inserted.png") });
+
+    await editRuby(page, 'puts "hello" + "!"');
+    for (let index = 0; index < 6; index += 1)
+      await page.keyboard.press("ArrowLeft");
+    await page.keyboard.type(".upc");
+    diagnostic.milestones = [
+      ...(diagnostic.milestones as Array<Record<string, unknown>>),
+      {
+        name: "midline-suffix-query-entered",
+        at: Date.now(),
+        monotonicMs: await page.evaluate(() => performance.now()),
+        source: await page.locator(".monaco-editor .view-lines").innerText(),
+        lspObservations: await lspObservations(page),
+      },
+    ];
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+      'puts "hello".upc + "!"',
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("midline-prefix-input.png"),
+    });
+    const upcase = page
+      .getByRole("listbox", { name: "Suggest" })
+      .getByRole("listitem", { name: "upcase, Method", exact: true });
+    await expect(upcase).toBeVisible({ timeout: 30_000 });
+    await upcase.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+      'puts "hello".upcase + "!"',
+    );
+    await expectRubyOutput(page, "HELLO!\n");
+    await page.screenshot({
+      path: testInfo.outputPath("midline-suffix-preserved.png"),
+    });
+    diagnostic.passed = true;
+  } catch (error) {
+    diagnostic.failure = error instanceof Error ? error.message : String(error);
+    diagnostic.failureStack = error instanceof Error ? error.stack : undefined;
+    throw error;
+  } finally {
+    diagnostic.finishedAt = Date.now();
+    diagnostic.finishedMonotonicMs = await page
+      .evaluate(() => performance.now())
+      .catch((error) => String(error));
+    diagnostic.finalSource = await page
+      .locator(".monaco-editor .view-lines")
+      .innerText()
+      .catch((error) => String(error));
+    diagnostic.caret = await page
+      .evaluate(() => {
+        const textarea = document.querySelector(
+          ".monaco-editor textarea.inputarea",
+        ) as HTMLTextAreaElement | null;
+        const cursor = document.querySelector(
+          ".monaco-editor .cursors-layer .cursor",
+        );
+        const cursorBounds = cursor?.getBoundingClientRect();
+        const selection = window.getSelection();
+        return {
+          activeElement: document.activeElement?.outerHTML.slice(0, 300),
+          textareaSelectionStart: textarea?.selectionStart,
+          textareaSelectionEnd: textarea?.selectionEnd,
+          domSelection: selection
+            ? {
+                anchorOffset: selection.anchorOffset,
+                focusOffset: selection.focusOffset,
+              }
+            : undefined,
+          cursorRect: cursorBounds
+            ? {
+                x: cursorBounds.x,
+                y: cursorBounds.y,
+                width: cursorBounds.width,
+                height: cursorBounds.height,
+              }
+            : undefined,
+        };
+      })
+      .catch((error) => String(error));
+    diagnostic.workerUrls = await analysisWorkerUrls(page).catch((error) =>
+      String(error),
+    );
+    diagnostic.terminationEvents = await analysisWorkerTerminations(page).catch(
+      (error) => String(error),
+    );
+    diagnostic.lspObservations = await lspObservations(page).catch((error) =>
+      String(error),
+    );
+    const observedEvents = diagnostic.lspObservations as
+      Array<Record<string, unknown>> | undefined;
+    if (observedEvents) {
+      const responses = new Set(
+        observedEvents
+          .filter((event) => event.direction === "response")
+          .map((event) => `${event.workerId}:${event.token}:${event.method}`),
+      );
+      diagnostic.unansweredRequests = observedEvents.filter(
+        (event) =>
+          event.direction === "request" &&
+          !responses.has(`${event.workerId}:${event.token}:${event.method}`),
+      );
+    }
+    diagnostic.finalDom = await page
+      .evaluate(() => ({
+        status: document.body.innerText.match(
+          /\b(On|Off|Loading|Unavailable)\b/g,
+        ),
+        suggestions: [...document.querySelectorAll(".suggest-widget")].map(
+          (element) => ({
+            text: element.textContent,
+            visible: element.getBoundingClientRect().width > 0,
+            aria: element.getAttribute("aria-label"),
+          }),
+        ),
+      }))
+      .catch((error) => String(error));
+    await page
+      .screenshot({ path: testInfo.outputPath("midline-diagnostic-final.png") })
+      .catch((error) => {
+        diagnostic.screenshotFailure = String(error);
+      });
+    const serializedDiagnostic = JSON.stringify(diagnostic, null, 2);
+    await writeFile(
+      testInfo.outputPath("midline-diagnostic.json"),
+      serializedDiagnostic,
+      "utf8",
+    );
+    await testInfo.attach("midline-diagnostic.json", {
+      body: serializedDiagnostic,
+      contentType: "application/json",
+    });
+  }
 });
 
 test("natural input completion handles Japanese identifiers and emoji UTF-16 positions", async ({
