@@ -138,6 +138,14 @@
         in browser history, bookmarks, messages, or recipients' records. Please
         do not include confidential information or Personal Data in shared code.
       </p>
+      <p>
+        Shared links may also contain a Gemfile and locked gem versions. When a
+        link is opened, the browser can request gem metadata and package files
+        from the gem proxy and execute the downloaded Ruby code. The proxy
+        receives the visitor's IP address and the requested gem names and file
+        names. The browser stores successfully installed .gem packages in Cache
+        Storage; You can remove them by clearing site data in Your browser.
+      </p>
       <h4>Usage Data</h4>
       <p>
         Usage Data is processed by the hosting service when You access the
@@ -321,6 +329,20 @@
           href="https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement"
           >GitHub General Privacy Statement</a
         >.
+      </p>
+      <h3>Gem package proxy</h3>
+      <p>
+        The app uses a Cloudflare Worker at gems.ruby-play.dev to retrieve gem
+        metadata and packages from rubygems.org. Requests to that proxy include
+        the visitor's IP address and the requested gem path, which contains a
+        gem name or package file name. Cloudflare processes those requests to
+        provide the proxy service; please review
+        <a href="https://www.cloudflare.com/privacypolicy/"
+          >Cloudflare's Privacy Policy</a
+        >
+        for information about its handling of request data. Downloaded package
+        files are cached in the visitor's browser, not in an account associated
+        with Ruby Playground.
       </p>
       <h3>Communications and Donations</h3>
       <p>

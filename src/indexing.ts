@@ -1,4 +1,4 @@
-const shareParameters = ["c", "v", "f"] as const;
+const shareParameters = ["c", "g", "l", "v", "f"] as const;
 const robotsMarker = "data-share-noindex";
 
 export function hasShareParameters(search: string): boolean {

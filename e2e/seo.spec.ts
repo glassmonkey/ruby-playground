@@ -6,6 +6,7 @@ import {
   lessonsForVersion,
 } from "../src/tutorial/content";
 import { RUBY_PATCH_VERSIONS } from "../src/versions";
+import { codeOnlyUrl } from "./editor";
 const lessons = lessonsForVersion(latestTutorialVersion);
 
 // Membership comes from raw publication data, not the resolver under test.
@@ -171,7 +172,7 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   page,
   request,
 }) => {
-  const response = await page.goto("./");
+  const response = await request.get("./");
   if (!response) throw new Error("The initial document response is missing.");
   expect(response.ok()).toBe(true);
   const html = await response.text();
@@ -211,6 +212,8 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
   expect(html).toMatch(
     /<link\s+rel="canonical"\s+href="https:\/\/ruby-play\.dev\/"\s*\/>/,
   );
+  expect(html).not.toContain('<meta name="robots" content="noindex"');
+  await page.goto(codeOnlyUrl());
   await expect(page).toHaveTitle(
     "Ruby Playground – Run Ruby Online in Your Browser",
   );
@@ -230,8 +233,10 @@ test("initial HTML and share URLs expose the intended indexing signals", async (
     "content",
     "noindex",
   );
-  await page.goto("./");
-  await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
+  const root = await request.get("/");
+  expect(await root.text()).not.toContain(
+    '<meta name="robots" content="noindex"',
+  );
 });
 
 for (const version of tutorialVersions) {
@@ -303,7 +308,7 @@ test("tutorial is discoverable, readable without JavaScript and usable on mobile
 }) => {
   for (const width of [1280, 390]) {
     await page.setViewportSize({ width, height: 844 });
-    await page.goto("/");
+    await page.goto(codeOnlyUrl(""));
     const link = page
       .getByRole("banner")
       .getByRole("link", { name: "Want to learn Ruby?" });
@@ -705,7 +710,7 @@ for (const [retired, successor] of [
 test("application and tutorial expose the same versions and stable default", async ({
   page,
 }) => {
-  await page.goto("/");
+  await page.goto(codeOnlyUrl(""));
   const appSelector = page.getByLabel("Ruby version", { exact: true });
   await expect(appSelector).toBeVisible();
   const applicationDefault = await appSelector.inputValue();

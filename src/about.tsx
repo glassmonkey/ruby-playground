@@ -40,12 +40,18 @@ export default function About() {
         Notes
       </Heading>
       <Text mb={2}>
-        Each run starts fresh. Rails, installing extra gems and interactive
-        input are not supported. The first run may take longer while Ruby loads.
+        Add gems published on rubygems.org in the Gemfile, then run bundle
+        install. Only gem lines with optional version requirements are
+        supported. Rails, native extensions, and interactive input are not
+        supported. Each run starts fresh, and the first run may take longer
+        while Ruby loads.
       </Text>
       <Text>
-        Shared URLs include your code and run automatically when opened. Do not
-        enter secrets or open links you do not trust.
+        Shared URLs include your code and Gemfile and run automatically when
+        opened. Gem metadata and archives are downloaded from RubyGems through a
+        caching proxy. Gem installation and Ruby execution happen in your
+        browser. The proxy does not execute Ruby code. Do not enter secrets or
+        open links you do not trust.
       </Text>
     </Box>
   );

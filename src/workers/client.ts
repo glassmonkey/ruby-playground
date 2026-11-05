@@ -4,20 +4,69 @@ import {
   type RubyVersion,
 } from "../versions";
 import type { RunResult, RuntimeInfo } from "../runtime";
+import type { ResolvedGem } from "../gems";
 
 export const RUN_TIMEOUT_MS = 20_000;
+/** bundle install may fetch many gems; slower is acceptable there. */
+export const INSTALL_TIMEOUT_MS = 60_000;
 export type RunHandle = { promise: Promise<RunResult>; cancel: () => void };
+export type GemOptions = {
+  gemfile: string;
+  /** Required for a run that uses gems; ignored by install. */
+  lock?: ResolvedGem[];
+  mode?: "run" | "install";
+  onGems?: (gems: ResolvedGem[]) => void;
+  onLog?: (line: string) => void;
+};
+const createRubyWorker = () =>
+  new Worker(new URL("./ruby-worker.ts", import.meta.url), {
+    type: "module",
+  });
+
+/** Resolve the Gemfile and download every gem once, producing Gemfile.lock. */
+export function startGemInstall(
+  gemfile: string,
+  version: RubyVersion,
+  onLog?: (line: string) => void,
+  createWorker = createRubyWorker,
+): {
+  promise: Promise<{ lock?: ResolvedGem[]; error?: string }>;
+  cancel: () => void;
+} {
+  let lock: ResolvedGem[] = [];
+  const run = startRubyRun(
+    "",
+    createWorker,
+    INSTALL_TIMEOUT_MS,
+    version,
+    undefined,
+    {
+      gemfile,
+      mode: "install",
+      onGems: (gems) => {
+        lock = gems;
+      },
+      onLog,
+    },
+  );
+  return {
+    promise: run.promise.then((result) =>
+      result.error ? { error: result.error } : { lock },
+    ),
+    cancel: run.cancel,
+  };
+}
+
 /** A fresh worker per run, with explicit settlement even for empty output. */
 export function startRubyRun(
   code: string,
-  createWorker = () =>
-    new Worker(new URL("./ruby-worker.ts", import.meta.url), {
-      type: "module",
-    }),
+  createWorker = createRubyWorker,
   timeoutMs = RUN_TIMEOUT_MS,
   version: RubyVersion = DEFAULT_RUBY_VERSION,
   onRuntimeInfo?: (info: RuntimeInfo) => void,
+  gems: GemOptions = { gemfile: "" },
 ): RunHandle {
+  const { gemfile, lock, mode = "run", onGems, onLog } = gems;
   let cancel = () => {};
   const promise = new Promise<RunResult>((resolve) => {
     let worker: Worker | undefined;
@@ -80,6 +129,40 @@ export function startRubyRun(
           });
           return;
         }
+        if (data.type === "log") {
+          if (typeof data.line !== "string" || data.line.length > 500) {
+            fail("Invalid response from the Ruby worker.");
+            return;
+          }
+          onLog?.(data.line);
+          return;
+        }
+        if (data.type === "gems") {
+          const gems = data.gems;
+          if (
+            !Array.isArray(gems) ||
+            gems.length > 500 ||
+            gems.some(
+              (gem) =>
+                typeof gem !== "object" ||
+                gem === null ||
+                typeof gem.name !== "string" ||
+                typeof gem.version !== "string" ||
+                (gem.source !== "rubygems" && gem.source !== "builtin"),
+            )
+          ) {
+            fail("Invalid gem information from the Ruby worker.");
+            return;
+          }
+          onGems?.(
+            (gems as ResolvedGem[]).map(({ name, version, source }) => ({
+              name,
+              version,
+              source,
+            })),
+          );
+          return;
+        }
         const fields = ["stdout", "stderr", "output"] as const;
         if (
           fields.some(
@@ -104,10 +187,15 @@ export function startRubyRun(
       worker.onmessageerror = () =>
         fail("Could not read the Ruby worker response.");
       timer = setTimeout(
-        () => fail("Execution timed out after 20 seconds."),
+        () =>
+          fail(
+            mode === "install"
+              ? "bundle install timed out after 60 seconds."
+              : "Execution timed out after 20 seconds.",
+          ),
         timeoutMs,
       );
-      worker.postMessage({ code, version });
+      worker.postMessage({ code, version, gemfile, lock, mode });
     } catch (error) {
       fail(error instanceof Error ? error.message : String(error));
     }

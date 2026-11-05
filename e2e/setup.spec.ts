@@ -2,9 +2,10 @@ import { expect, test } from "@playwright/test";
 import { RUBY_VERSIONS } from "../src/versions";
 import { runtimeCases } from "../src/__test__/fixtures/runtime-cases";
 import {
+  codeOnlyUrl,
   editRuby as edit,
   expectRubyOutput,
-  expectInitialRuby,
+  expectLettersSample,
 } from "./editor";
 import { expectDocumentToFitViewport } from "./layout";
 test.beforeEach(async ({ page }) => {
@@ -36,14 +37,14 @@ test("initial and edited Ruby automatically execute with errors, empty output an
     requests.push({ url: request.url(), type: request.resourceType() });
   });
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto("./");
+  await page.goto(codeOnlyUrl());
   await expect(
     page.getByRole("heading", { name: "Ruby Playground", exact: true }),
   ).toBeVisible();
   await expect(page.getByRole("button", { name: /^(Run|Rerun)$/ })).toHaveCount(
     0,
   );
-  await expectInitialRuby(page);
+  await expectLettersSample(page);
   await edit(page, 'puts "こんにちは"; warn "warning"; $answer = 42');
   await expectRubyOutput(page, "こんにちは\nwarning\n");
   await page.screenshot({
@@ -119,7 +120,7 @@ test("shared code and version automatically restore on direct load and reload", 
   page,
 }) => {
   test.setTimeout(90_000);
-  await page.goto("./");
+  await page.goto(codeOnlyUrl(""));
   await page.getByLabel("Ruby version").selectOption("3.4");
   await edit(
     page,
@@ -152,7 +153,7 @@ test("each selected minor version executes its own real Ruby VM", async ({
   page,
 }) => {
   test.setTimeout(100_000);
-  await page.goto("./");
+  await page.goto(codeOnlyUrl(""));
   await edit(page, "puts RUBY_VERSION");
   const selector = page.getByLabel("Ruby version");
   expect(
@@ -186,8 +187,8 @@ test("rapid edits and version changes cancel stale runs and keep only the latest
   page,
 }) => {
   test.setTimeout(60_000);
-  await page.goto("./");
-  await expectInitialRuby(page);
+  await page.goto(codeOnlyUrl());
+  await expectLettersSample(page);
   const oldWorkerStarted = page.waitForEvent("worker", {
     predicate: (worker) => worker.url().includes("ruby-worker"),
   });
@@ -214,7 +215,7 @@ test("rapid edits and version changes cancel stale runs and keep only the latest
 test("stop an infinite automatic run without restarting until the source changes", async ({
   page,
 }) => {
-  await page.goto("./");
+  await page.goto(codeOnlyUrl(""));
   await edit(page, "loop {}");
   await expect(page.getByLabel("Running", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Stop", exact: true }).click();
@@ -237,8 +238,8 @@ test("an infinite automatic run times out and the next edit recovers", async ({
   page,
 }) => {
   test.setTimeout(60_000);
-  await page.goto("./");
-  await expectInitialRuby(page);
+  await page.goto(codeOnlyUrl());
+  await expectLettersSample(page);
   await edit(page, "loop {}");
   await expect(page.getByRole("status")).toContainText("Running");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
