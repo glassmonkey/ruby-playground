@@ -327,9 +327,15 @@ describe("RubyEditor unmount cleanup", () => {
     });
 
     // Assert
+    expect(got).toBe(candidate);
     expect({
-      got,
-      originalCandidate: candidate,
+      candidate: {
+        label: candidate.label,
+        kind: candidate.kind,
+        detail: candidate.detail,
+        documentation: candidate.documentation,
+        insertText: candidate.insertText,
+      },
       terminateCalls: sut.worker.terminate.mock.calls.length,
       providerDisposeCalls: sut.providerDispose.mock.calls.length,
       analysisWorkers: harness.workerInstances.length,
@@ -341,8 +347,13 @@ describe("RubyEditor unmount cleanup", () => {
       workerInitialization: sut.worker.postMessages[0],
       resolveParams: request.message.params,
     }).toEqual({
-      got: candidate,
-      originalCandidate: candidate,
+      candidate: {
+        label: "raise",
+        kind: 1,
+        detail: undefined,
+        documentation: undefined,
+        insertText: "raise",
+      },
       terminateCalls: 1,
       providerDisposeCalls: 1,
       analysisWorkers: 1,
