@@ -48,8 +48,10 @@ export default function About() {
       </Text>
       <Text>
         Shared URLs include your code and Gemfile and run automatically when
-        opened. Gems are downloaded from rubygems.org and run in your browser.
-        Do not enter secrets or open links you do not trust.
+        opened. Gem metadata and archives are downloaded from RubyGems through a
+        caching proxy. Gem installation and Ruby execution happen in your
+        browser. The proxy does not execute Ruby code. Do not enter secrets or
+        open links you do not trust.
       </Text>
     </Box>
   );

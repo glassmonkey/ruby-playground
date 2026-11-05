@@ -463,6 +463,9 @@ export default function App() {
                 </TabList>
               </Tabs>
             </Flex>
+            <Text px={3} py={2} fontSize="sm" color="mutedText">
+              Edit Source to run Ruby automatically. Use Gemfile to add gems.
+            </Text>
             {tab === "Gemfile" && (
               <Box
                 px={3}
@@ -776,8 +779,9 @@ export default function App() {
             confidential data out of your examples.
           </Text>
           <Text>
-            A shared Gemfile can cause third-party gems to be downloaded and run
-            in your browser. The gem proxy receives your IP address and
+            A shared Gemfile can cause your browser to request gem metadata and
+            archives through the gem proxy, then install those gems and run
+            their code in the browser. The proxy receives your IP address and
             requested gem names, and downloaded gem files are cached in your
             browser.
           </Text>
