@@ -126,8 +126,8 @@ were merged. After merging runtime test-only commit
 `a3ffd23fb6bda3ad09f1beab69866cdccb310d3d`, `npm run test:ci` passed 227 tests
 in 22 files; typecheck and lint also passed. The full repository
 proxy/general E2E suite and CI are separate and are not represented by the
-completion-only suite. No public UI action unmounts the editor, so that browser path remains
-unverified. The runtime component-boundary tests in `src/editor.test.tsx`
+completion-only suite. No public UI action unmounts the editor, so that browser
+path remains unverified. The runtime component-boundary tests in `src/editor.test.tsx`
 unmount `RubyEditor` while completion or resolve is pending, then check Worker
 termination, Monaco provider disposal and suppression of a delayed result. The
 tests use React Testing Library and a fake Worker; they are component tests,
@@ -147,7 +147,8 @@ existing ready or unavailable state and reuse the current analysis Worker.
 After merging runtime completion request fix `765943e3866c2136de8631660e6756db757cafd4`,
 the full isolated Chromium completion suite passed 14/14 on UI merge head
 `7659f5c883d99257ba27db790e822e30a01d0ccb`. The run includes the previously
-failing midline case: natural `.upc` input preserved the following ` + "!`,
+failing midline case: natural `.upc` input in `puts "hello" + "!"` preserved
+the trailing ` + "!`,
 inserted `upcase`, and Ruby printed `HELLO!`. The full repository unit suite
 passed 231 tests in 22 files on that head. Typecheck, lint, production build,
 asset verification, and `git diff --check` also passed. This new successful
@@ -207,3 +208,13 @@ Apache License 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). The build
 configuration is adapted from
 [php-playground](https://github.com/glassmonkey/php-playground). License
 notices for Ruby and ruby.wasm are in [assets/licenses/](assets/licenses/).
+
+The PR review found that an older Fiber E2E asserted a local fixed WASM hash,
+which disagreed with clean CI-generated assets. The current check derives the
+expected identity from the built `public/lsp/manifest.json`, computes the SHA-256
+of the uncompressed generated preview WASM bytes, checks its byte count/hash
+against that manifest, then compares each Worker `ready` hash with the same
+manifest entry across 3.3→4.0→3.3. A separate fixture confirms that a different
+valid hash is accepted and an inconsistent manifest hash fails. The modified
+source and full 14/14 result are archived at
+`test-results/archive/76db4282ee67a0d05f512b370610a72dee9210f7/dynamic-hash-full-run1/`.

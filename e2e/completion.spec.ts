@@ -1,4 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
 import { editRuby, expectRubyOutput } from "./editor";
 import { buildShareUrl } from "../src/share";
@@ -21,6 +23,50 @@ function completionItemLabel(item: unknown): string | undefined {
 
 function sameJsonValue(left: unknown, right: unknown): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function verifyGeneratedWasm(
+  manifestEntry: unknown,
+  wasmBytes: Buffer,
+): string {
+  if (!manifestEntry || typeof manifestEntry !== "object") {
+    throw new Error("Generated LSP manifest has no analysis WASM entry");
+  }
+  const entry = manifestEntry as { bytes?: unknown; sha256?: unknown };
+  const actualSha256 = createHash("sha256").update(wasmBytes).digest("hex");
+  if (entry.bytes !== wasmBytes.byteLength) {
+    throw new Error(
+      `Generated analysis WASM byte count mismatch: manifest=${String(entry.bytes)}, actual=${wasmBytes.byteLength}`,
+    );
+  }
+  if (entry.sha256 !== actualSha256) {
+    throw new Error(
+      `Generated analysis WASM SHA-256 mismatch: manifest=${String(entry.sha256)}, actual=${actualSha256}`,
+    );
+  }
+  return actualSha256;
+}
+
+async function readGeneratedAnalysisAsset() {
+  const manifestBytes = await readFile(
+    new URL("../public/lsp/manifest.json", import.meta.url),
+  );
+  const manifest = JSON.parse(manifestBytes.toString("utf8")) as {
+    files?: Record<string, unknown>;
+  };
+  const wasmBytes = gunzipSync(
+    await readFile(
+      new URL("../public/lsp/ruby-lsp-analysis.wasm.gz", import.meta.url),
+    ),
+  );
+  const manifestEntry = manifest.files?.["ruby-lsp-analysis.wasm"];
+  const wasmSha256 = verifyGeneratedWasm(manifestEntry, wasmBytes);
+  return {
+    manifestSha256: createHash("sha256").update(manifestBytes).digest("hex"),
+    manifestEntry,
+    wasmBytes,
+    wasmSha256,
+  };
 }
 
 test("language server completions insert and execute in the browser", async ({
@@ -608,6 +654,26 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
 }, testInfo) => {
   test.setTimeout(120_000);
   await mkdir(testInfo.outputPath(), { recursive: true });
+  const generatedAnalysisAsset = await readGeneratedAnalysisAsset();
+  const alternateWasm = Buffer.from("alternate valid WASM identity fixture");
+  const alternateWasmSha256 = createHash("sha256")
+    .update(alternateWasm)
+    .digest("hex");
+  expect(
+    verifyGeneratedWasm(
+      { bytes: alternateWasm.byteLength, sha256: alternateWasmSha256 },
+      alternateWasm,
+    ),
+  ).toBe(alternateWasmSha256);
+  expect(() =>
+    verifyGeneratedWasm(
+      {
+        bytes: alternateWasm.byteLength,
+        sha256: generatedAnalysisAsset.wasmSha256,
+      },
+      alternateWasm,
+    ),
+  ).toThrow(/analysis WASM SHA-256 mismatch/);
   await watchAnalysisWorkers(page);
   await page.goto("./?v=3.3");
   const detailsByVersion: Array<Record<string, unknown>> = [];
@@ -688,11 +754,11 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
         record.readyCountBefore = readyCountBefore;
         record.workerCountBefore = workerCountBefore;
         record.workerCountAfter = (await analysisWorkerUrls(page)).length;
+        record.manifestSha256 = generatedAnalysisAsset.manifestSha256;
+        record.manifestWasmSha256 = generatedAnalysisAsset.wasmSha256;
         record.wasmSha256 = ready?.wasmSha256;
         expect(ready?.version).toBe(version);
-        expect(ready?.wasmSha256).toBe(
-          "913e37a91777a0e9e5ef6114eb0b3dc8e1d3ac990a15c144c6a0afc606daae5c",
-        );
+        expect(ready?.wasmSha256).toBe(generatedAnalysisAsset.wasmSha256);
         expect(initialize?.target).toBe(version);
         if (needsNewWorker) {
           expect(ready?.workerId).not.toBe(priorWorkerId);
@@ -1108,6 +1174,12 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
       candidateCount: event.candidateCount,
     }));
   const ready = observations.filter((event) => event.direction === "ready");
+  const generatedAnalysisAsset = await readGeneratedAnalysisAsset();
+  expect(
+    ready.every(
+      (event) => event.wasmSha256 === generatedAnalysisAsset.wasmSha256,
+    ),
+  ).toBe(true);
   const metrics = {
     head:
       process.env.COMPLETION_UI_HEAD ??
@@ -1115,10 +1187,8 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
       "not-recorded",
     runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
     version: "4.0",
-    manifestSha256:
-      "c93e49dc7769caf55ff2e14a70af56a042bfaa894b956b944db44d715edc3e13",
-    wasmSha256:
-      "913e37a91777a0e9e5ef6114eb0b3dc8e1d3ac990a15c144c6a0afc606daae5c",
+    manifestSha256: generatedAnalysisAsset.manifestSha256,
+    wasmSha256: generatedAnalysisAsset.wasmSha256,
     coldReadyMs,
     coldCandidateUiMs,
     warmCandidateUiMs,
