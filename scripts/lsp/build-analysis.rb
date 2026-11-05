@@ -2,6 +2,9 @@ require "fileutils"
 require "open3"
 require "ruby_wasm"
 require "ruby_wasm/cli"
+require_relative "wasi-sdk-head-diagnostics"
+
+WasiSdkHeadDiagnostics.install!
 
 # Do not let the host pkg-config inject native archives into a WASI link. Each
 # cross target below is provided explicitly by ruby_wasm.
