@@ -20,11 +20,11 @@ whose lessons run code in the page.
   standard error and exceptions appear in the Output panel as plain text. Use
   `puts` or `p` to print values; expression return values are not shown
   automatically.
-- Ruby code completion. The main editor provides Ruby LSP completions for Ruby
-  3.3 and 4.0. Completion is enabled by default and can be turned off in the
-  editor controls. Unsupported Ruby versions keep editing and execution
-  available without downloading analysis assets. Shared URLs save the disabled
-  state as `ac=0`.
+- Ruby code completion. The main editor uses TypeProf 0.33.2 for Ruby 3.3 and
+  4.0. Completion is enabled by default and can be turned off in the editor
+  controls. Unsupported Ruby versions keep editing and execution available
+  without downloading analysis assets. Shared URLs save the disabled state as
+  `ac=0`.
 - Ruby versions. Choose from several Ruby versions, including a development
   snapshot. The selector shows the exact bundled patch version, and a panel
   shows the running VM's version, platform, encoding, release date and revision.
@@ -178,42 +178,55 @@ product exposes no such control. PR acceptance, CI status and the separate
 runtime investigation into stale-response behavior remain manager/secretary
 work; this local run does not claim those decisions.
 
-## TypeProf rewrite in progress
+## TypeProf completion verification
 
-The user requested a TypeProf rewrite, and the manager accepted the TypeProf
-0.33.2 PoC's Ruby 3.3/4.0 versioned core feasibility after checking the
-version-matrix script and artifact hashes. That PoC proves raw inference and
-adapter examples only; Monaco/provider insertion and the production runtime
-integration are still pending. The current public preview and the historical
-14-case Ruby LSP results above are not TypeProf results.
+The user requested a TypeProf rewrite. Runtime commit
+`faf9cc800af8fdfbbc09bbe384c9c6fb0d84f258` was integrated into this UI lane.
+The manager accepted the TypeProf 0.33.2 PoC's Ruby 3.3/4.0 versioned-core
+feasibility after checking the version-matrix script and artifact hashes. That
+PoC proves raw inference and adapter examples only; Monaco/provider behavior is
+verified separately by the browser suite below. Historical Ruby LSP results
+above are not TypeProf results.
 
-The UI already preserves the completion toggle, `ac=0` URL state, selected Ruby
+The UI preserves the completion toggle, `ac=0` URL state, selected Ruby
 version, and loading/ready/unsupported/error status through the existing
 `RubyEditor` props. The UI lane adds an accessible live status and a short
 natural-input instruction. A component test uses a mocked editor callback only
-to verify status presentation; it does not simulate TypeProf candidates or
-claim runtime behavior. The separate `e2e/typeprof.spec.ts` maps inference,
-full-document updates, prefix/suffix and UTF-16 insertion, Fiber detail display,
-and stale-response cases to the public editor path. Do not run it as a product
-verification until the manager supplies the exact TypeProf runtime integration
-head.
+to verify status presentation; it does not simulate TypeProf candidates. The
+dedicated `e2e/typeprof.spec.ts` covers inference, full-document updates,
+prefix/suffix and UTF-16 insertion, Fiber detail UI, and stale responses. The
+existing `e2e/completion.spec.ts` keeps the 14 public UI regression cases,
+updated to TypeProf's initial completion detail and asset names.
 
-When that head is integrated, build the production preview and run the isolated
-suite with:
+After each UI source change, build the production preview and run the isolated
+TypeProf suite first, then the existing regression suite:
 
 ```sh
 npm run build
 COMPLETION_TEST_MATCH=typeprof.spec.ts \
-COMPLETION_ARTIFACT_KEY=typeprof-<exact-ui-head> \
+COMPLETION_ARTIFACT_KEY=archive/<exact-ui-head>/typeprof-run \
+PORT=6645 npx playwright test --config=e2e/completion.config.ts
+COMPLETION_TEST_MATCH=completion.spec.ts \
+COMPLETION_ARTIFACT_KEY=archive/<exact-ui-head>/regression-run \
 PORT=6645 npx playwright test --config=e2e/completion.config.ts
 ```
 
-No TypeProf trial URL is available yet. The existing preview still runs the
-Ruby LSP implementation; generate share URLs only after the TypeProf-integrated
-build has passed the intended public UI checks. The formal TypeProf requirement
-draft remains `/private/tmp/gla187-typeprof-requirements.md`; owner Issue/plan
-save is pending recovery of operation `543d09b0...` by the manager. This lane
-does not retry or route around that owner operation.
+The current TypeProf asset manifest SHA-256 is
+`c11e8e8a51a93fc47f0073cfd64926de0cd5d414c3359c03c5681601bae7b2d2`; its raw
+analysis WASM is 68,605,538 bytes with SHA-256
+`c090a01f1afdbaa83815e72e3c8bcf20640c6b9693543bbdf67a00ae59969c07`, and the
+gzip asset is SHA-256
+`dfc12260de297ba2a8e7cff513b8f1a12ef22603377da6d27a654b263b939a09`. The raw
+WASM was copied from the runtime worktree after size/hash comparison; the
+manifest and compressed assets were regenerated from this branch's adapter
+using the lockfile-pinned Ruby 4.0.7/Bundler 4.0.20 environment. No WASM
+rebuild was performed.
+
+Do not share a TypeProf trial URL until the integrated production preview has
+passed its browser checks. The formal TypeProf requirement draft remains
+`/private/tmp/gla187-typeprof-requirements.md`; owner Issue/plan save is pending
+recovery of operation `543d09b0...` by the manager. This lane does not retry or
+route around that owner operation.
 
 ## Security and privacy
 

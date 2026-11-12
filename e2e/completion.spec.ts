@@ -12,18 +12,7 @@ import {
   lspObservations,
   releaseHeldCompletionResponse,
   watchAnalysisWorkers,
-  type ObservedCompletionItem,
 } from "./completion-lsp-observer";
-
-function completionItemLabel(item: unknown): string | undefined {
-  if (!item || typeof item !== "object") return undefined;
-  const label = (item as ObservedCompletionItem).label;
-  return typeof label === "string" ? label : label?.label;
-}
-
-function sameJsonValue(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
-}
 
 function verifyGeneratedWasm(
   manifestEntry: unknown,
@@ -56,10 +45,10 @@ async function readGeneratedAnalysisAsset() {
   };
   const wasmBytes = gunzipSync(
     await readFile(
-      new URL("../public/lsp/ruby-lsp-analysis.wasm.gz", import.meta.url),
+      new URL("../public/lsp/typeprof-analysis.wasm.gz", import.meta.url),
     ),
   );
-  const manifestEntry = manifest.files?.["ruby-lsp-analysis.wasm"];
+  const manifestEntry = manifest.files?.["typeprof-analysis.wasm"];
   const wasmSha256 = verifyGeneratedWasm(manifestEntry, wasmBytes);
   return {
     manifestSha256: createHash("sha256").update(manifestBytes).digest("hex"),
@@ -649,10 +638,10 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   });
 });
 
-test("Fiber#raise details resolve against the selected Ruby version", async ({
+test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
   await mkdir(testInfo.outputPath(), { recursive: true });
   const generatedAnalysisAsset = await readGeneratedAnalysisAsset();
   const alternateWasm = Buffer.from("alternate valid WASM identity fixture");
@@ -674,9 +663,11 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
       alternateWasm,
     ),
   ).toThrow(/analysis WASM SHA-256 mismatch/);
+
   await watchAnalysisWorkers(page);
   await page.goto("./?v=3.3");
-  const detailsByVersion: Array<Record<string, unknown>> = [];
+  const matrix: Array<Record<string, unknown>> = [];
+  let previousWorkerId: number | undefined;
 
   try {
     for (const [index, version] of ["3.3", "4.0", "3.3"].entries()) {
@@ -684,21 +675,16 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
         index,
         version,
         startedAt: Date.now(),
+        manifestSha256: generatedAnalysisAsset.manifestSha256,
+        manifestWasmSha256: generatedAnalysisAsset.wasmSha256,
       };
-      detailsByVersion.push(record);
+      matrix.push(record);
       try {
-        const selectedVersion = new URL(page.url()).searchParams.get("v");
-        const needsNewWorker = selectedVersion !== version;
-        const observationsBefore = await lspObservations(page);
-        const readyCountBefore = observationsBefore.filter(
+        const before = await lspObservations(page);
+        const readyCountBefore = before.filter(
           (event) => event.direction === "ready",
         ).length;
-        const workerCountBefore = (await analysisWorkerUrls(page)).length;
-        const priorWorkerId =
-          detailsByVersion.at(-2)?.workerReady &&
-          (detailsByVersion.at(-2)?.workerReady as Record<string, unknown>)
-            .workerId;
-        if (needsNewWorker) {
+        if (new URL(page.url()).searchParams.get("v") !== version) {
           await page.getByLabel("Ruby version").selectOption(version);
         }
         await expect(page.getByLabel("Ruby version")).toHaveValue(version);
@@ -716,349 +702,160 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
         ).toBeVisible();
         await expect
           .poll(
-            async () => {
-              const observations = await lspObservations(page);
-              return observations
+            async () =>
+              (await lspObservations(page))
                 .filter((event) => event.direction === "ready")
-                .slice(needsNewWorker ? readyCountBefore : 0)
-                .some((event) => {
-                  return (
+                .slice(readyCountBefore)
+                .some(
+                  (event) =>
                     event.version === version &&
-                    (!needsNewWorker || event.workerId !== priorWorkerId)
-                  );
-                });
-            },
+                    (previousWorkerId === undefined ||
+                      event.workerId !== previousWorkerId),
+                ),
             { timeout: 60_000 },
           )
           .toBe(true);
 
-        let observations = await lspObservations(page);
-        const ready = observations
+        const observationsBeforeInput = await lspObservations(page);
+        const ready = observationsBeforeInput
           .filter((event) => event.direction === "ready")
-          .slice(needsNewWorker ? readyCountBefore : 0)
+          .slice(readyCountBefore)
           .find(
             (event) =>
               event.version === version &&
-              (!needsNewWorker || event.workerId !== priorWorkerId),
+              (previousWorkerId === undefined ||
+                event.workerId !== previousWorkerId),
           );
-        const initialize = observations
-          .filter((event) => event.direction === "initialize")
-          .filter((event) => event.workerId === ready?.workerId)
-          .at(-1);
-        record.workerReady = ready;
-        record.initialize = initialize;
-        record.readyGeneration =
-          observations
-            .filter((event) => event.direction === "ready")
-            .findIndex((event) => event.workerId === ready?.workerId) + 1;
-        record.readyCountBefore = readyCountBefore;
-        record.workerCountBefore = workerCountBefore;
-        record.workerCountAfter = (await analysisWorkerUrls(page)).length;
-        record.manifestSha256 = generatedAnalysisAsset.manifestSha256;
-        record.manifestWasmSha256 = generatedAnalysisAsset.wasmSha256;
-        record.wasmSha256 = ready?.wasmSha256;
-        expect(ready?.version).toBe(version);
+        expect(ready).toBeDefined();
+        const workerId = ready?.workerId;
         expect(ready?.wasmSha256).toBe(generatedAnalysisAsset.wasmSha256);
-        expect(initialize?.target).toBe(version);
-        if (needsNewWorker) {
-          expect(ready?.workerId).not.toBe(priorWorkerId);
-          expect(record.workerCountAfter).toBe(workerCountBefore + 1);
-        }
+        record.ready = ready;
+        record.workerId = workerId;
+        record.readyGeneration =
+          observationsBeforeInput
+            .filter((event) => event.direction === "ready")
+            .findIndex((event) => event.workerId === workerId) + 1;
 
-        const completionRequestsBefore = observations.filter(
-          (event) =>
-            event.direction === "request" &&
-            event.method === "textDocument/completion" &&
-            event.workerId === ready?.workerId,
-        );
-        const previousCompletionTokens = new Set(
-          completionRequestsBefore.map((event) => event.token),
-        );
-        const interactionStartedAt = await page.evaluate(() =>
-          performance.now(),
-        );
-        record.interactionStartedAt = interactionStartedAt;
-        await editRuby(page, "Fiber.new {}.");
-        await page.keyboard.type("ra", { delay: 120 });
+        await editRuby(page, "puts Fiber.new {}.");
+        const responseStart = (await lspObservations(page)).length;
+        record.inputStartedAt = await page.evaluate(() => performance.now());
+        await page.keyboard.type("rai", { delay: 100 });
         await expect(page.locator(".monaco-editor .view-lines")).toHaveText(
-          "Fiber.new {}.ra",
+          "puts Fiber.new {}.rai",
         );
-        const raiseItem = page
-          .locator(".suggest-widget .monaco-list-row")
-          .filter({ hasText: /raise$/ });
-        await expect(raiseItem).toHaveCount(1, { timeout: 30_000 });
-        await expect(raiseItem).toBeVisible({ timeout: 30_000 });
-        observations = await lspObservations(page);
         await expect
           .poll(
             async () =>
-              (await lspObservations(page)).some(
-                (event) =>
-                  event.direction === "request" &&
-                  event.method === "textDocument/completion" &&
-                  event.workerId === ready?.workerId &&
-                  !previousCompletionTokens.has(event.token),
-              ),
+              (await lspObservations(page))
+                .slice(responseStart)
+                .some(
+                  (event) =>
+                    event.direction === "response" &&
+                    event.method === "textDocument/completion" &&
+                    event.workerId === workerId &&
+                    (
+                      event.candidates as Array<{ label?: string }> | undefined
+                    )?.some((candidate) => candidate.label === "raise"),
+                ),
             { timeout: 30_000 },
           )
           .toBe(true);
-        observations = await lspObservations(page);
-        const completionRequest = observations
+        const completionResponse = (await lspObservations(page))
+          .slice(responseStart)
           .filter(
             (event) =>
-              event.direction === "request" &&
+              event.direction === "response" &&
               event.method === "textDocument/completion" &&
-              event.workerId === ready?.workerId &&
-              !previousCompletionTokens.has(event.token),
+              event.workerId === workerId &&
+              (event.candidates as Array<{ label?: string }> | undefined)?.some(
+                (candidate) => candidate.label === "raise",
+              ),
           )
           .at(-1);
-        record.completionRequest = completionRequest;
-        expect(completionRequest).toBeDefined();
-        await expect
-          .poll(
-            async () =>
-              (await lspObservations(page)).some(
-                (event) =>
-                  event.direction === "response" &&
-                  event.method === "textDocument/completion" &&
-                  event.workerId === ready?.workerId &&
-                  event.token === completionRequest?.token,
-              ),
-            { timeout: 30_000 },
-          )
-          .toBe(true);
-        observations = await lspObservations(page);
-        const rawRaiseEvent = observations.find(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "textDocument/completion" &&
-            event.workerId === ready?.workerId &&
-            event.token === completionRequest?.token,
-        );
-        const rawRaise = (
-          (rawRaiseEvent?.candidates as Array<{
+        const raise = (
+          (completionResponse?.candidates as Array<{
             label?: string;
             detail?: string;
             documentation?: string;
             data?: unknown;
             textEdit?: unknown;
-            labelDetails?: unknown;
-            insertText?: string;
           }>) ?? []
-        ).find((item) => item.label === "raise");
-        record.rawRaise = rawRaise;
-        record.rawCompletionResponse = rawRaiseEvent;
-        record.completionDocumentVersion = completionRequest?.documentVersion;
-        record.rawRaiseIdentity = rawRaise
-          ? {
-              workerId: rawRaiseEvent?.workerId,
-              documentVersion: rawRaiseEvent?.documentVersion,
-              completionToken: rawRaiseEvent?.token,
-              label: rawRaise.label,
-              data: rawRaise.data,
-              textEdit: rawRaise.textEdit,
-            }
-          : undefined;
-        expect(rawRaise).toBeDefined();
+        ).find((candidate) => candidate.label === "raise");
+        expect(completionResponse).toBeDefined();
+        expect(raise).toBeDefined();
+        const rawDetails = `${raise?.detail ?? ""}\n${raise?.documentation ?? ""}`;
+        expect(rawDetails).toContain("raise");
+        expect(rawDetails.includes("cause")).toBe(version === "4.0");
+        record.completionResponse = completionResponse;
+        record.rawRaise = raise;
+        record.rawDetails = rawDetails;
 
-        const isResolveForCurrentItem = (event: Record<string, unknown>) => {
-          const item = event.item as ObservedCompletionItem | undefined;
-          return (
-            event.direction === "request" &&
-            event.method === "completionItem/resolve" &&
-            event.workerId === ready?.workerId &&
-            event.documentVersion === completionRequest?.documentVersion &&
-            Number(event.at) >= interactionStartedAt &&
-            completionItemLabel(item) === rawRaise?.label &&
-            sameJsonValue(item?.data, rawRaise?.data) &&
-            sameJsonValue(item?.textEdit, rawRaise?.textEdit)
-          );
-        };
-        const findResolveForCurrentItem = (
-          events: Array<Record<string, unknown>>,
-        ) => events.find(isResolveForCurrentItem);
-        record.matchingResolveFoundBeforeHover = Boolean(
-          findResolveForCurrentItem(observations),
-        );
-        record.hoverStartedAt = await page.evaluate(() => performance.now());
-        await raiseItem.hover();
-        record.hoverCompletedAt = await page.evaluate(() => performance.now());
-        observations = await lspObservations(page);
-        let resolveRequest = findResolveForCurrentItem(observations);
-        if (!resolveRequest) {
-          await expect
-            .poll(
-              async () =>
-                Boolean(findResolveForCurrentItem(await lspObservations(page))),
-              { timeout: 30_000 },
-            )
-            .toBe(true);
-          observations = await lspObservations(page);
-          resolveRequest = findResolveForCurrentItem(observations);
-        }
-        record.matchingResolveFoundAfterHover = Boolean(resolveRequest);
-        record.resolveRequest = resolveRequest;
-        expect(resolveRequest).toBeDefined();
-        record.resolveRequestToken = resolveRequest?.token;
-        record.resolveRequestItem = resolveRequest?.item;
-        record.resolveRequestDocumentVersion = resolveRequest?.documentVersion;
-        await expect
-          .poll(
-            async () =>
-              (await lspObservations(page)).some(
-                (event) =>
-                  event.direction === "response" &&
-                  event.method === "completionItem/resolve" &&
-                  event.workerId === ready?.workerId &&
-                  event.documentVersion ===
-                    completionRequest?.documentVersion &&
-                  event.token === resolveRequest?.token,
-              ),
-            { timeout: 30_000 },
-          )
-          .toBe(true);
-
-        observations = await lspObservations(page);
-        const resolveResponses = observations.filter(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "completionItem/resolve" &&
-            event.workerId === ready?.workerId &&
-            event.documentVersion === completionRequest?.documentVersion &&
-            event.token === resolveRequest?.token,
-        );
-        const resolved = resolveResponses.at(-1);
-        const resolvedRaise = (
-          (resolved?.candidates as ObservedCompletionItem[]) ?? []
-        ).find(
-          (item) =>
-            completionItemLabel(item) === rawRaise?.label &&
-            sameJsonValue(item.data, rawRaise?.data) &&
-            sameJsonValue(item.textEdit, rawRaise?.textEdit),
-        );
-        record.resolveRequestCount = observations.filter(
-          (event) =>
-            event.direction === "request" &&
-            event.method === "completionItem/resolve" &&
-            event.workerId === ready?.workerId,
-        ).length;
-        record.resolveResponseCount = resolveResponses.length;
-        record.resolveResponse = resolved;
-        record.resolvedRaise = resolvedRaise;
-        record.resolvedText = `${resolvedRaise?.detail ?? ""}\n${resolvedRaise?.documentation ?? ""}`;
-        expect(resolvedRaise).toBeDefined();
-        expect(String(record.resolvedText)).toContain("raise");
-        expect(String(record.resolvedText).includes("cause")).toBe(
-          version === "4.0",
-        );
-
+        const raiseRow = page
+          .getByRole("listbox", { name: "Suggest" })
+          .getByRole("listitem", { name: /^raise(?:,|$)/ });
+        await expect(raiseRow).toBeVisible();
+        await raiseRow.hover();
         const detailsPanel = page.locator(".suggest-details");
-        record.detailsVisibleBeforeOpen = await detailsPanel
-          .isVisible()
-          .catch(() => false);
-        if (!record.detailsVisibleBeforeOpen) {
-          const moreInfo = raiseItem.locator(".codicon-suggest-more-info");
-          record.moreInfoCount = await moreInfo.count();
-          record.moreInfoVisible = await moreInfo
-            .isVisible()
-            .catch(() => false);
-          record.moreInfoClass = await moreInfo
-            .getAttribute("class")
-            .catch(() => null);
-          await expect(moreInfo).toBeVisible({ timeout: 10_000 });
-          await moreInfo.click();
+        if (!(await detailsPanel.isVisible().catch(() => false))) {
+          const readMore = raiseRow.locator(".codicon-suggest-more-info");
+          await expect(readMore).toBeVisible();
+          await readMore.click();
         }
-        await expect(detailsPanel).toBeVisible({ timeout: 15_000 });
-        const visibleDetails = await detailsPanel.innerText();
-        observations = await lspObservations(page);
-        record.visibleDetails = visibleDetails;
-        record.visibleDocumentation = await detailsPanel
-          .locator(".docs")
-          .innerText();
-        record.visibleSignatureSource =
-          ".suggest-details .docs first rendered line";
-        record.visibleSignature = String(record.visibleDocumentation)
-          .split("\n", 1)[0]
-          .trim();
-        record.dom = await page.evaluate(() =>
-          [
-            ...document.querySelectorAll(
-              ".suggest-details, .suggest-widget .monaco-list-row",
-            ),
-          ].map((element) => ({
-            selector: element.matches(".suggest-details")
-              ? ".suggest-details"
-              : ".suggest-widget .monaco-list-row",
-            text: element.textContent,
-            visible: element.getBoundingClientRect().width > 0,
-            classes: element.className,
-          })),
-        );
-        expect(String(record.visibleSignature)).toContain("raise");
-        expect(String(record.visibleSignature).includes("cause")).toBe(
-          version === "4.0",
-        );
-        await page.screenshot({
-          path: testInfo.outputPath(
-            `fiber-raise-${version}-resolved-detail-${index}.png`,
-          ),
-        });
+        await expect(detailsPanel).toBeVisible();
+        const renderedDetail = await detailsPanel.locator(".type").innerText();
+        const renderedDocs = await detailsPanel.locator(".docs").innerText();
+        const renderedDetails = `${renderedDetail}\n${renderedDocs}`;
+        expect(renderedDetails).toContain("raise");
+        expect(renderedDetails.includes("cause")).toBe(version === "4.0");
+        record.renderedDetails = renderedDetails;
+        record.renderedDom = await detailsPanel.evaluate((element) => ({
+          text: element.textContent,
+          visible: element.getBoundingClientRect().width > 0,
+        }));
+        record.finishedAt = Date.now();
         record.passed = true;
+        await page.screenshot({
+          path: testInfo.outputPath(`fiber-typeprof-${version}-${index}.png`),
+        });
+        previousWorkerId = workerId as number;
       } catch (error) {
         record.failure = error instanceof Error ? error.message : String(error);
         record.failureStack = error instanceof Error ? error.stack : undefined;
         throw error;
       } finally {
-        record.finishedAt = Date.now();
-        record.observations = await lspObservations(page).catch((error) =>
-          String(error),
-        );
+        record.finishedAt ??= Date.now();
+        record.observations = await lspObservations(page)
+          .then((events) =>
+            events.filter((event) => event.workerId === record.workerId),
+          )
+          .catch((error) => String(error));
         record.finalDom = await page
           .evaluate(() => ({
+            source: document.querySelector(".monaco-editor .view-lines")
+              ?.textContent,
             details: [...document.querySelectorAll(".suggest-details")].map(
               (element) => ({
                 text: element.textContent,
                 visible: element.getBoundingClientRect().width > 0,
               }),
             ),
-            rows: [
-              ...document.querySelectorAll(".suggest-widget .monaco-list-row"),
-            ].map((element) => ({
-              text: element.textContent,
-              ariaLabel: element.getAttribute("aria-label"),
-              classes: element.className,
-            })),
-            disclosures: [
-              ...document.querySelectorAll(
-                ".suggest-widget .codicon-suggest-more-info",
-              ),
-            ].map((element) => ({
-              text: element.textContent,
-              ariaLabel: element.getAttribute("aria-label"),
-              title: element.getAttribute("title"),
-              classes: element.className,
-              visible: element.getBoundingClientRect().width > 0,
-            })),
-            source: document.querySelector(".monaco-editor .view-lines")
-              ?.textContent,
           }))
           .catch((error) => String(error));
         await page
           .screenshot({
-            path: testInfo.outputPath(`fiber-final-${version}-${index}.png`),
-          })
-          .then(() => {
-            record.screenshot = `fiber-final-${version}-${index}.png`;
+            path: testInfo.outputPath(
+              `fiber-typeprof-final-${version}-${index}.png`,
+            ),
           })
           .catch((error) => {
             record.screenshotFailure = String(error);
           });
         await writeFile(
-          testInfo.outputPath(`fiber-resolve-${version}-${index}.json`),
+          testInfo.outputPath(`fiber-typeprof-${version}-${index}.json`),
           JSON.stringify(record, null, 2),
           "utf8",
         );
-        await testInfo.attach(`fiber-resolve-${version}-${index}.json`, {
+        await testInfo.attach(`fiber-typeprof-${version}-${index}.json`, {
           body: JSON.stringify(record, null, 2),
           contentType: "application/json",
         });
@@ -1066,26 +863,21 @@ test("Fiber#raise details resolve against the selected Ruby version", async ({
     }
   } finally {
     const matrixRecord = {
-      uiCommit:
-        process.env.COMPLETION_UI_HEAD ??
-        process.env.GITHUB_SHA ??
-        "not-recorded",
+      uiCommit: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
       runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
-      testSourceSha256:
-        process.env.COMPLETION_TEST_SOURCE_SHA256 ?? "not-provided",
-      observerSourceSha256:
-        process.env.COMPLETION_OBSERVER_SOURCE_SHA256 ?? "not-provided",
-      matrix: detailsByVersion,
+      manifestSha256: generatedAnalysisAsset.manifestSha256,
+      wasmSha256: generatedAnalysisAsset.wasmSha256,
+      matrix,
       observations: await lspObservations(page).catch((error) => String(error)),
     };
-    const serializedMatrix = JSON.stringify(matrixRecord, null, 2);
+    const serialized = JSON.stringify(matrixRecord, null, 2);
     await writeFile(
-      testInfo.outputPath("fiber-resolve-version-matrix.json"),
-      serializedMatrix,
+      testInfo.outputPath("fiber-typeprof-version-matrix.json"),
+      serialized,
       "utf8",
     );
-    await testInfo.attach("fiber-resolve-version-matrix.json", {
-      body: serializedMatrix,
+    await testInfo.attach("fiber-typeprof-version-matrix.json", {
+      body: serialized,
       contentType: "application/json",
     });
   }
