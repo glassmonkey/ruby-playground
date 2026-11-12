@@ -150,6 +150,90 @@ describe("CompletionClient", () => {
     }
   });
 
+  it("preserves Monaco memory URIs across snapshots and model replacement", async () => {
+    const worker = new FakeWorker();
+    const sut = start(worker);
+    const firstUri = "inmemory://model/1";
+    const secondUri = "inmemory://model/2";
+    try {
+      await sut.complete(firstUri, '"hi".up', 1, { line: 0, character: 8 });
+      await sut.complete(firstUri, '"hello".up', 2, {
+        line: 0,
+        character: 10,
+      });
+      await sut.complete(secondUri, '"hello".up', 1, {
+        line: 0,
+        character: 10,
+      });
+
+      const messages = worker.messages.map(
+        (entry) =>
+          (entry as { message: { method: string; params?: unknown } }).message,
+      );
+      const documentMessages = messages
+        .filter(({ method }) => method.startsWith("textDocument/"))
+        .map(({ method, params }) => ({ method, params }));
+      expect(documentMessages).toEqual([
+        {
+          method: "textDocument/didOpen",
+          params: {
+            textDocument: {
+              uri: firstUri,
+              languageId: "ruby",
+              version: 1,
+              text: '"hi".up',
+            },
+          },
+        },
+        {
+          method: "textDocument/completion",
+          params: {
+            textDocument: { uri: firstUri },
+            position: { line: 0, character: 8 },
+          },
+        },
+        {
+          method: "textDocument/didChange",
+          params: {
+            textDocument: { uri: firstUri, version: 2 },
+            contentChanges: [{ text: '"hello".up' }],
+          },
+        },
+        {
+          method: "textDocument/completion",
+          params: {
+            textDocument: { uri: firstUri },
+            position: { line: 0, character: 10 },
+          },
+        },
+        {
+          method: "textDocument/didClose",
+          params: { textDocument: { uri: firstUri } },
+        },
+        {
+          method: "textDocument/didOpen",
+          params: {
+            textDocument: {
+              uri: secondUri,
+              languageId: "ruby",
+              version: 1,
+              text: '"hello".up',
+            },
+          },
+        },
+        {
+          method: "textDocument/completion",
+          params: {
+            textDocument: { uri: secondUri },
+            position: { line: 0, character: 10 },
+          },
+        },
+      ]);
+    } finally {
+      sut.dispose();
+    }
+  });
+
   it("preserves completion data through resolve after syncing the current document", async () => {
     const worker = new FakeWorker();
     const sut = start(worker);
