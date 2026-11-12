@@ -84,6 +84,7 @@ vi.mock("monaco-editor/editor/editor.worker?worker", () => ({
 
 class FakeAnalysisWorker extends EventTarget {
   static holdMethods = new Set<string>();
+  static completionItems: unknown[] = [];
   readonly postMessages: unknown[] = [];
   readonly messages: Array<{
     token: number;
@@ -146,7 +147,12 @@ class FakeAnalysisWorker extends EventTarget {
   private responseFor(
     message: FakeAnalysisWorker["messages"][number]["message"],
   ): unknown {
-    if (message.method === "textDocument/completion") return [rawCompletion];
+    if (message.method === "initialize")
+      return {
+        capabilities: { completionProvider: { resolveProvider: false } },
+      };
+    if (message.method === "textDocument/completion")
+      return FakeAnalysisWorker.completionItems;
     if (message.method === "completionItem/resolve")
       return {
         ...(message.params as object),
@@ -238,6 +244,7 @@ describe("RubyEditor unmount cleanup", () => {
     harness.workerInstances = [];
     harness.registerCompletionItemProvider.mockReset();
     FakeAnalysisWorker.holdMethods = new Set();
+    FakeAnalysisWorker.completionItems = [rawCompletion];
     vi.stubGlobal("Worker", FakeAnalysisWorker);
   });
 
@@ -566,12 +573,16 @@ describe("RubyEditor unmount cleanup", () => {
     ).toHaveLength(1);
   });
 
-  it("returns the original candidate and does not apply delayed resolve details after unmount", async () => {
+  it("keeps TypeProf completion details and skips unsupported resolve after unmount", async () => {
     // Arrange
-    FakeAnalysisWorker.holdMethods = new Set(["completionItem/resolve"]);
     const sut = createTestContext();
     await waitFor(() => expect(harness.provider).toBeDefined());
     act(() => sut.worker.announceReady());
+    const item = {
+      ...rawCompletion,
+      detail: "Fiber#raise : (?string msg, ?cause: Exception?) -> untyped",
+    };
+    FakeAnalysisWorker.completionItems = [item];
     const completion = (await harness.provider!.provideCompletionItems!(
       sut.model as unknown as editor.ITextModel,
       { lineNumber: 1, column: 3 } as Position,
@@ -581,28 +592,12 @@ describe("RubyEditor unmount cleanup", () => {
     const candidate = completion.suggestions[0];
 
     // Act
-    const pending = harness.provider!.resolveCompletionItem!(candidate, {
+    const resolved = await harness.provider!.resolveCompletionItem!(candidate, {
       isCancellationRequested: false,
     } as CancellationToken);
-    await waitFor(() =>
-      expect(
-        sut.worker.messages.some(
-          ({ message }) => message.method === "completionItem/resolve",
-        ),
-      ).toBe(true),
-    );
-    const request = sut.worker.messages.find(
-      ({ message }) => message.method === "completionItem/resolve",
-    )!;
     sut.view.unmount();
-    const got = await pending;
-    sut.worker.reply(request, {
-      ...rawCompletion,
-      documentation: { kind: "markdown", value: "late detail" },
-    });
 
     // Assert
-    expect(got).toBe(candidate);
     expect({
       candidate: {
         label: candidate.label,
@@ -611,6 +606,7 @@ describe("RubyEditor unmount cleanup", () => {
         documentation: candidate.documentation,
         insertText: candidate.insertText,
       },
+      resolvedDetail: resolved?.detail,
       terminateCalls: sut.worker.terminate.mock.calls.length,
       providerDisposeCalls: sut.providerDispose.mock.calls.length,
       analysisWorkers: harness.workerInstances.length,
@@ -620,15 +616,16 @@ describe("RubyEditor unmount cleanup", () => {
       statuses: sut.statuses,
       workerMethods: sut.worker.messages.map(({ message }) => message.method),
       workerInitialization: sut.worker.postMessages[0],
-      resolveParams: request.message.params,
     }).toEqual({
       candidate: {
         label: "raise",
         kind: 1,
-        detail: undefined,
+        detail: "Fiber#raise : (?string msg, ?cause: Exception?) -> untyped",
         documentation: undefined,
         insertText: "raise",
       },
+      resolvedDetail:
+        "Fiber#raise : (?string msg, ?cause: Exception?) -> untyped",
       terminateCalls: 1,
       providerDisposeCalls: 1,
       analysisWorkers: 1,
@@ -640,11 +637,69 @@ describe("RubyEditor unmount cleanup", () => {
         "initialized",
         "textDocument/didOpen",
         "textDocument/completion",
-        "completionItem/resolve",
       ],
-      resolveParams: {
-        ...rawCompletion,
-      },
     });
+  });
+
+  it("maps a TypeProf UTF-16 edit against the original emoji snapshot and preserves its suffix", async () => {
+    // Arrange
+    const sut = createTestContext();
+    const source = 'marker = "😀"; puts "hi".upc + "!"';
+    sut.model.setSnapshot(source, 2);
+    const end = source.indexOf(".upc") + 4;
+    const dotStart = source.indexOf(".upc") + 1;
+    sut.setPosition({ lineNumber: 1, column: end + 1 });
+    FakeAnalysisWorker.completionItems = [
+      {
+        label: "upcase",
+        kind: 2,
+        detail: "String#upcase : () -> String",
+        textEdit: {
+          range: {
+            start: { line: 0, character: dotStart },
+            end: { line: 0, character: end },
+          },
+          newText: "upcase",
+        },
+      },
+    ];
+    await waitFor(() => expect(harness.provider).toBeDefined());
+    act(() => sut.worker.announceReady());
+
+    // Act
+    const result = await harness.provider!.provideCompletionItems!(
+      sut.model as unknown as editor.ITextModel,
+      { lineNumber: 1, column: end + 1 } as Position,
+      { triggerKind: 1 },
+      { isCancellationRequested: false } as CancellationToken,
+    );
+    const candidate = result!.suggestions[0] as languages.CompletionItem & {
+      range: { startColumn: number; endColumn: number };
+    };
+    const inserted =
+      source.slice(0, candidate.range.startColumn - 1) +
+      String(candidate.insertText) +
+      source.slice(candidate.range.endColumn - 1);
+
+    // Assert
+    expect({
+      label: candidate.label,
+      detail: candidate.detail,
+      range: candidate.range,
+      insertText: candidate.insertText,
+      inserted,
+    }).toEqual({
+      label: "upcase",
+      detail: "String#upcase : () -> String",
+      range: {
+        startLineNumber: 1,
+        startColumn: dotStart + 1,
+        endLineNumber: 1,
+        endColumn: end + 1,
+      },
+      insertText: "upcase",
+      inserted: 'marker = "😀"; puts "hi".upcase + "!"',
+    });
+    sut.view.unmount();
   });
 });

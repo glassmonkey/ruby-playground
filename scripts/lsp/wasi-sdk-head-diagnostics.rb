@@ -11,7 +11,7 @@ module WasiSdkHeadDiagnostics
 
   module HeadTrace
     def head(path, *args, **kwargs, &block)
-      WasiSdkHeadDiagnostics.observe(address, path) { super }
+      WasiSdkHeadDiagnostics.observe(address, path) { super(path, *args, **kwargs, &block) }
     end
   end
 

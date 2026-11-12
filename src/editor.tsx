@@ -13,10 +13,7 @@ import {
   type CompletionItemSource,
   type RubyMonacoCompletion,
 } from "./lsp/monaco-completion-resolver";
-import {
-  rebaseCompletionEndColumn,
-  utf8ByteColumnToUtf16,
-} from "./lsp/positions";
+import { rebaseCompletionEndColumn } from "./lsp/positions";
 import { isLspRubyVersion } from "./lsp/versions";
 import { DEFAULT_RUBY_VERSION, type RubyVersion } from "./versions";
 
@@ -227,10 +224,10 @@ function toMonacoCompletion(
       range.end.line !== lineNumber - 1
     )
       return undefined;
-    const line = model.getLineContent(lineNumber);
-    const startColumn = utf8ByteColumnToUtf16(line, range.start.character) + 1;
-    const responseEndColumn =
-      utf8ByteColumnToUtf16(line, range.end.character) + 1;
+    // TypeProf negotiates UTF-16 and the adapter emits textEdit columns in
+    // those same LSP units.
+    const startColumn = range.start.character + 1;
+    const responseEndColumn = range.end.character + 1;
     const endColumn = rebaseCompletionEndColumn(
       responseEndColumn,
       requestPosition.column,

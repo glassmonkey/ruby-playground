@@ -39,6 +39,7 @@ export class CompletionClient {
   private queue: Promise<unknown> = Promise.resolve();
   private bootTimer: ReturnType<typeof setTimeout>;
   private initialized = false;
+  private resolveSupported = false;
   private documentVersion = 0;
   private documentUri?: string;
   private disposed = false;
@@ -107,6 +108,7 @@ export class CompletionClient {
       await this.ready;
       this.assertUsable();
       await this.initializeSession();
+      if (!this.resolveSupported) return item;
       await this.syncDocument(uri, text, version);
       const result = await this.sendRequest("completionItem/resolve", item);
       if (!result || typeof result !== "object")
@@ -119,9 +121,12 @@ export class CompletionClient {
 
   private async initializeSession(): Promise<void> {
     if (!this.initialized) {
-      await this.sendRequest("initialize", {
+      const result = (await this.sendRequest("initialize", {
         processId: null,
         rootUri: "file:///playground",
+        workspaceFolders: [
+          { uri: "file:///playground", name: "Ruby Playground" },
+        ],
         capabilities: {
           general: { positionEncodings: ["utf-16"] },
           textDocument: {
@@ -137,7 +142,11 @@ export class CompletionClient {
           formatter: "none",
           linters: [],
         },
-      });
+      })) as {
+        capabilities?: { completionProvider?: { resolveProvider?: boolean } };
+      } | null;
+      this.resolveSupported =
+        result?.capabilities?.completionProvider?.resolveProvider === true;
       await this.sendNotification("initialized", {});
       this.initialized = true;
     }
