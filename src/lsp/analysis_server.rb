@@ -158,6 +158,8 @@ end
 
 class PlaygroundTypeProf
   SUPPORTED_TARGETS = { "3.3" => "3.4.0", "4.0" => "3.10.0" }.freeze
+  ANALYSIS_DOCUMENT_URI = "file:///playground/main.rb".freeze
+  MONACO_DOCUMENT_URI = /\Ainmemory:\/\/model\/[A-Za-z0-9_-]+\z/.freeze
   ALLOWED_METHODS = %w[
     initialize initialized textDocument/didOpen textDocument/didChange
     textDocument/didClose textDocument/completion
@@ -170,6 +172,7 @@ class PlaygroundTypeProf
     @core_root = core_root
     @writer = PlaygroundTypeProfWriter.new
     @server = PlaygroundTypeProfServer.new(target, core_root, @writer)
+    @active_document_uri = nil
   end
 
   def dispatch(json)
@@ -179,9 +182,15 @@ class PlaygroundTypeProf
       return method_not_found(message)
     end
 
+    client_document_uri = normalize_document_uri!(message)
     source = completion_source(message)
     PlaygroundRubyVersion.with(@target, @core_root) do
       TypeProf::LSP::Message.find(message[:method]).new(@server, message).run
+    end
+    if message[:method] == "textDocument/didOpen"
+      @active_document_uri = client_document_uri
+    elsif message[:method] == "textDocument/didClose"
+      @active_document_uri = nil
     end
     responses = JSON.parse(JSON.generate(@writer.messages), symbolize_names: true)
     add_completion_text_edits(message, source, responses) if message[:method] == "textDocument/completion"
@@ -197,6 +206,30 @@ class PlaygroundTypeProf
   end
 
   private
+
+  def normalize_document_uri!(message)
+    method = message[:method]
+    return unless method.start_with?("textDocument/")
+
+    document = message.dig(:params, :textDocument)
+    raise ArgumentError, "A Ruby document URI is required." unless document.is_a?(Hash)
+
+    client_uri = document[:uri]
+    analysis_uri = analysis_document_uri(client_uri)
+    if method == "textDocument/didOpen"
+      raise ArgumentError, "A Ruby document is already open." if @active_document_uri
+    else
+      raise ArgumentError, "The Ruby document URI is not the active editor model." unless client_uri == @active_document_uri
+    end
+    document[:uri] = analysis_uri
+    client_uri
+  end
+
+  def analysis_document_uri(uri)
+    return ANALYSIS_DOCUMENT_URI if uri == ANALYSIS_DOCUMENT_URI || (uri.is_a?(String) && MONACO_DOCUMENT_URI.match?(uri))
+
+    raise ArgumentError, "The Ruby document URI is outside the analysis workspace."
+  end
 
   def completion_source(message)
     return unless message[:method] == "textDocument/completion"

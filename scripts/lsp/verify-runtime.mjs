@@ -64,7 +64,7 @@ for (const version of ["3.3", "4.0", "3.3"]) {
     `PlaygroundTypeProf.new(${rubyString(version)}, "/versioned-core")`,
   );
   const rpc = createRpc(server, vm);
-  const uri = "file:///playground/main.rb";
+  const uri = "inmemory://model/1";
   let documentVersion = 0;
   const coreSha256 = createHash("sha256").update(coreBytes).digest("hex");
   assert.equal(coreSha256, manifest.files[corePath].sha256);
@@ -157,6 +157,13 @@ for (const version of ["3.3", "4.0", "3.3"]) {
       text: 'puts "hello"\nput',
       position: { line: 1, character: 3 },
       label: "puts",
+      present: true,
+    },
+    {
+      name: "manager-inmemory-return-prefix",
+      text: 'def greeting; "hello"; end\nputs greeting.upc',
+      position: { line: 1, character: 17 },
+      label: "upcase",
       present: true,
     },
     {
@@ -284,6 +291,56 @@ for (const version of ["3.3", "4.0", "3.3"]) {
     version,
     name: "single-full-document-update-after-emoji",
     passed: true,
+  });
+
+  await assert.rejects(
+    rpc("textDocument/completion", {
+      textDocument: { uri: "file:///outside/main.rb" },
+      position: { line: 0, character: 11 },
+    }),
+    /outside the analysis workspace/,
+  );
+
+  const nextModelUri = "inmemory://model/2";
+  await rpc("textDocument/didClose", { textDocument: { uri } });
+  await rpc("textDocument/didOpen", {
+    textDocument: {
+      uri: nextModelUri,
+      languageId: "ruby",
+      version: 1,
+      text: '"hello".upc',
+    },
+  });
+  await assert.rejects(
+    rpc("textDocument/completion", {
+      textDocument: { uri },
+      position: { line: 0, character: 11 },
+    }),
+    /not the active editor model/,
+  );
+  const nextModelItems = await completion(rpc, nextModelUri, {
+    line: 0,
+    character: 11,
+  });
+  assert.ok(nextModelItems.some(({ label }) => label === "upcase"));
+  await rpc("textDocument/didClose", {
+    textDocument: { uri: nextModelUri },
+  });
+  await rpc("textDocument/didOpen", {
+    textDocument: {
+      uri: "file:///playground/main.rb",
+      languageId: "ruby",
+      version: 1,
+      text: '"hello".upc',
+    },
+  });
+  const fileUriItems = await completion(rpc, "file:///playground/main.rb", {
+    line: 0,
+    character: 11,
+  });
+  assert.ok(fileUriItems.some(({ label }) => label === "upcase"));
+  await rpc("textDocument/didClose", {
+    textDocument: { uri: "file:///playground/main.rb" },
   });
 
   const syntaxErrors = vm.eval(
