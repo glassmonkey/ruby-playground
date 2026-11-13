@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { gunzipSync } from "node:zlib";
 import { expect, test } from "@playwright/test";
-import { editRuby, expectRubyOutput } from "./editor";
+import {
+  editRuby,
+  expectEditorSource,
+  expectRubyExecutionStatus,
+  expectRubyOutput,
+} from "./editor";
 import { buildShareUrl } from "../src/share";
 import {
   analysisWorkerTerminations,
@@ -78,9 +83,7 @@ test("language server completions insert and execute in the browser", async ({
   await expect(upcase).toBeVisible({ timeout: 30_000 });
   await page.screenshot({ path: testInfo.outputPath("upcase-candidate.png") });
   await upcase.click();
-  await expect(page.locator(".monaco-editor .view-lines")).toHaveText(
-    'puts "hello".upcase',
-  );
+  await expectEditorSource(page, 'puts "hello".upcase');
   await expectRubyOutput(page, "HELLO\n");
   await page.screenshot({ path: testInfo.outputPath("upcase-inserted.png") });
 
@@ -453,7 +456,7 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
 test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(120_000);
   await watchAnalysisWorkers(page);
   await page.goto("./?v=3.3");
   await expect(page.getByText("On", { exact: true })).toBeVisible({
@@ -684,7 +687,13 @@ test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
         const readyCountBefore = before.filter(
           (event) => event.direction === "ready",
         ).length;
-        if (new URL(page.url()).searchParams.get("v") !== version) {
+        const needsNewWorker =
+          new URL(page.url()).searchParams.get("v") !== version;
+        const canReuseInitialReady =
+          !needsNewWorker && previousWorkerId === undefined;
+        record.readyCountBefore = readyCountBefore;
+        record.canReuseInitialReady = canReuseInitialReady;
+        if (needsNewWorker) {
           await page.getByLabel("Ruby version").selectOption(version);
         }
         await expect(page.getByLabel("Ruby version")).toHaveValue(version);
@@ -702,30 +711,35 @@ test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
         ).toBeVisible();
         await expect
           .poll(
-            async () =>
-              (await lspObservations(page))
-                .filter((event) => event.direction === "ready")
-                .slice(readyCountBefore)
-                .some(
-                  (event) =>
-                    event.version === version &&
-                    (previousWorkerId === undefined ||
-                      event.workerId !== previousWorkerId),
-                ),
+            async () => {
+              const readyEvents = (await lspObservations(page)).filter(
+                (event) => event.direction === "ready",
+              );
+              const eligible = canReuseInitialReady
+                ? readyEvents
+                : readyEvents.slice(readyCountBefore);
+              return eligible.some(
+                (event) =>
+                  event.version === version &&
+                  (canReuseInitialReady || event.workerId !== previousWorkerId),
+              );
+            },
             { timeout: 60_000 },
           )
           .toBe(true);
 
         const observationsBeforeInput = await lspObservations(page);
-        const ready = observationsBeforeInput
-          .filter((event) => event.direction === "ready")
-          .slice(readyCountBefore)
-          .find(
-            (event) =>
-              event.version === version &&
-              (previousWorkerId === undefined ||
-                event.workerId !== previousWorkerId),
-          );
+        const readyEvents = observationsBeforeInput.filter(
+          (event) => event.direction === "ready",
+        );
+        const eligibleReadyEvents = canReuseInitialReady
+          ? readyEvents
+          : readyEvents.slice(readyCountBefore);
+        const ready = eligibleReadyEvents.find(
+          (event) =>
+            event.version === version &&
+            (canReuseInitialReady || event.workerId !== previousWorkerId),
+        );
         expect(ready).toBeDefined();
         const workerId = ready?.workerId;
         expect(ready?.wasmSha256).toBe(generatedAnalysisAsset.wasmSha256);
@@ -740,9 +754,7 @@ test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
         const responseStart = (await lspObservations(page)).length;
         record.inputStartedAt = await page.evaluate(() => performance.now());
         await page.keyboard.type("rai", { delay: 100 });
-        await expect(page.locator(".monaco-editor .view-lines")).toHaveText(
-          "puts Fiber.new {}.rai",
-        );
+        await expectEditorSource(page, "puts Fiber.new {}.rai");
         await expect
           .poll(
             async () =>
@@ -1233,7 +1245,7 @@ test("natural input with no matching completion leaves text and execution intact
   await page.screenshot({
     path: testInfo.outputPath("no-matching-completion.png"),
   });
-  await expect(page.getByRole("status")).toHaveText("Error");
+  await expectRubyExecutionStatus(page, "Error");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "undefined method 'unknownMethodPrefix'",
   );

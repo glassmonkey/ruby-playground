@@ -181,7 +181,8 @@ work; this local run does not claim those decisions.
 ## TypeProf completion verification
 
 The user requested a TypeProf rewrite. Runtime commit
-`faf9cc800af8fdfbbc09bbe384c9c6fb0d84f258` was integrated into this UI lane.
+`faf9cc800af8fdfbbc09bbe384c9c6fb0d84f258` and its URI mapping follow-up
+`f601837c6c6772b37a213d398d1048944d69ad4c` were integrated into this UI lane.
 The manager accepted the TypeProf 0.33.2 PoC's Ruby 3.3/4.0 versioned-core
 feasibility after checking the version-matrix script and artifact hashes. That
 PoC proves raw inference and adapter examples only; Monaco/provider behavior is
@@ -212,7 +213,7 @@ PORT=6645 npx playwright test --config=e2e/completion.config.ts
 ```
 
 The current TypeProf asset manifest SHA-256 is
-`c11e8e8a51a93fc47f0073cfd64926de0cd5d414c3359c03c5681601bae7b2d2`; its raw
+`1ea4a3ca8b9b876caf719cae7f47e07b19f31911c5ab194d70b0dd6625ab49a4`; its raw
 analysis WASM is 68,605,538 bytes with SHA-256
 `c090a01f1afdbaa83815e72e3c8bcf20640c6b9693543bbdf67a00ae59969c07`, and the
 gzip asset is SHA-256
@@ -222,11 +223,41 @@ manifest and compressed assets were regenerated from this branch's adapter
 using the lockfile-pinned Ruby 4.0.7/Bundler 4.0.20 environment. No WASM
 rebuild was performed.
 
-Do not share a TypeProf trial URL until the integrated production preview has
-passed its browser checks. The formal TypeProf requirement draft remains
+The manager's isolated preview is available for a single-case TypeProf smoke
+check at:
+
+`http://127.0.0.1:16646/?c=CYUwZgBA5gTiIBcCWA7KBuCAiAFiANvgPZaYgrABQADgK4IDO0ciqUQA&v=3.3`
+
+It opens Ruby 3.3 with `def greeting; "hello"; end\nputs greeting`. Type
+`.upc` after `greeting`, choose the exact `upcase` candidate, and confirm the
+editor contains `puts greeting.upcase` and Output shows `HELLO`. This is a
+single-case smoke check, not evidence that the remaining suite or all ACs pass.
+The formal TypeProf requirement draft remains
 `/private/tmp/gla187-typeprof-requirements.md`; owner Issue/plan save is pending
 recovery of operation `543d09b0...` by the manager. This lane does not retry or
 route around that owner operation.
+
+The first UI TypeProf browser suite on `99b23b05f8b6e263b17dc9636217bdae544c2599`
+failed 14/14 and remains archived at
+`test-results/archive/99b23b05f8b6e263b17dc9636217bdae544c2599/typeprof-final-run2/`.
+A subsequent single Ruby 3.3 return-case run naturally typed `.upc`, but its
+diagnostic attachment was missing; that run's trace, screenshot, and error
+context are preserved under
+`test-results/archive/99b23b05f8b6e263b17dc9636217bdae544c2599/typeprof-return-diagnostic-run1/`.
+Do not infer request or candidate counts from that incomplete run. The manager's
+separate port-16646 diagnostic is recorded at
+`/private/tmp/gla187-manager-typeprof-diagnostic-run2/result.json` (SHA-256
+`388d0fc138deeb1fb10a14494a3374a298a98b22df5cbd961c9e2690d22d4855`): natural
+completion requests tokens 4 and 6, plus Ctrl+Space token 7, each received
+`result: null`; Monaco used `inmemory://model/1` while initialize advertised
+`file:///playground`. The manager assigned that suspected workspace/document
+URI mismatch to the runtime lane. The e2e `finally` now writes diagnostic JSON
+directly with Node fs before attaching it. This test-only change and natural-dot
+input edits passed static checks. The Ruby 3.3 natural return case subsequently
+passed on merged UI HEAD `512cd821ceff1534d365bca81aa3fe680a88955d` with runtime
+`f601837`. Its trace and finally JSON are at
+`test-results/archive/512cd821ceff1534d365bca81aa3fe680a88955d/typeprof-uri-return-run2/`.
+The remaining browser cases and full suite are still unverified.
 
 ## Security and privacy
 

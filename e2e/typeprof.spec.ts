@@ -1,5 +1,7 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { editRuby, expectRubyOutput } from "./editor";
+import { editRuby, expectEditorSource, expectRubyOutput } from "./editor";
 import {
   analysisWorkerTerminations,
   analysisWorkerUrls,
@@ -43,8 +45,8 @@ const versions = ["3.3", "4.0"] as const;
 const typeInferenceCases: TypeInferenceCase[] = [
   {
     name: "method return type",
-    codeBeforePrefix: 'def greeting; "hello"; end\nputs greeting.',
-    prefix: "upc",
+    codeBeforePrefix: 'def greeting; "hello"; end\nputs greeting',
+    prefix: ".upc",
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection: 'def greeting; "hello"; end\nputs greeting.upcase',
@@ -52,8 +54,8 @@ const typeInferenceCases: TypeInferenceCase[] = [
   },
   {
     name: "Array#first element type",
-    codeBeforePrefix: 'words = ["hello", "world"]\nputs words.first.',
-    prefix: "upc",
+    codeBeforePrefix: 'words = ["hello", "world"]\nputs words.first',
+    prefix: ".upc",
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection: 'words = ["hello", "world"]\nputs words.first.upcase',
@@ -61,8 +63,8 @@ const typeInferenceCases: TypeInferenceCase[] = [
   },
   {
     name: "map block argument type",
-    codeBeforePrefix: 'words = ["hello"]\nputs words.map { |word| word.',
-    prefix: "upc",
+    codeBeforePrefix: 'words = ["hello"]\nputs words.map { |word| word',
+    prefix: ".upc",
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection:
@@ -126,15 +128,18 @@ async function typeAndSelectTypeProfCandidate(
     detailPattern,
     responseStart,
     expectedPosition,
+    onTyped,
   }: {
     prefix: string;
     label: string;
     detailPattern: RegExp;
     responseStart: number;
     expectedPosition?: Position;
+    onTyped?: () => Promise<void>;
   },
 ): Promise<{ event: CompletionResponse; item: RawCandidate }> {
   await page.keyboard.type(prefix, { delay: 50 });
+  await onTyped?.();
   await expect
     .poll(async () => {
       const events = await lspObservations(page);
@@ -173,41 +178,228 @@ async function typeAndSelectTypeProfCandidate(
   expect(event?.documentVersion).toBeDefined();
   if (expectedPosition) expect(event?.position).toEqual(expectedPosition);
 
-  const row = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: new RegExp(`^${label}(,|$)`) });
-  await expect(row).toBeVisible({ timeout: 30_000 });
-  await row.click();
+  const suggestions = page.getByRole("listbox", { name: "Suggest" });
+  // The accessible row name can include TypeProf documentation details. Match
+  // the exact visible label node so `upcase` cannot select `upcase!`.
+  const candidateName = suggestions
+    .locator(".label-name")
+    .getByText(label, { exact: true });
+  await expect(candidateName).toHaveCount(1, { timeout: 30_000 });
+  await expect(candidateName).toBeVisible();
+  await candidateName.click();
   return { event: event as CompletionResponse, item: item as RawCandidate };
-}
-
-async function expectEditorSource(page: Page, source: string): Promise<void> {
-  await expect(page.locator(".monaco-editor .view-lines")).toHaveText(
-    source.split("\n"),
-  );
 }
 
 for (const version of versions) {
   for (const inferenceCase of typeInferenceCases) {
     test(`TypeProf ${inferenceCase.name} completion inserts and executes on Ruby ${version}`, async ({
       page,
-    }) => {
-      await watchAnalysisWorkers(page);
-      await page.goto(`./?v=${version}`);
-      await waitForReadyVersion(page, version);
-      await editRuby(page, inferenceCase.codeBeforePrefix);
-      const responseStart = (await lspObservations(page)).length;
-
-      const { event } = await typeAndSelectTypeProfCandidate(page, {
-        prefix: inferenceCase.prefix,
-        label: inferenceCase.label,
-        detailPattern: inferenceCase.detailPattern,
-        responseStart,
+    }, testInfo) => {
+      const startedAt = Date.now();
+      const pageErrors: string[] = [];
+      const consoleErrors: string[] = [];
+      const diagnostic: Record<string, unknown> = {
+        head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+        runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+        version,
+        case: inferenceCase.name,
+        startedAt,
+        pageErrors,
+        consoleErrors,
+      };
+      page.on("pageerror", (error) =>
+        pageErrors.push(error.stack ?? error.message),
+      );
+      page.on("console", (message) => {
+        if (message.type() === "error") consoleErrors.push(message.text());
       });
+      await watchAnalysisWorkers(page);
+      try {
+        await page.goto(`./?v=${version}`);
+        const ready = await waitForReadyVersion(page, version);
+        diagnostic.ready = ready;
+        await editRuby(page, inferenceCase.codeBeforePrefix);
+        const responseStart = (await lspObservations(page)).length;
+        diagnostic.inputStartedAt = await page.evaluate(() =>
+          performance.now(),
+        );
 
-      await expectEditorSource(page, inferenceCase.codeAfterSelection);
-      await expectRubyOutput(page, inferenceCase.output);
-      expect(event.documentVersion).toBeDefined();
+        const { event } = await typeAndSelectTypeProfCandidate(page, {
+          prefix: inferenceCase.prefix,
+          label: inferenceCase.label,
+          detailPattern: inferenceCase.detailPattern,
+          responseStart,
+          onTyped: async () => {
+            diagnostic.typedAt = Date.now();
+            diagnostic.monotonicTypedAt = await page.evaluate(() =>
+              performance.now(),
+            );
+            diagnostic.inputAfterNaturalTyping = await page
+              .evaluate(() => {
+                const source = [
+                  ...document.querySelectorAll(".monaco-editor .view-line"),
+                ]
+                  .map((line) => line.textContent ?? "")
+                  .join("\n");
+                const input = document.querySelector(
+                  ".monaco-editor textarea.inputarea",
+                ) as HTMLTextAreaElement | null;
+                return {
+                  source,
+                  inputValue: input?.value,
+                  selectionStart: input?.selectionStart,
+                  selectionEnd: input?.selectionEnd,
+                  activeElementClass: (
+                    document.activeElement as HTMLElement | null
+                  )?.className,
+                };
+              })
+              .catch((error) => String(error));
+          },
+        });
+
+        diagnostic.completionResponse = event;
+        await expectEditorSource(page, inferenceCase.codeAfterSelection);
+        await expectRubyOutput(page, inferenceCase.output);
+        expect(event.documentVersion).toBeDefined();
+        diagnostic.result = "passed";
+      } catch (error) {
+        diagnostic.failure =
+          error instanceof Error ? error.message : String(error);
+        diagnostic.failureStack =
+          error instanceof Error ? error.stack : undefined;
+        throw error;
+      } finally {
+        diagnostic.finishedAt = Date.now();
+        let observations = await lspObservations(page).catch((error) =>
+          String(error),
+        );
+        diagnostic.observationsAtAssertionEnd = observations;
+        if (Array.isArray(observations)) {
+          const ready = diagnostic.ready as Record<string, unknown> | undefined;
+          const completionRequests = observations.filter(
+            (event) =>
+              event.direction === "request" &&
+              event.method === "textDocument/completion" &&
+              event.workerId === ready?.workerId,
+          );
+          const latestRequest = completionRequests.at(-1);
+          const matchingResponse = latestRequest
+            ? observations.some(
+                (event) =>
+                  event.direction === "response" &&
+                  event.workerId === latestRequest.workerId &&
+                  event.token === latestRequest.token,
+              )
+            : false;
+          diagnostic.completionRequestsOnReadyWorker = completionRequests;
+          diagnostic.latestRequestHasResponse = matchingResponse;
+          if (latestRequest && !matchingResponse) {
+            const elapsedSinceRequest = await page
+              .evaluate(
+                (requestAt) => performance.now() - Number(requestAt),
+                latestRequest.at,
+              )
+              .catch(() => 8_000);
+            const remainingUntilRuntimeDeadline = Math.max(
+              0,
+              8_000 - elapsedSinceRequest,
+            );
+            diagnostic.remainingToEightSecondDeadlineMs =
+              remainingUntilRuntimeDeadline;
+            if (remainingUntilRuntimeDeadline > 0) {
+              await page.waitForTimeout(remainingUntilRuntimeDeadline);
+            }
+          }
+          observations = await lspObservations(page).catch((error) =>
+            String(error),
+          );
+        }
+        diagnostic.observations = observations;
+        diagnostic.protocol = Array.isArray(observations)
+          ? observations.filter(
+              (event) =>
+                event.method === "textDocument/completion" ||
+                event.direction === "initialize" ||
+                event.direction === "ready" ||
+                event.direction === "fatal",
+            )
+          : observations;
+        diagnostic.editor = await page
+          .evaluate(() => {
+            const source = [
+              ...document.querySelectorAll(".monaco-editor .view-line"),
+            ]
+              .map((line) => line.textContent ?? "")
+              .join("\n");
+            const input = document.querySelector(
+              ".monaco-editor textarea.inputarea",
+            ) as HTMLTextAreaElement | null;
+            return {
+              source,
+              activeElementClass: (document.activeElement as HTMLElement | null)
+                ?.className,
+              inputValue: input?.value,
+              selectionStart: input?.selectionStart,
+              selectionEnd: input?.selectionEnd,
+            };
+          })
+          .catch((error) => String(error));
+        diagnostic.suggestionRows = await page
+          .locator(".suggest-widget .monaco-list-row")
+          .evaluateAll((rows) =>
+            rows.map((row) => ({
+              text: row.textContent,
+              ariaLabel: row.getAttribute("aria-label"),
+              visible: row.getBoundingClientRect().width > 0,
+            })),
+          )
+          .catch((error) => String(error));
+        await page
+          .screenshot({
+            path: testInfo.outputPath("typeprof-return-final.png"),
+          })
+          .catch((error) => {
+            diagnostic.screenshotFailure = String(error);
+          });
+        const diagnosticPath = testInfo.outputPath(
+          "typeprof-return-diagnostic.json",
+        );
+        let serializedDiagnostic: string;
+        try {
+          serializedDiagnostic = JSON.stringify(diagnostic, null, 2);
+        } catch (error) {
+          serializedDiagnostic = JSON.stringify(
+            {
+              head: diagnostic.head,
+              runtime: diagnostic.runtime,
+              version: diagnostic.version,
+              case: diagnostic.case,
+              startedAt: diagnostic.startedAt,
+              finishedAt: diagnostic.finishedAt,
+              failure: diagnostic.failure,
+              diagnosticSerializationFailure:
+                error instanceof Error ? error.stack : String(error),
+            },
+            null,
+            2,
+          );
+        }
+        try {
+          await mkdir(dirname(diagnosticPath), { recursive: true });
+          await writeFile(diagnosticPath, serializedDiagnostic, "utf8");
+        } catch (error) {
+          console.error("Failed to persist TypeProf diagnostic JSON", error);
+        }
+        await testInfo
+          .attach("typeprof-return-diagnostic.json", {
+            path: diagnosticPath,
+            contentType: "application/json",
+          })
+          .catch((error: unknown) => {
+            console.error("Failed to attach TypeProf diagnostic JSON", error);
+          });
+      }
     });
   }
 
@@ -231,11 +423,11 @@ for (const version of versions) {
 
     await editRuby(
       page,
-      'class Greeter; def salutation; "hi"; end; end\nputs Greeter.new.',
+      'class Greeter; def salutation; "hi"; end; end\nputs Greeter.new',
     );
     responseStart = (await lspObservations(page)).length;
     await typeAndSelectTypeProfCandidate(page, {
-      prefix: "sal",
+      prefix: ".sal",
       label: "salutation",
       detailPattern: /Greeter#salutation/,
       responseStart,
@@ -246,9 +438,9 @@ for (const version of versions) {
     );
     await expectRubyOutput(page, "hi\n");
 
-    await editRuby(page, "box = Object.new\nputs box.");
+    await editRuby(page, "box = Object.new\nputs box");
     responseStart = (await lspObservations(page)).length;
-    await page.keyboard.type("upc", { delay: 50 });
+    await page.keyboard.type(".upc", { delay: 50 });
     await expect
       .poll(async () => {
         const responses = (await lspObservations(page))
@@ -292,10 +484,10 @@ for (const version of versions) {
     await page.goto(`./?v=${version}`);
     await waitForReadyVersion(page, version);
 
-    await editRuby(page, 'value = "hello"\nputs value.');
+    await editRuby(page, 'value = "hello"\nputs value');
     let responseStart = (await lspObservations(page)).length;
     const stringCompletion = await typeAndSelectTypeProfCandidate(page, {
-      prefix: "upc",
+      prefix: ".upc",
       label: "upcase",
       detailPattern: /String#upcase/,
       responseStart,
@@ -303,10 +495,10 @@ for (const version of versions) {
     await expectEditorSource(page, 'value = "hello"\nputs value.upcase');
     await expectRubyOutput(page, "HELLO\n");
 
-    await editRuby(page, "value = 42\np value.");
+    await editRuby(page, "value = 42\np value");
     responseStart = (await lspObservations(page)).length;
     const integerCompletion = await typeAndSelectTypeProfCandidate(page, {
-      prefix: "di",
+      prefix: ".di",
       label: "digits",
       detailPattern: /Integer#digits/,
       responseStart,
@@ -379,11 +571,11 @@ for (const version of versions) {
     await expectEditorSource(page, 'puts "hello".upcase + "!"');
     await expectRubyOutput(page, "HELLO!\n");
 
-    await editRuby(page, '名前 = "😀"; puts 名前. + "!"');
+    await editRuby(page, '名前 = "😀"; puts 名前 + "!"');
     for (let index = 0; index < 6; index += 1)
       await page.keyboard.press("ArrowLeft");
     responseStart = (await lspObservations(page)).length;
-    await page.keyboard.type("upc", { delay: 50 });
+    await page.keyboard.type(".upc", { delay: 50 });
     await expectEditorSource(page, '名前 = "😀"; puts 名前.upc + "!"');
     const { event, item } = await waitForRawCandidate(
       page,
@@ -479,12 +671,12 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
           .getByRole("region", { name: "Ruby runtime environment" })
           .getByRole("heading", { name: `Ruby ${patchVersion}`, exact: true }),
       ).toBeVisible();
-      await editRuby(page, "puts Fiber.new.");
+      await editRuby(page, "Fiber.new { :ok }");
       const responseStart = (await lspObservations(page)).length;
       const { event, item } = await typeAndSelectVersionOnlyForInspection(
         page,
         {
-          prefix: "rai",
+          prefix: ".rai",
           label: "raise",
           responseStart,
           expectedWorkerId: workerId,
@@ -549,8 +741,8 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
   await page.goto("./?v=3.3");
   const ready33 = await waitForReadyVersion(page, "3.3");
 
-  await editRuby(page, 'puts "old".');
-  await page.keyboard.type("upc", { delay: 40 });
+  await editRuby(page, 'puts "old"');
+  await page.keyboard.type(".upc", { delay: 40 });
   await expect.poll(async () => heldCompletionResponses(page)).toHaveLength(1);
   const [held33] = await heldCompletionResponses(page);
   expect(held33).toBeDefined();
@@ -565,8 +757,8 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
     readyBefore40,
     ready33.workerId as number,
   );
-  await editRuby(page, 'puts "middle".');
-  await page.keyboard.type("upc", { delay: 40 });
+  await editRuby(page, 'puts "middle"');
+  await page.keyboard.type(".upc", { delay: 40 });
   await expect.poll(async () => heldCompletionResponses(page)).toHaveLength(2);
   const held40 = (await heldCompletionResponses(page)).find(
     (response) => response.workerId === ready40.workerId,
@@ -583,9 +775,9 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
     readyBeforeBack,
     ready40.workerId as number,
   );
-  await editRuby(page, 'puts "final".');
+  await editRuby(page, 'puts "final"');
   const responseStart = (await lspObservations(page)).length;
-  await page.keyboard.type("upc", { delay: 40 });
+  await page.keyboard.type(".upc", { delay: 40 });
   await expect.poll(async () => heldCompletionResponses(page)).toHaveLength(3);
   const heldFinal = (await heldCompletionResponses(page)).find(
     (response) => response.workerId === readyBack33.workerId,

@@ -28,13 +28,38 @@ export async function editRuby(page: Page, code: string) {
   }
 }
 
+/** Compare each rendered Monaco line, preserving line boundaries and spaces. */
+export async function expectEditorSource(page: Page, source: string) {
+  const expectedLines = source.split("\n");
+  const renderedLines = page.locator(".monaco-editor .view-line");
+  await expect(renderedLines).toHaveCount(expectedLines.length);
+  await expect
+    .poll(async () =>
+      renderedLines.evaluateAll((lines) =>
+        lines.map((line) => (line.textContent ?? "").replace(/\u00a0/g, " ")),
+      ),
+    )
+    .toEqual(expectedLines);
+}
+
 /** Check new output first so a prior run's completed status cannot satisfy us. */
 export async function expectRubyOutput(page: Page, output: string | RegExp) {
   await expect(page.getByTestId("preview-console")).toHaveText(output, {
     timeout: 30_000,
   });
-  await expect(page.getByRole("status")).toHaveText("Complete");
+  await expectRubyExecutionStatus(page, "Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+}
+
+export async function expectRubyExecutionStatus(
+  page: Page,
+  status: "Complete" | "Error",
+) {
+  const outputRegion = page.getByRole("region", { name: "Output" });
+  await expect(outputRegion.getByRole("status")).toHaveText(status);
+  await expect(
+    page.getByRole("status", { name: /^Code completion status:/ }),
+  ).toBeVisible();
 }
 
 /** Initial source stays plain console output; environment data is independent. */
@@ -55,6 +80,6 @@ export async function expectInitialRuby(page: Page) {
       { timeout: 30_000 },
     )
     .toBe(INITIAL_OUTPUT);
-  await expect(page.getByRole("status")).toHaveText("Complete");
+  await expectRubyExecutionStatus(page, "Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 }
