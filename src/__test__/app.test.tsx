@@ -16,15 +16,33 @@ vi.mock("../editor", () => ({
   default: ({
     code,
     onChange,
+    version,
+    completionEnabled,
+    onCompletionStatusChange,
   }: {
     code: string;
     onChange: (value: string) => void;
+    version?: string;
+    completionEnabled?: boolean;
+    onCompletionStatusChange?: (
+      status: "disabled" | "loading" | "ready" | "unsupported" | "error",
+    ) => void;
   }) => (
-    <textarea
-      aria-label="Ruby source"
-      value={code}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <>
+      <textarea
+        aria-label="Ruby source"
+        data-ruby-version={version}
+        data-completion-enabled={String(completionEnabled)}
+        value={code}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button onClick={() => onCompletionStatusChange?.("ready")}>
+        Mock completion ready
+      </button>
+      <button onClick={() => onCompletionStatusChange?.("error")}>
+        Mock completion error
+      </button>
+    </>
   ),
 }));
 const start = vi.hoisted(() =>
@@ -117,7 +135,7 @@ describe("playground UI", () => {
         hash: url.hash,
         historyLength: window.history.length,
       }).toEqual({
-        state: { code, version: "3.4" },
+        state: { code, version: "3.4", completionEnabled: true },
         campaign: "ruby",
         hash: "#about",
         historyLength,
@@ -144,6 +162,76 @@ describe("playground UI", () => {
       version: (screen.getByLabelText("Ruby version") as HTMLSelectElement)
         .value,
     }).toEqual({ code: "puts 42", version: "3.3" });
+  });
+  it("defaults completion on and restores ac=0 through browser history", async () => {
+    window.history.replaceState(null, "", "/?ac=0");
+    setup();
+    const toggle = await screen.findByRole("checkbox", {
+      name: "Code completion",
+    });
+    const editor = (await screen.findByRole("textbox", {
+      name: "Ruby source",
+    })) as HTMLTextAreaElement;
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(editor.dataset.completionEnabled).toBe("false");
+    expect(new URL(window.location.href).searchParams.get("ac")).toBe("0");
+
+    fireEvent.click(toggle);
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(editor.dataset.completionEnabled).toBe("true");
+    expect(new URL(window.location.href).searchParams.has("ac")).toBe(false);
+
+    window.history.pushState(null, "", "/?ac=0");
+    fireEvent(window, new PopStateEvent("popstate"));
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+  });
+  it("announces completion state and gives a natural-input starting point", async () => {
+    setup();
+    const status = screen.getByRole("status", {
+      name: "Code completion status: Loading",
+    });
+    expect(status.textContent).toBe("Loading");
+    expect(screen.getByText(/puts "hello"\.upc/)).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mock completion ready" }),
+    );
+    expect(
+      screen.getByRole("status", { name: "Code completion status: On" })
+        .textContent,
+    ).toBe("On");
+
+    fireEvent.change(screen.getByLabelText("Ruby version"), {
+      target: { value: "3.4" },
+    });
+    expect(
+      screen.getByRole("status", {
+        name: "Code completion status: Unavailable for Ruby 3.4",
+      }).textContent,
+    ).toBe("Unavailable for Ruby 3.4");
+
+    fireEvent.change(screen.getByLabelText("Ruby version"), {
+      target: { value: "4.0" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mock completion error" }),
+    );
+    expect(
+      screen.getByRole("status", {
+        name: "Code completion status: Unavailable",
+      }).textContent,
+    ).toBe("Unavailable");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Code completion" }));
+    expect(
+      screen.getByRole("status", { name: "Code completion status: Off" })
+        .textContent,
+    ).toBe("Off");
+    expect(
+      screen.getByText(
+        "Turn on Code completion to see and insert suggestions while you type.",
+      ),
+    ).toBeTruthy();
   });
   it("shows loading immediately on edits and hides it when execution finishes", async () => {
     // Arrange
