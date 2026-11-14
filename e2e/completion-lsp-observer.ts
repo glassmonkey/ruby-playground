@@ -388,6 +388,36 @@ export async function analysisWorkerTerminations(
   );
 }
 
+export async function hasRawCompletionCandidate(
+  page: Page,
+  responseStart: number,
+  label: string,
+): Promise<boolean> {
+  return page.evaluate(
+    ({ start, expectedLabel }) => {
+      const events =
+        (window as unknown as CompletionDiagnosticWindow).__lspObservations ??
+        [];
+      return events.slice(start).some((event) => {
+        if (
+          event.direction !== "response" ||
+          event.method !== "textDocument/completion" ||
+          !Array.isArray(event.candidates)
+        )
+          return false;
+        return event.candidates.some((candidate: ObservedCompletionItem) => {
+          const candidateLabel =
+            typeof candidate.label === "string"
+              ? candidate.label
+              : candidate.label?.label;
+          return candidateLabel === expectedLabel;
+        });
+      });
+    },
+    { start: responseStart, expectedLabel: label },
+  );
+}
+
 export function latestRawCompletion(events: Array<Record<string, unknown>>) {
   const event = events
     .filter(

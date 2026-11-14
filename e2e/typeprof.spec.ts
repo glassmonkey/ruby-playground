@@ -5,6 +5,7 @@ import { editRuby, expectEditorSource, expectRubyOutput } from "./editor";
 import {
   analysisWorkerTerminations,
   analysisWorkerUrls,
+  hasRawCompletionCandidate,
   heldCompletionResponses,
   lspObservations,
   releaseHeldCompletionResponse,
@@ -86,6 +87,25 @@ function visibleCandidateLabel(page: Page, label: string) {
     .getByText(label, { exact: true });
 }
 
+async function selectVisibleCandidateByKeyboard(page: Page, label: string) {
+  await expect(visibleCandidateLabel(page, label)).toBeVisible();
+  const rows = page.locator(".suggest-widget .monaco-list-row");
+  const focusedLabel = page.locator(
+    ".suggest-widget .monaco-list-row.focused .label-name",
+  );
+  const rowCount = await rows.count();
+  for (let index = 0; index <= rowCount; index += 1) {
+    if ((await focusedLabel.textContent().catch(() => ""))?.trim() === label) {
+      await page.keyboard.press("Enter");
+      return;
+    }
+    await page.keyboard.press("ArrowDown");
+  }
+  throw new Error(
+    `Could not focus the exact visible completion label ${label}`,
+  );
+}
+
 async function waitForReadyVersion(
   page: Page,
   version: (typeof versions)[number],
@@ -138,6 +158,7 @@ async function typeAndSelectTypeProfCandidate(
     responseStart,
     expectedPosition,
     onTyped,
+    selection = "click",
   }: {
     prefix: string;
     label: string;
@@ -145,24 +166,13 @@ async function typeAndSelectTypeProfCandidate(
     responseStart: number;
     expectedPosition?: Position;
     onTyped?: () => Promise<void>;
+    selection?: "click" | "keyboard";
   },
 ): Promise<{ event: CompletionResponse; item: RawCandidate }> {
   await page.keyboard.type(prefix, { delay: 50 });
   await onTyped?.();
   await expect
-    .poll(async () => {
-      const events = await lspObservations(page);
-      return events
-        .slice(responseStart)
-        .some(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "textDocument/completion" &&
-            (event.candidates as RawCandidate[] | undefined)?.some(
-              (candidate) => candidateLabel(candidate) === label,
-            ),
-        );
-    })
+    .poll(() => hasRawCompletionCandidate(page, responseStart, label))
     .toBe(true);
 
   const events = await lspObservations(page);
@@ -192,7 +202,9 @@ async function typeAndSelectTypeProfCandidate(
   const candidateName = visibleCandidateLabel(page, label);
   await expect(candidateName).toHaveCount(1, { timeout: 30_000 });
   await expect(candidateName).toBeVisible();
-  await candidateName.click();
+  if (selection === "keyboard")
+    await selectVisibleCandidateByKeyboard(page, label);
+  else await candidateName.click();
   return { event: event as CompletionResponse, item: item as RawCandidate };
 }
 
@@ -482,38 +494,118 @@ for (const version of versions) {
 
   test(`TypeProf refreshes inferred candidates after a full editor document update on Ruby ${version}`, async ({
     page,
-  }) => {
-    await watchAnalysisWorkers(page);
-    await page.goto(`./?v=${version}`);
-    await waitForReadyVersion(page, version);
-
-    await editRuby(page, 'value = "hello"\nputs value');
-    let responseStart = (await lspObservations(page)).length;
-    const stringCompletion = await typeAndSelectTypeProfCandidate(page, {
-      prefix: ".upc",
-      label: "upcase",
-      detailPattern: /String#upcase/,
-      responseStart,
-    });
-    await expectEditorSource(page, 'value = "hello"\nputs value.upcase');
-    await expectRubyOutput(page, "HELLO\n");
-
-    await editRuby(page, "value = 42\np value");
-    responseStart = (await lspObservations(page)).length;
-    const integerCompletion = await typeAndSelectTypeProfCandidate(page, {
-      prefix: ".di",
-      label: "digits",
-      detailPattern: /Integer#digits/,
-      responseStart,
-    });
-    expect(integerCompletion.event.documentVersion).toBeGreaterThan(
-      stringCompletion.event.documentVersion ?? -1,
+  }, testInfo) => {
+    const startedAt = Date.now();
+    const pageErrors: string[] = [];
+    const consoleErrors: string[] = [];
+    let phase = "setup";
+    page.on("pageerror", (error) =>
+      pageErrors.push(error.stack ?? error.message),
     );
-    await expect(
-      integerCompletion.event.candidates?.map(candidateLabel),
-    ).not.toContain("upcase");
-    await expectEditorSource(page, "value = 42\np value.digits");
-    await expectRubyOutput(page, "[2, 4]\n");
+    page.on("console", (message) => {
+      if (message.type() === "error") consoleErrors.push(message.text());
+    });
+    await watchAnalysisWorkers(page);
+    try {
+      await page.goto(`./?v=${version}`);
+      phase = "initial-ready";
+      await waitForReadyVersion(page, version);
+
+      phase = "first-completion";
+      await editRuby(page, 'value = "hello"\nputs value');
+      let responseStart = (await lspObservations(page)).length;
+      const stringCompletion = await typeAndSelectTypeProfCandidate(page, {
+        prefix: ".upc",
+        label: "upcase",
+        detailPattern: /String#upcase/,
+        responseStart,
+      });
+      await expectEditorSource(page, 'value = "hello"\nputs value.upcase');
+      await expectRubyOutput(page, "HELLO\n");
+
+      phase = "full-document-update-and-second-completion";
+      await editRuby(page, "value = 42\np value");
+      responseStart = (await lspObservations(page)).length;
+      const integerCompletion = await typeAndSelectTypeProfCandidate(page, {
+        prefix: ".di",
+        label: "digits",
+        detailPattern: /Integer#digits/,
+        responseStart,
+        selection: "keyboard",
+      });
+      expect(integerCompletion.event.documentVersion).toBeGreaterThan(
+        stringCompletion.event.documentVersion ?? -1,
+      );
+      await expect(
+        integerCompletion.event.candidates?.map(candidateLabel),
+      ).not.toContain("upcase");
+      await expectEditorSource(page, "value = 42\np value.digits");
+      await expectRubyOutput(page, "[2, 4]\n");
+    } finally {
+      const observations = await lspObservations(page).catch((error) => [
+        { diagnosticReadFailure: String(error) },
+      ]);
+      const finalUI = await page
+        .evaluate(() => ({
+          source: [...document.querySelectorAll(".monaco-editor .view-line")]
+            .map((line) => line.textContent ?? "")
+            .join("\n"),
+          suggestions: [
+            ...document.querySelectorAll('[role="listbox"] .monaco-list-row'),
+          ].map((row) => ({
+            text: row.textContent,
+            ariaLabel: row.getAttribute("aria-label"),
+          })),
+          output: document.querySelector('[data-testid="preview-console"]')
+            ?.textContent,
+          executionStatus: document.querySelector(
+            '[aria-labelledby="output-heading"] [role="status"]',
+          )?.textContent,
+          completionStatus: document.querySelector(
+            '[role="status"][aria-label^="Code completion status:"]',
+          )?.textContent,
+        }))
+        .catch((error) => ({ diagnosticReadFailure: String(error) }));
+      const diagnosticPath = testInfo.outputPath(
+        "typeprof-refresh-diagnostic.json",
+      );
+      const serialized = JSON.stringify(
+        {
+          head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+          runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+          version,
+          startedAt,
+          finishedAt: Date.now(),
+          phase,
+          observations,
+          finalUI,
+          pageErrors,
+          consoleErrors,
+        },
+        null,
+        2,
+      );
+      try {
+        await mkdir(dirname(diagnosticPath), { recursive: true });
+        await writeFile(diagnosticPath, serialized, "utf8");
+      } catch (error) {
+        console.error(
+          "Failed to persist TypeProf refresh diagnostic JSON",
+          error,
+        );
+      }
+      await testInfo
+        .attach("typeprof-refresh-diagnostic.json", {
+          path: diagnosticPath,
+          contentType: "application/json",
+        })
+        .catch((error: unknown) => {
+          console.error(
+            "Failed to attach TypeProf refresh diagnostic JSON",
+            error,
+          );
+        });
+    }
   });
 
   test(`TypeProf preserves a midline suffix and emoji-aware UTF-16 text edit on Ruby ${version}`, async ({
