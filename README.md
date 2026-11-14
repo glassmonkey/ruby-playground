@@ -257,7 +257,34 @@ input edits passed static checks. The Ruby 3.3 natural return case subsequently
 passed on merged UI HEAD `512cd821ceff1534d365bca81aa3fe680a88955d` with runtime
 `f601837`. Its trace and finally JSON are at
 `test-results/archive/512cd821ceff1534d365bca81aa3fe680a88955d/typeprof-uri-return-run2/`.
-The remaining browser cases and full suite are still unverified.
+The current public source HEAD is `1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8`.
+After the TypeProf E2E helper/source fixes, a fresh Ruby 3.3 return smoke case
+passed at that HEAD: natural `.upc`, exact visible `upcase` selection, the full
+two-line source remained intact, and Ruby printed `HELLO`. Its trace, final
+screenshot, direct finally JSON, and exact test source are archived at
+`test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-return-run2/`.
+The manager's separate preview at port 16646 has the same single-case trial URL
+above. The initial production-preview suite run at this public HEAD was 3
+passed / 11 failed; it is archived at
+`test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-suite-run1/`.
+After fixing the balanced map-block fixture and allowing the valid no-detail
+local-variable candidate, a targeted run of those four Ruby 3.3/4.0 cases
+passed 4/4. That run is archived at
+`test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-targeted-inference-run2/`.
+The candidate locator matches the exact `.label-name` inside Monaco's Suggest
+list, as confirmed by the manager's independent DOM inspection.
+
+The suite has not passed as a whole. The UTF-16 case on Ruby 4.0 returned an
+`upcase` text edit with range 19..19 instead of replacing typed prefix 19..22;
+that response mismatch is recorded at
+`test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-utf16-40-targeted-run1/`
+and needs runtime-lane investigation. The Fiber detail case did not receive a
+raw `raise` candidate on its first Ruby 3.3 leg; its full finally diagnostic is
+at `test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-fiber-diagnostic-run1/`.
+The remaining failed cases from the initial suite (Ruby 3.3 Array#first,
+full-document refresh on both versions, and rapid switch/OFF) have not been
+rerun while their saved traces are being distinguished. These results do not
+establish all TypeProf acceptance criteria.
 
 ## Security and privacy
 

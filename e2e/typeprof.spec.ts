@@ -34,8 +34,9 @@ type TypeInferenceCase = {
   name: string;
   codeBeforePrefix: string;
   prefix: string;
+  cursorLeft?: number;
   label: string;
-  detailPattern: RegExp;
+  detailPattern?: RegExp;
   codeAfterSelection: string;
   output: string;
 };
@@ -63,8 +64,9 @@ const typeInferenceCases: TypeInferenceCase[] = [
   },
   {
     name: "map block argument type",
-    codeBeforePrefix: 'words = ["hello"]\nputs words.map { |word| word',
+    codeBeforePrefix: 'words = ["hello"]\nputs words.map { |word| word }',
     prefix: ".upc",
+    cursorLeft: 2,
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection:
@@ -75,6 +77,13 @@ const typeInferenceCases: TypeInferenceCase[] = [
 
 function candidateLabel(candidate: RawCandidate): string | undefined {
   return typeof candidate.label === "string" ? candidate.label : undefined;
+}
+
+function visibleCandidateLabel(page: Page, label: string) {
+  return page
+    .getByRole("listbox", { name: "Suggest" })
+    .locator(".monaco-list-row .label-name")
+    .getByText(label, { exact: true });
 }
 
 async function waitForReadyVersion(
@@ -132,7 +141,7 @@ async function typeAndSelectTypeProfCandidate(
   }: {
     prefix: string;
     label: string;
-    detailPattern: RegExp;
+    detailPattern?: RegExp;
     responseStart: number;
     expectedPosition?: Position;
     onTyped?: () => Promise<void>;
@@ -173,17 +182,14 @@ async function typeAndSelectTypeProfCandidate(
     (candidate) => candidateLabel(candidate) === label,
   );
   expect(item).toBeDefined();
-  expect(item?.detail).toMatch(detailPattern);
+  if (detailPattern) expect(item?.detail).toMatch(detailPattern);
   expect(event?.workerId).toBeDefined();
   expect(event?.documentVersion).toBeDefined();
   if (expectedPosition) expect(event?.position).toEqual(expectedPosition);
 
-  const suggestions = page.getByRole("listbox", { name: "Suggest" });
   // The accessible row name can include TypeProf documentation details. Match
   // the exact visible label node so `upcase` cannot select `upcase!`.
-  const candidateName = suggestions
-    .locator(".label-name")
-    .getByText(label, { exact: true });
+  const candidateName = visibleCandidateLabel(page, label);
   await expect(candidateName).toHaveCount(1, { timeout: 30_000 });
   await expect(candidateName).toBeVisible();
   await candidateName.click();
@@ -219,6 +225,8 @@ for (const version of versions) {
         const ready = await waitForReadyVersion(page, version);
         diagnostic.ready = ready;
         await editRuby(page, inferenceCase.codeBeforePrefix);
+        for (let index = 0; index < (inferenceCase.cursorLeft ?? 0); index += 1)
+          await page.keyboard.press("ArrowLeft");
         const responseStart = (await lspObservations(page)).length;
         diagnostic.inputStartedAt = await page.evaluate(() =>
           performance.now(),
@@ -415,7 +423,6 @@ for (const version of versions) {
     await typeAndSelectTypeProfCandidate(page, {
       prefix: "gree",
       label: "greeting",
-      detailPattern: /String/,
       responseStart,
     });
     await expectEditorSource(page, 'greeting = "hi"\nputs greeting');
@@ -466,11 +473,7 @@ for (const version of versions) {
         candidateLabel,
       ) ?? [];
     expect(rawLabels).not.toContain("upcase");
-    await expect(
-      page
-        .getByRole("listbox", { name: "Suggest" })
-        .getByRole("listitem", { name: /^upcase(?:,|$)/ }),
-    ).toHaveCount(0);
+    await expect(visibleCandidateLabel(page, "upcase")).toHaveCount(0);
     await expectEditorSource(page, "box = Object.new\nputs box.upc");
 
     await editRuby(page, "box = Object.new\nputs box.class");
@@ -563,9 +566,7 @@ for (const version of versions) {
       },
       newText: "upcase",
     });
-    const midlineRow = page
-      .getByRole("listbox", { name: "Suggest" })
-      .getByRole("listitem", { name: /^upcase(?:,|$)/ });
+    const midlineRow = visibleCandidateLabel(page, "upcase");
     await expect(midlineRow).toBeVisible();
     await midlineRow.click();
     await expectEditorSource(page, 'puts "hello".upcase + "!"');
@@ -582,7 +583,9 @@ for (const version of versions) {
       "upcase",
       responseStart,
     );
-    expect(event.position).toEqual({ line: 0, character: 22 });
+    // Monaco requests at the `.` trigger (UTF-16 offset 19), then filters the
+    // typed `upc` locally; the returned textEdit must still replace 19..22.
+    expect(event.position).toEqual({ line: 0, character: 19 });
     expect(item.textEdit).toEqual({
       range: {
         start: { line: 0, character: 19 },
@@ -590,9 +593,7 @@ for (const version of versions) {
       },
       newText: "upcase",
     });
-    const unicodeRow = page
-      .getByRole("listbox", { name: "Suggest" })
-      .getByRole("listitem", { name: /^upcase(?:,|$)/ });
+    const unicodeRow = visibleCandidateLabel(page, "upcase");
     await expect(unicodeRow).toBeVisible();
     await unicodeRow.click();
     await expectEditorSource(page, '名前 = "😀"; puts 名前.upcase + "!"');
@@ -644,7 +645,16 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
   page,
 }, testInfo) => {
   await watchAnalysisWorkers(page);
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (error) =>
+    pageErrors.push(error.stack ?? error.message),
+  );
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
   await page.goto("./?v=3.3");
+  const startedAt = Date.now();
   let previousWorkerId: number | undefined;
   let readyCount = 0;
   const matrix: Array<Record<string, unknown>> = [];
@@ -671,8 +681,17 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
           .getByRole("region", { name: "Ruby runtime environment" })
           .getByRole("heading", { name: `Ruby ${patchVersion}`, exact: true }),
       ).toBeVisible();
+      const record: Record<string, unknown> = {
+        version,
+        ready,
+        workerId,
+        readyCountBefore: readyCount,
+        sourceBeforeInput: "Fiber.new { :ok }",
+      };
+      matrix.push(record);
       await editRuby(page, "Fiber.new { :ok }");
       const responseStart = (await lspObservations(page)).length;
+      record.responseStart = responseStart;
       const { event, item } = await typeAndSelectVersionOnlyForInspection(
         page,
         {
@@ -683,10 +702,9 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
         },
       );
       expect(item.detail).toMatch(/Fiber#raise/);
-      matrix.push({ version, ready, request: event, rawItem: item });
-      const row = page
-        .getByRole("listbox", { name: "Suggest" })
-        .getByRole("listitem", { name: /^raise(?:,|$)/ });
+      record.request = event;
+      record.rawItem = item;
+      const row = visibleCandidateLabel(page, "raise");
       await expect(row).toBeVisible();
       await row.hover();
       const widget = page.locator(".suggest-widget");
@@ -694,7 +712,7 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
       expect(renderedText).toContain("Fiber#raise");
       if (version === "4.0") expect(renderedText).toMatch(/cause:/);
       else expect(renderedText).not.toMatch(/cause:/);
-      matrix[matrix.length - 1].renderedText = renderedText;
+      record.renderedText = renderedText;
       await page.screenshot({
         path: testInfo.outputPath(
           `fiber-typeprof-${version}-${matrix.length}.png`,
@@ -703,14 +721,56 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
       previousWorkerId = workerId;
     }
   } finally {
-    await testInfo.attach("typeprof-fiber-version-matrix.json", {
-      body: JSON.stringify(
-        { matrix, observations: await lspObservations(page).catch(() => []) },
-        null,
-        2,
-      ),
-      contentType: "application/json",
-    });
+    const observations = await lspObservations(page).catch((error) => [
+      { diagnosticReadFailure: String(error) },
+    ]);
+    const finalUI = await page
+      .evaluate(() => ({
+        source: [...document.querySelectorAll(".monaco-editor .view-line")]
+          .map((line) => line.textContent ?? "")
+          .join("\n"),
+        suggestions: [
+          ...document.querySelectorAll('[role="listbox"] .monaco-list-row'),
+        ].map((row) => ({
+          text: row.textContent,
+          ariaLabel: row.getAttribute("aria-label"),
+        })),
+        output: document.querySelector('[data-testid="preview-console"]')
+          ?.textContent,
+        executionStatus: document.querySelector(
+          '[aria-labelledby="output-heading"] [role="status"]',
+        )?.textContent,
+      }))
+      .catch((error) => ({ diagnosticReadFailure: String(error) }));
+    const diagnosticPath = testInfo.outputPath(
+      "typeprof-fiber-version-matrix.json",
+    );
+    const diagnostic = {
+      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      startedAt,
+      finishedAt: Date.now(),
+      matrix,
+      observations,
+      finalUI,
+      pageErrors,
+      consoleErrors,
+    };
+    const serialized = JSON.stringify(diagnostic, null, 2);
+    try {
+      await mkdir(dirname(diagnosticPath), { recursive: true });
+      await writeFile(diagnosticPath, serialized, "utf8");
+    } catch (error) {
+      console.error("Failed to persist Fiber diagnostic JSON", error);
+    }
+    await testInfo
+      .attach("typeprof-fiber-version-matrix.json", {
+        path: diagnosticPath,
+        contentType: "application/json",
+      })
+      .catch((error: unknown) => {
+        console.error("Failed to attach Fiber diagnostic JSON", error);
+      });
   }
 });
 
