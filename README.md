@@ -261,7 +261,7 @@ The public source head when the TypeProf suite first ran was
 `1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8`; that complete suite was 3 passed / 11
 failed and remains archived at
 `test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-suite-run1/`.
-Current public source head is `6ff59474f61eed6272313063f09daad21e8759d0`.
+Current public source head is `9175e540f6388f5c00ebb86564d02dbe6aade3f2`.
 
 On current product/runtime source, separate focused runs have passed the
 Ruby 3.3 natural return smoke (`.upc` → exact `upcase`, complete two-line source,
@@ -277,6 +277,25 @@ full suite. Evidence archives:
 - Ruby 4.0 refresh after narrowing the in-page raw-candidate predicate: `test-results/archive/6ff59474f61eed6272313063f09daad21e8759d0/typeprof-refresh-diagnostic-run4/`. A prior inconclusive diagnostic is kept separately at `test-results/archive/6ff59474f61eed6272313063f09daad21e8759d0/typeprof-refresh-diagnostic-run3/`.
 - Ruby 3.3 Array#first: `test-results/archive/6ff59474f61eed6272313063f09daad21e8759d0/typeprof-array-first-33-run1/`.
 
+At current public head `9175e54`, six more isolated regression checks passed:
+completion OFF on first load/reload/back navigation, unsupported 3.2/3.4/4.1
+execution without LSP assets, analysis initialization failure fallback,
+forced late responses after OFF, code-only history with ready suggestions, and
+no-match editing/execution. Archives are:
+
+- OFF and unsupported versions: `test-results/archive/9175e540f6388f5c00ebb86564d02dbe6aade3f2/typeprof-off-unsupported-run1/`.
+- Failure fallback: `test-results/archive/9175e540f6388f5c00ebb86564d02dbe6aade3f2/typeprof-analysis-failure-run1/`.
+- Forced late response after OFF: `test-results/archive/9175e540f6388f5c00ebb86564d02dbe6aade3f2/typeprof-late-response-off-run1/`.
+- Code-only history and `put`→`puts`: `test-results/archive/9175e540f6388f5c00ebb86564d02dbe6aade3f2/typeprof-history-put-run1/`.
+- No matching completion: `test-results/archive/9175e540f6388f5c00ebb86564d02dbe6aade3f2/typeprof-no-match-run1/`.
+
+The code-only history test stayed On with the same analysis Worker and used a
+natural local-variable suggestion successfully. In the same run, `put`→`puts`
+did not receive a suggestion: Worker 1 completion token 4, document version 12,
+position 0:4 returned zero candidates. Typing `s` produced valid Ruby
+`puts "Ruby"` and output `Ruby`, but this does not meet the completion-selection AC;
+the missing `Kernel#puts` result is a runtime-lane gap to investigate.
+
 Four distinct cases remain unverified: midline suffix/UTF-16 in Ruby 3.3 and
 4.0, Fiber#raise detail, and rapid version switch/OFF with held responses. The
 Ruby 4.0 UTF-16 diagnostic did receive `upcase` but its raw textEdit range was
@@ -286,7 +305,8 @@ archived at
 The Fiber run received no raw `raise` candidate on its first Ruby 3.3 leg; see
 `test-results/archive/1be5a8ef5053d3d4f610cf56d25c69e6b5f265b8/typeprof-fiber-diagnostic-run1/`.
 The full TypeProf suite has not been rerun after these focused test changes;
-not all TypeProf acceptance criteria are verified.
+not all TypeProf acceptance criteria are verified. The `put`→`puts` candidate
+gap is an additional outstanding AC outside the four TypeProf E2E cases above.
 
 ## Security and privacy
 
