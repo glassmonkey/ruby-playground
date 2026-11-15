@@ -56,10 +56,125 @@ describe("shared playground URLs", () => {
       code,
       version: "4.0",
       completionEnabled: true,
+      gemfile: "",
     });
     expect(new URL(url).searchParams.get("theme")).toBe("dark");
     expect(new URL(url).hash).toBe("#editor");
   });
+
+  it("round trips the Gemfile and drops the parameter when it is empty", () => {
+    // Arrange
+    const gemfile = 'gem "faker", "3.8.0"\n';
+    // Act
+    const withGems = buildShareUrl(base, { code: "puts 1", gemfile });
+    const withoutGems = buildShareUrl(withGems, {
+      code: "puts 1",
+      gemfile: "",
+    });
+    // Assert
+    expect({
+      parsed: parseShareUrl(withGems, fallback),
+      cleared: new URL(withoutGems).searchParams.has("g"),
+    }).toEqual({
+      parsed: {
+        code: "puts 1",
+        version: "4.0",
+        completionEnabled: true,
+        gemfile,
+      },
+      cleared: false,
+    });
+  });
+
+  it("round trips the Gemfile.lock only while a Gemfile is present", () => {
+    // Arrange
+    const gemfile = 'gem "faker"\n';
+    const lock = [
+      { name: "faker", version: "3.8.0", source: "rubygems" as const },
+      { name: "json", version: "2.18.0", source: "builtin" as const },
+    ];
+    // Act
+    const locked = buildShareUrl(base, { code: "puts 1", gemfile, lock });
+    const withoutGemfile = buildShareUrl(base, { code: "puts 1", lock });
+    // Assert
+    expect({
+      parsed: parseShareUrl(locked, fallback),
+      dropped: new URL(withoutGemfile).searchParams.has("l"),
+    }).toEqual({
+      parsed: {
+        code: "puts 1",
+        version: "4.0",
+        completionEnabled: true,
+        gemfile,
+        lock,
+      },
+      dropped: false,
+    });
+  });
+
+  it("keeps the Gemfile but drops a malformed Gemfile.lock with a warning", () => {
+    // Arrange
+    const url = new URL(
+      buildShareUrl(base, { code: "puts 1", gemfile: 'gem "faker"' }),
+    );
+    url.searchParams.set("l", compressToEncodedURIComponent("faker ../../etc"));
+    // Act
+    const parsed = parseShareUrl(url, fallback);
+    // Assert
+    expect(parsed).toEqual({
+      code: "puts 1",
+      version: "4.0",
+      completionEnabled: true,
+      gemfile: 'gem "faker"',
+      warning: "Shared gem versions are invalid. Gems will be resolved again.",
+    });
+  });
+
+  it.each(["_hidden", "-hidden", ".hidden", "123", "has space"])(
+    "drops a lock containing invalid gem name %s",
+    (name) => {
+      const url = new URL(
+        buildShareUrl(base, {
+          code: "puts 1",
+          gemfile: 'gem "RedCloth"',
+          lock: [{ name, version: "1.0.0", source: "rubygems" }],
+        }),
+      );
+      const got = parseShareUrl(url, fallback);
+
+      expect(got).toEqual({
+        code: "puts 1",
+        version: "4.0",
+        completionEnabled: true,
+        gemfile: 'gem "RedCloth"',
+        warning:
+          "Shared gem versions are invalid. Gems will be resolved again.",
+      });
+    },
+  );
+
+  it.each(["latest", "../1.0", "1.0|invalid"])(
+    "drops a lock containing invalid gem version %s",
+    (version) => {
+      const url = new URL(
+        buildShareUrl(base, {
+          code: "puts 1",
+          gemfile: 'gem "rake"',
+          lock: [{ name: "rake", version, source: "rubygems" }],
+        }),
+      );
+      const got = parseShareUrl(url, fallback);
+
+      expect(got).toEqual({
+        code: "puts 1",
+        version: "4.0",
+        completionEnabled: true,
+        gemfile: 'gem "rake"',
+        warning:
+          "Shared gem versions are invalid. Gems will be resolved again.",
+      });
+    },
+  );
 
   it.each(["html", "console"])(
     "accepts old f=%s links without losing source",
@@ -73,6 +188,7 @@ describe("shared playground URLs", () => {
         code: 'puts "legacy"',
         version: "3.4",
         completionEnabled: true,
+        gemfile: "",
       });
     },
   );
@@ -94,6 +210,7 @@ describe("shared playground URLs", () => {
       code: fallback,
       version: "4.0",
       completionEnabled: true,
+      gemfile: "",
     });
   });
 
@@ -114,17 +231,20 @@ describe("shared playground URLs", () => {
       code: 'puts "hi"',
       version: "3.3",
       completionEnabled: false,
+      gemfile: "",
     });
     expect(new URL(url).searchParams.get("ac")).toBe("0");
     expect(parseShareUrl(url, fallback)).toEqual({
       code: 'puts "hi"',
       version: "3.3",
       completionEnabled: false,
+      gemfile: "",
     });
     expect(parseShareUrl(encodedUrl('puts "legacy"'), fallback)).toEqual({
       code: 'puts "legacy"',
       version: "4.0",
       completionEnabled: true,
+      gemfile: "",
     });
   });
 
@@ -228,6 +348,6 @@ it.each(["4.0", "3.4", "3.3", "3.2", "4.1"] as const)(
         buildShareUrl("https://example.com/ruby-playground/?x=1#output", state),
         "",
       ),
-    ).toEqual(state);
+    ).toEqual({ ...state, gemfile: "" });
   },
 );

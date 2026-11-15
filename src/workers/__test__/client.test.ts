@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { startRubyRun } from "../client";
+import { INSTALL_TIMEOUT_MS, startGemInstall, startRubyRun } from "../client";
 const empty = { stdout: "", stderr: "", output: "" };
 const mockWorker = () =>
   ({
@@ -35,6 +35,70 @@ describe("run lifecycle", () => {
     vi.advanceTimersByTime(21);
     expect((await run.promise).error).toContain("timed out");
     expect(worker.terminate).toHaveBeenCalledOnce();
+  });
+  it("settles a blocked gem install at its install timeout", async () => {
+    vi.useFakeTimers();
+    const worker = mockWorker();
+    const sut = startGemInstall('gem "faker"', "4.0", undefined, () => worker);
+
+    vi.advanceTimersByTime(INSTALL_TIMEOUT_MS);
+    const got = await sut.promise;
+
+    expect({
+      result: got,
+      message: vi.mocked(worker.postMessage).mock.calls[0][0],
+      terminated: vi.mocked(worker.terminate).mock.calls.length,
+    }).toEqual({
+      result: { error: "bundle install timed out after 60 seconds." },
+      message: {
+        code: "",
+        version: "4.0",
+        gemfile: 'gem "faker"',
+        lock: undefined,
+        mode: "install",
+      },
+      terminated: 1,
+    });
+  });
+  it("collects resolver results and install logs into the lock outcome", async () => {
+    const worker = mockWorker();
+    const log: string[] = [];
+    const sut = startGemInstall(
+      'gem "faker"',
+      "4.0",
+      (line) => log.push(line),
+      () => worker,
+    );
+    const gems = [
+      { name: "faker", version: "3.8.0", source: "rubygems" as const },
+    ];
+
+    worker.onmessage?.call(worker, {
+      data: { type: "log", line: "Fetching gem metadata: faker" },
+    } as MessageEvent);
+    worker.onmessage?.call(worker, {
+      data: { type: "gems", gems },
+    } as MessageEvent);
+    worker.onmessage?.call(worker, { data: empty } as MessageEvent);
+    const got = await sut.promise;
+
+    expect({
+      result: got,
+      log,
+      request: vi.mocked(worker.postMessage).mock.calls[0][0],
+      terminated: vi.mocked(worker.terminate).mock.calls.length,
+    }).toEqual({
+      result: { lock: gems },
+      log: ["Fetching gem metadata: faker"],
+      request: {
+        code: "",
+        version: "4.0",
+        gemfile: 'gem "faker"',
+        lock: undefined,
+        mode: "install",
+      },
+      terminated: 1,
+    });
   });
   it("settles worker construction errors and rejects oversized input before launch", async () => {
     expect(

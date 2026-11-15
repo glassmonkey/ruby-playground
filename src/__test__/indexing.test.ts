@@ -9,12 +9,16 @@ describe("shared URL indexing policy", () => {
     window.history.replaceState(null, "", "/");
   });
 
-  it.each(["?c=", "?v=4.0", "?f=html", "?theme=dark&c=payload"])(
-    "detects presence of share parameter in %s",
-    (search) => {
-      expect(hasShareParameters(search)).toBe(true);
-    },
-  );
+  it.each([
+    "?c=",
+    "?g=gemfile",
+    "?l=lockfile",
+    "?v=4.0",
+    "?f=html",
+    "?theme=dark&c=payload",
+  ])("detects presence of share parameter in %s", (search) => {
+    expect(hasShareParameters(search)).toBe(true);
+  });
 
   it.each(["", "?theme=dark", "?campaign=share"])(
     "leaves ordinary query %s indexable",

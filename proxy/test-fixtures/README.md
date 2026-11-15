@@ -1,17 +1,24 @@
 # RubyGems VCR fixtures
 
 `cassettes/` contains one read-only capture of the public RubyGems compact
-index and gem-file endpoints for `rainbow 3.1.1`, `pastel 0.8.0`, and its
-`tty-color 0.6.0` dependency, plus one real missing-index 404 and one missing
-`.gem` 403. The capture metadata, normalized response headers, byte counts,
-SHA-256 hashes, recording time, package licenses, and retained license texts
-are in `cassettes/manifest.json`.
+index and gem-file endpoints for `rainbow 3.1.1`, `pastel 0.8.0`, its
+`tty-color 0.6.0` dependency, and `artii 2.1.2`, plus one real missing-index
+404 and one missing `.gem` 403. The capture metadata, normalized response
+headers, byte counts, SHA-256 hashes, recording time, package licenses, and
+retained license texts are in `cassettes/manifest.json`.
 
-The `.gem` archives include their MIT license files. The response-header
-allowlist omits request IDs, host IDs, timestamps, cache-node names, and other
-per-request infrastructure headers. The missing `.gem` XML replaces volatile
+The rainbow, pastel, and tty-color archives include their MIT license files.
+Artii declares MIT in its embedded gemspec and carries the license text in
+`README.rdoc`. The response-header allowlist omits request IDs, host IDs,
+timestamps, cache-node names, and other per-request infrastructure headers. The missing `.gem` XML replaces volatile
 `RequestId` and `HostId` values with fixed fixture values; both its captured
 and replay body hashes are recorded.
+
+The artii archive declares MIT in its embedded gemspec and carries the MIT text
+in `README.rdoc`. The default sample uses its bundled `slant` FIGlet font; the
+font header attribution and modification permission are retained in
+`cassettes/licenses/artii-2.1.2-slant-font-NOTICE.txt`, and the original header
+remains inside the archived gem.
 
 The cassette server reads only those files. It does not call RubyGems or fall
 back to the network. The Wrangler test Worker accepts only the fixed

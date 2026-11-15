@@ -22,6 +22,7 @@ if (process.env.RUBYGEMS_CASSETTE_RECORD !== "1") {
     { path: "/info/rainbow", file: "info/rainbow.body", status: 200 },
     { path: "/info/pastel", file: "info/pastel.body", status: 200 },
     { path: "/info/tty-color", file: "info/tty-color.body", status: 200 },
+    { path: "/info/artii", file: "info/artii.body", status: 200 },
     {
       path: "/info/gla183-vcr-missing-20261101",
       file: "info/gla183-vcr-missing-20261101.body",
@@ -46,6 +47,13 @@ if (process.env.RUBYGEMS_CASSETTE_RECORD !== "1") {
       file: "gems/tty-color-0.6.0.gem",
       status: 200,
       package: "tty-color 0.6.0",
+      license: "MIT",
+    },
+    {
+      path: "/gems/artii-2.1.2.gem",
+      file: "gems/artii-2.1.2.gem",
+      status: 200,
+      package: "artii 2.1.2",
       license: "MIT",
     },
     {
@@ -196,6 +204,19 @@ if (process.env.RUBYGEMS_CASSETTE_RECORD !== "1") {
         licenseFileSha256:
           "d6cb5ff5fe0412eb4f13ce892e50cee0e32bc9c4fedc84d7f970d1132c535b23",
         runtimeDependencies: [],
+      },
+      "artii 2.1.2": {
+        license: "MIT",
+        licenseSource: "embedded gemspec and README.rdoc",
+        licenseFile: "licenses/artii-2.1.2-LICENSE.txt",
+        licenseFileSha256:
+          "fa94049152bab626813c23760b01541909f65a95c16a2b1132db016bb668362c",
+        runtimeDependencies: [],
+        font: "slant",
+        fontSource: "embedded font header",
+        fontNoticeFile: "licenses/artii-2.1.2-slant-font-NOTICE.txt",
+        fontNoticeSha256:
+          "573646324474cb93af80ec2e41338be1bd3e7eba02d870bd8506f616cc6c5bc1",
       },
     },
     responses,

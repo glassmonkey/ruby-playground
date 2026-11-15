@@ -56,6 +56,17 @@
       "licenseFile": "licenses/tty-color-0.6.0-LICENSE.txt",
       "licenseFileSha256": "d6cb5ff5fe0412eb4f13ce892e50cee0e32bc9c4fedc84d7f970d1132c535b23",
       "runtimeDependencies": []
+    },
+    "artii 2.1.2": {
+      "license": "MIT",
+      "licenseSource": "embedded gemspec and README.rdoc",
+      "licenseFile": "licenses/artii-2.1.2-LICENSE.txt",
+      "licenseFileSha256": "fa94049152bab626813c23760b01541909f65a95c16a2b1132db016bb668362c",
+      "runtimeDependencies": [],
+      "font": "slant",
+      "fontSource": "embedded font header",
+      "fontNoticeFile": "licenses/artii-2.1.2-slant-font-NOTICE.txt",
+      "fontNoticeSha256": "573646324474cb93af80ec2e41338be1bd3e7eba02d870bd8506f616cc6c5bc1"
     }
   },
   "responses": {
@@ -222,6 +233,50 @@
         ]
       },
       "recordedAt": "2026-11-01T09:36:44Z"
+    },
+    "GET /info/artii": {
+      "url": "https://rubygems.org/info/artii",
+      "status": 200,
+      "headers": {
+        "accept-ranges": "bytes",
+        "cache-control": "max-age=60, public",
+        "content-length": "1483",
+        "content-type": "text/plain; charset=utf-8",
+        "etag": "\"0f3021bc1480278d4ec81a9392046073\"",
+        "last-modified": "Thu, 28 May 2026 23:32:39 GMT"
+      },
+      "body": {
+        "file": "info/artii.body",
+        "bytes": 1483,
+        "sha256": "e231cffd7c1bbd3bb00237d787b3dbfa5453d3df9a5f1e355b7f30f697eb494e",
+        "rawBytes": 1483,
+        "rawSha256": "e231cffd7c1bbd3bb00237d787b3dbfa5453d3df9a5f1e355b7f30f697eb494e",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-05T11:21:22.114Z"
+    },
+    "GET /gems/artii-2.1.2.gem": {
+      "url": "https://rubygems.org/gems/artii-2.1.2.gem",
+      "status": 200,
+      "headers": {
+        "accept-ranges": "bytes",
+        "cache-control": "max-age=31536000",
+        "content-length": "5130240",
+        "content-type": "application/octet-stream",
+        "etag": "\"93f80c7aa7652e528dd422ba6867bf4a\"",
+        "last-modified": "Fri, 28 Mar 2025 03:57:37 GMT"
+      },
+      "body": {
+        "file": "gems/artii-2.1.2.gem",
+        "bytes": 5130240,
+        "sha256": "15410369690634fccf801fd95ae9762c3b2b7254e17a07e77a069e5cd292bc49",
+        "package": "artii 2.1.2",
+        "license": "MIT",
+        "rawBytes": 5130240,
+        "rawSha256": "15410369690634fccf801fd95ae9762c3b2b7254e17a07e77a069e5cd292bc49",
+        "normalizations": []
+      },
+      "recordedAt": "2026-11-05T11:21:23.180Z"
     }
   }
 }
