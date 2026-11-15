@@ -23,12 +23,14 @@ loader.config({ monaco });
 export default function RubyEditor({
   code,
   onChange,
+  path = "main.rb",
   version,
   completionEnabled = true,
   onCompletionStatusChange,
 }: {
   code: string;
   onChange: (value: string) => void;
+  path?: string;
   version?: RubyVersion;
   completionEnabled?: boolean;
   onCompletionStatusChange?: (
@@ -158,6 +160,7 @@ export default function RubyEditor({
       language="ruby"
       height="100%"
       theme={colorMode === "light" ? "vs" : "vs-dark"}
+      path={path}
       value={code}
       onChange={(value) => onChange(value ?? "")}
       onMount={(instance) => {
@@ -165,13 +168,15 @@ export default function RubyEditor({
         setEditorReady(true);
       }}
       options={{
-        ariaLabel: "Ruby source",
+        ariaLabel: path === "main.rb" ? "Ruby source" : `${path} source`,
         tabFocusMode: true,
         minimap: { enabled: false },
         automaticLayout: true,
         fontSize: 15,
         scrollBeyondLastLine: false,
         wordWrap: "on",
+        // Room to scroll the last Gemfile lines above the floating install button.
+        padding: { bottom: path === "Gemfile" ? 88 : 0 },
       }}
     />
   );

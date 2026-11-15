@@ -323,25 +323,33 @@ for (const version of ["3.3", "4.0", "3.3"]) {
     character: 11,
   });
   assert.ok(nextModelItems.some(({ label }) => label === "upcase"));
-  await rpc("textDocument/didClose", {
-    textDocument: { uri: nextModelUri },
-  });
-  await rpc("textDocument/didOpen", {
-    textDocument: {
-      uri: "file:///playground/main.rb",
-      languageId: "ruby",
-      version: 1,
-      text: '"hello".upc',
-    },
-  });
-  const fileUriItems = await completion(rpc, "file:///playground/main.rb", {
-    line: 0,
-    character: 11,
-  });
-  assert.ok(fileUriItems.some(({ label }) => label === "upcase"));
-  await rpc("textDocument/didClose", {
-    textDocument: { uri: "file:///playground/main.rb" },
-  });
+  let activeModelUri = nextModelUri;
+  for (const modelUri of [
+    "file:///main.rb",
+    "file:///Gemfile",
+    "file:///playground/main.rb",
+  ]) {
+    await rpc("textDocument/didClose", {
+      textDocument: { uri: activeModelUri },
+    });
+    await rpc("textDocument/didOpen", {
+      textDocument: {
+        uri: modelUri,
+        languageId: "ruby",
+        version: 1,
+        text: '"hello".upc',
+      },
+    });
+    const fileUriItems = await completion(rpc, modelUri, {
+      line: 0,
+      character: 11,
+    });
+    assert.ok(fileUriItems.some(({ label }) => label === "upcase"));
+    await rpc("textDocument/didClose", {
+      textDocument: { uri: modelUri },
+    });
+    activeModelUri = modelUri;
+  }
 
   const syntaxErrors = vm.eval(
     `PlaygroundRubyVersion.with(${rubyString(version)}, "/versioned-core") { Prism.parse(${rubyString("if true\n && true\n  1\nend")}).errors.map(&:message) }`,

@@ -37,6 +37,28 @@ test("recorded gem archives retain the declared MIT license texts and dependency
   assert.deepEqual(manifest.packages["pastel 0.8.0"].runtimeDependencies, [
     "tty-color ~> 0.5",
   ]);
+  assert.deepEqual(manifest.packages["artii 2.1.2"].runtimeDependencies, []);
+  const artii = manifest.responses["GET /gems/artii-2.1.2.gem"];
+  const artiiInfo = await readFile(
+    new URL("info/artii.body", cassetteDirectory),
+    "utf8",
+  );
+  assert.equal(artii.status, 200);
+  assert.equal(
+    artii.body.sha256,
+    "15410369690634fccf801fd95ae9762c3b2b7254e17a07e77a069e5cd292bc49",
+  );
+  assert.match(
+    artiiInfo,
+    /^2\.1\.2 \|checksum:15410369690634fccf801fd95ae9762c3b2b7254e17a07e77a069e5cd292bc49/m,
+  );
+  const fontNotice = await readFile(
+    new URL(manifest.packages["artii 2.1.2"].fontNoticeFile, cassetteDirectory),
+  );
+  assert.equal(
+    sha256(fontNotice),
+    manifest.packages["artii 2.1.2"].fontNoticeSha256,
+  );
 });
 
 test("the missing gem cassette keeps status 403 and redacts only volatile XML IDs", async () => {

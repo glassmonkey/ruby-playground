@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { codeOnlyUrl } from "./editor";
 
 test("static safety, privacy and license pages resolve without third-party scripts", async ({
   page,
@@ -11,7 +12,7 @@ test("static safety, privacy and license pages resolve without third-party scrip
       externalRequests.push(resource.url());
     }
   });
-  await page.goto("./");
+  await page.goto(codeOnlyUrl(""));
   const routes = [
     ["./safety.html", "Security"],
     ["./privacy.html", "Privacy Policy"],

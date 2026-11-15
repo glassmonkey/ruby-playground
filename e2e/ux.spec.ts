@@ -2,9 +2,10 @@ import LZString from "lz-string";
 import { expect, test } from "@playwright/test";
 import { expectDocumentToFitViewport } from "./layout";
 import {
+  codeOnlyUrl,
   editRuby as edit,
   expectRubyOutput,
-  expectInitialRuby,
+  expectLettersSample,
   INITIAL_OUTPUT,
 } from "./editor";
 
@@ -13,8 +14,8 @@ test("runtime information stays separate from initial and edited console output"
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "light" });
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto("./");
-  await expectInitialRuby(page);
+  await page.goto(codeOnlyUrl());
+  await expectLettersSample(page);
   const info = page.getByRole("region", { name: "Ruby runtime environment" });
   await expect(info.getByRole("heading", { level: 2 })).toHaveText(
     "Ruby 4.0.0",
@@ -120,7 +121,7 @@ test("theme controls preserve edits across layouts and reloads", async ({
   page,
 }, testInfo) => {
   await page.emulateMedia({ colorScheme: "light" });
-  await page.goto("./");
+  await page.goto(codeOnlyUrl(""));
   const themeSwitch = page.getByRole("checkbox", { name: "Light theme" });
   await expect(themeSwitch).toBeChecked();
   await expect(page.getByText("Dark", { exact: true })).toBeVisible();
@@ -182,8 +183,8 @@ test("theme controls preserve edits across layouts and reloads", async ({
 test("address bar saves Unicode and empty source without adding history entries", async ({
   page,
 }) => {
-  await page.goto("./?campaign=ruby#about");
-  await expectInitialRuby(page);
+  await page.goto(codeOnlyUrl() + "&campaign=ruby#about");
+  await expectLettersSample(page);
   const historyLength = await page.evaluate(() => history.length);
   for (const code of ['puts "こんにちは + & # 😀"', ""]) {
     await edit(page, code);
@@ -207,7 +208,7 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   const navigationStartedAt = Date.now();
-  await page.goto("./");
+  await page.goto(codeOnlyUrl());
   await expect(page.locator(".monaco-editor .view-lines")).toBeVisible();
 
   const editorReadyElapsedMs = Date.now() - navigationStartedAt;
@@ -254,7 +255,7 @@ test("keyboard order, labelled work areas and narrow layouts remain usable", asy
     0,
   );
 
-  await expectInitialRuby(page);
+  await expectLettersSample(page);
   await page.locator(".monaco-editor .view-lines").click();
   await expect(
     page.getByRole("textbox", { name: "Ruby source" }),
@@ -359,7 +360,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
     }
   });
   const navigationStartedAt = Date.now();
-  const navigation = page.goto("./", { waitUntil: "commit" });
+  const navigation = page.goto(codeOnlyUrl(), { waitUntil: "commit" });
   const staticHeading = page.locator("#static-description h1");
   await expect(staticHeading).toHaveText("Try Ruby in your browser", {
     timeout: 20_000,

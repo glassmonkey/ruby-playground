@@ -159,6 +159,7 @@ end
 class PlaygroundTypeProf
   SUPPORTED_TARGETS = { "3.3" => "3.4.0", "4.0" => "3.10.0" }.freeze
   ANALYSIS_DOCUMENT_URI = "file:///playground/main.rb".freeze
+  EDITOR_FILE_URIS = %w[file:///main.rb file:///Gemfile].freeze
   MONACO_DOCUMENT_URI = /\Ainmemory:\/\/model\/[A-Za-z0-9_-]+\z/.freeze
   ALLOWED_METHODS = %w[
     initialize initialized textDocument/didOpen textDocument/didChange
@@ -226,7 +227,7 @@ class PlaygroundTypeProf
   end
 
   def analysis_document_uri(uri)
-    return ANALYSIS_DOCUMENT_URI if uri == ANALYSIS_DOCUMENT_URI || (uri.is_a?(String) && MONACO_DOCUMENT_URI.match?(uri))
+    return ANALYSIS_DOCUMENT_URI if uri == ANALYSIS_DOCUMENT_URI || EDITOR_FILE_URIS.include?(uri) || (uri.is_a?(String) && MONACO_DOCUMENT_URI.match?(uri))
 
     raise ArgumentError, "The Ruby document URI is outside the analysis workspace."
   end
