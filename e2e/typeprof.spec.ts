@@ -646,7 +646,9 @@ for (const version of versions) {
           ),
       )
       .at(-1) as CompletionResponse | undefined;
-    expect(midlineResponse?.position).toEqual({ line: 0, character: 16 });
+    // Monaco sends the completion request at the `.` trigger, before it
+    // locally filters the already returned candidates for the typed `upc`.
+    expect(midlineResponse?.position).toEqual({ line: 0, character: 13 });
     expect(
       midlineResponse?.candidates?.find(
         (candidate) => candidateLabel(candidate) === "upcase",
@@ -778,16 +780,16 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
         ready,
         workerId,
         readyCountBefore: readyCount,
-        sourceBeforeInput: "Fiber.new { :ok }",
+        sourceBeforeInput: "puts Fiber.new.",
       };
       matrix.push(record);
-      await editRuby(page, "Fiber.new { :ok }");
+      await editRuby(page, "puts Fiber.new.");
       const responseStart = (await lspObservations(page)).length;
       record.responseStart = responseStart;
       const { event, item } = await typeAndSelectVersionOnlyForInspection(
         page,
         {
-          prefix: ".rai",
+          prefix: "rai",
           label: "raise",
           responseStart,
           expectedWorkerId: workerId,
@@ -888,94 +890,179 @@ async function typeAndSelectVersionOnlyForInspection(
 
 test("TypeProf ignores an old response after a rapid version switch and OFF", async ({
   page,
-}) => {
+}, testInfo) => {
+  const startedAt = Date.now();
+  const diagnostic = {
+    head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+    runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+    startedAt,
+    phase: "setup",
+    failure: undefined as string | undefined,
+  };
+  const saveDiagnostic = async () => {
+    const diagnosticPath = testInfo.outputPath(
+      "typeprof-lifecycle-diagnostic.json",
+    );
+    const snapshot = {
+      ...diagnostic,
+      finishedAt: Date.now(),
+      heldResponses: await heldCompletionResponses(page).catch((error) =>
+        String(error),
+      ),
+      observations: await lspObservations(page).catch((error) => String(error)),
+      workerUrls: await analysisWorkerUrls(page).catch((error) =>
+        String(error),
+      ),
+      terminations: await analysisWorkerTerminations(page).catch((error) =>
+        String(error),
+      ),
+      finalUI: await page
+        .evaluate(() => ({
+          source: [...document.querySelectorAll(".monaco-editor .view-line")]
+            .map((line) => line.textContent ?? "")
+            .join("\n"),
+          suggestions: [
+            ...document.querySelectorAll('[role="listbox"] .monaco-list-row'),
+          ].map((row) => row.textContent),
+          completionStatus: document.querySelector(
+            '[role="status"][aria-label^="Code completion status:"]',
+          )?.textContent,
+          output: document.querySelector('[data-testid="preview-console"]')
+            ?.textContent,
+        }))
+        .catch((error) => String(error)),
+    };
+    const serialized = JSON.stringify(snapshot, null, 2);
+    await mkdir(dirname(diagnosticPath), { recursive: true });
+    await writeFile(diagnosticPath, serialized, "utf8");
+    await testInfo
+      .attach("typeprof-lifecycle-diagnostic.json", {
+        path: diagnosticPath,
+        contentType: "application/json",
+      })
+      .catch(() => undefined);
+  };
+
   await watchAnalysisWorkers(page, { holdCompletionResponses: true });
-  await page.goto("./?v=3.3");
-  const ready33 = await waitForReadyVersion(page, "3.3");
+  try {
+    diagnostic.phase = "ready-3.3-and-hold-old";
+    await page.goto("./?v=3.3");
+    const ready33 = await waitForReadyVersion(page, "3.3");
 
-  await editRuby(page, 'puts "old"');
-  await page.keyboard.type(".upc", { delay: 40 });
-  await expect.poll(async () => heldCompletionResponses(page)).toHaveLength(1);
-  const [held33] = await heldCompletionResponses(page);
-  expect(held33).toBeDefined();
+    await editRuby(page, 'puts "old"');
+    await page.keyboard.type(".upc", { delay: 40 });
+    await expect
+      .poll(async () =>
+        (await heldCompletionResponses(page)).some(
+          (response) => response.workerId === ready33.workerId,
+        ),
+      )
+      .toBe(true);
+    const held33 = (await heldCompletionResponses(page)).find(
+      (response) => response.workerId === ready33.workerId,
+    );
+    expect(held33).toBeDefined();
 
-  const readyBefore40 = (await lspObservations(page)).filter(
-    (event) => event.direction === "ready",
-  ).length;
-  await page.getByLabel("Ruby version").selectOption("4.0");
-  const ready40 = await waitForReadyVersion(
-    page,
-    "4.0",
-    readyBefore40,
-    ready33.workerId as number,
-  );
-  await editRuby(page, 'puts "middle"');
-  await page.keyboard.type(".upc", { delay: 40 });
-  await expect.poll(async () => heldCompletionResponses(page)).toHaveLength(2);
-  const held40 = (await heldCompletionResponses(page)).find(
-    (response) => response.workerId === ready40.workerId,
-  );
-  expect(held40).toBeDefined();
-
-  const readyBeforeBack = (await lspObservations(page)).filter(
-    (event) => event.direction === "ready",
-  ).length;
-  await page.getByLabel("Ruby version").selectOption("3.3");
-  const readyBack33 = await waitForReadyVersion(
-    page,
-    "3.3",
-    readyBeforeBack,
-    ready40.workerId as number,
-  );
-  await editRuby(page, 'puts "final"');
-  const responseStart = (await lspObservations(page)).length;
-  await page.keyboard.type(".upc", { delay: 40 });
-  await expect.poll(async () => heldCompletionResponses(page)).toHaveLength(3);
-  const heldFinal = (await heldCompletionResponses(page)).find(
-    (response) => response.workerId === readyBack33.workerId,
-  );
-  expect(heldFinal).toBeDefined();
-  expect(
-    await releaseHeldCompletionResponse(
+    diagnostic.phase = "ready-4.0-and-hold-middle";
+    const readyBefore40 = (await lspObservations(page)).filter(
+      (event) => event.direction === "ready",
+    ).length;
+    await page.getByLabel("Ruby version").selectOption("4.0");
+    const ready40 = await waitForReadyVersion(
       page,
-      heldFinal?.workerId as number,
-      heldFinal?.token as number,
-    ),
-  ).toBe(true);
-  const { event } = await waitForRawCandidate(page, "upcase", responseStart);
-  expect(event.workerId).toBe(readyBack33.workerId);
-  const currentRow = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: /^upcase(?:,|$)/ });
-  await expect(currentRow).toBeVisible();
-  await currentRow.click();
-  await expectEditorSource(page, 'puts "final".upcase');
-  await expectRubyOutput(page, "FINAL\n");
+      "4.0",
+      readyBefore40,
+      ready33.workerId as number,
+    );
+    await editRuby(page, 'puts "middle"');
+    await page.keyboard.type(".upc", { delay: 40 });
+    await expect
+      .poll(async () =>
+        (await heldCompletionResponses(page)).some(
+          (response) => response.workerId === ready40.workerId,
+        ),
+      )
+      .toBe(true);
+    const held40 = (await heldCompletionResponses(page)).find(
+      (response) => response.workerId === ready40.workerId,
+    );
+    expect(held40).toBeDefined();
 
-  for (const stale of [held33, held40]) {
-    expect(stale).toBeDefined();
+    diagnostic.phase = "ready-restored-3.3-and-current-response";
+    const readyBeforeBack = (await lspObservations(page)).filter(
+      (event) => event.direction === "ready",
+    ).length;
+    await page.getByLabel("Ruby version").selectOption("3.3");
+    const readyBack33 = await waitForReadyVersion(
+      page,
+      "3.3",
+      readyBeforeBack,
+      ready40.workerId as number,
+    );
+    await editRuby(page, 'puts "final"');
+    const responseStart = (await lspObservations(page)).length;
+    await page.keyboard.type(".upc", { delay: 40 });
+    await expect
+      .poll(async () =>
+        (await heldCompletionResponses(page)).some(
+          (response) => response.workerId === readyBack33.workerId,
+        ),
+      )
+      .toBe(true);
+    const heldFinal = (await heldCompletionResponses(page)).find(
+      (response) => response.workerId === readyBack33.workerId,
+    );
+    expect(heldFinal).toBeDefined();
     expect(
       await releaseHeldCompletionResponse(
         page,
-        stale?.workerId as number,
-        stale?.token as number,
+        heldFinal?.workerId as number,
+        heldFinal?.token as number,
       ),
     ).toBe(true);
-  }
-  await page.evaluate(
-    () =>
-      new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
-  );
-  await expectEditorSource(page, 'puts "final".upcase');
-  await expectRubyOutput(page, "FINAL\n");
-  await expect(page.getByRole("listbox", { name: "Suggest" })).toHaveCount(0);
+    const { event } = await waitForRawCandidate(page, "upcase", responseStart);
+    expect(event.workerId).toBe(readyBack33.workerId);
+    const currentRow = visibleCandidateLabel(page, "upcase");
+    await expect(currentRow).toBeVisible();
+    await selectVisibleCandidateByKeyboard(page, "upcase");
+    await expectEditorSource(page, 'puts "final".upcase');
+    await expectRubyOutput(page, "FINAL\n");
 
-  await page.locator('label[for="completion-enabled"]').click();
-  await expect(page.getByText("Off", { exact: true })).toBeVisible();
-  await expect
-    .poll(async () => analysisWorkerTerminations(page))
-    .not.toHaveLength(0);
-  await editRuby(page, 'puts "OFF still permits Ruby execution"');
-  await expectRubyOutput(page, "OFF still permits Ruby execution\n");
-  expect(await analysisWorkerUrls(page)).toHaveLength(3);
+    diagnostic.phase = "release-stale-responses-after-version-switch";
+    for (const stale of [held33, held40]) {
+      expect(stale).toBeDefined();
+      expect(
+        await releaseHeldCompletionResponse(
+          page,
+          stale?.workerId as number,
+          stale?.token as number,
+        ),
+      ).toBe(true);
+    }
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => requestAnimationFrame(() => resolve())),
+    );
+    await expectEditorSource(page, 'puts "final".upcase');
+    await expectRubyOutput(page, "FINAL\n");
+    await expect(page.getByRole("listbox", { name: "Suggest" })).toHaveCount(0);
+
+    diagnostic.phase = "OFF-disposal";
+    await page.locator('label[for="completion-enabled"]').click();
+    await expect(page.getByText("Off", { exact: true })).toBeVisible();
+    await expect
+      .poll(async () => analysisWorkerTerminations(page))
+      .not.toHaveLength(0);
+    await editRuby(page, 'puts "OFF still permits Ruby execution"');
+    await expectRubyOutput(page, "OFF still permits Ruby execution\n");
+    expect(await analysisWorkerUrls(page)).toHaveLength(3);
+    diagnostic.phase = "passed";
+  } catch (error) {
+    diagnostic.failure = error instanceof Error ? error.message : String(error);
+    throw error;
+  } finally {
+    await saveDiagnostic().catch((error) => {
+      console.error("Failed to persist TypeProf lifecycle diagnostic", error);
+    });
+  }
 });

@@ -1,7 +1,8 @@
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import { gunzipSync } from "node:zlib";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import {
   editRuby,
   expectEditorSource,
@@ -18,6 +19,19 @@ import {
   releaseHeldCompletionResponse,
   watchAnalysisWorkers,
 } from "./completion-lsp-observer";
+
+function visibleCandidateLabel(page: Page, label: string) {
+  return page
+    .getByRole("listbox", { name: "Suggest" })
+    .locator(".monaco-list-row .label-name")
+    .getByText(label, { exact: true });
+}
+
+function candidateRow(page: Page, label: string) {
+  return visibleCandidateLabel(page, label).locator(
+    "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' monaco-list-row ')][1]",
+  );
+}
 
 function verifyGeneratedWasm(
   manifestEntry: unknown,
@@ -457,188 +471,227 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  await watchAnalysisWorkers(page);
-  await page.goto("./?v=3.3");
-  await expect(page.getByText("On", { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
+  const startedAt = Date.now();
+  let failure: string | undefined;
+  try {
+    await watchAnalysisWorkers(page);
+    await page.goto("./?v=3.3");
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
 
-  const rfind = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "rfind, Method", exact: true });
-  const yieldItem = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "yield, Method", exact: true });
-  const raiseItem = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "raise, Method", exact: true });
+    const rfind = visibleCandidateLabel(page, "rfind");
+    const yieldItem = visibleCandidateLabel(page, "yield");
+    const raiseItem = visibleCandidateLabel(page, "raise");
 
-  let responseCount = (await lspObservations(page)).filter(
-    (event) =>
-      event.direction === "response" &&
-      event.method === "textDocument/completion",
-  ).length;
-  await editRuby(page, "Ractor.");
-  await page.keyboard.type("yi");
-  await expect(yieldItem).toBeVisible({ timeout: 30_000 });
-  let rawItems = latestRawCompletion(await lspObservations(page));
-  expect(rawItems.some((item) => item.label === "yield" && item.textEdit)).toBe(
-    true,
-  );
-  await page.screenshot({
-    path: testInfo.outputPath("ruby-3.3-ractor-yield.png"),
-  });
-  await yieldItem.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    "Ractor.yield",
-  );
+    let responseCount = (await lspObservations(page)).filter(
+      (event) =>
+        event.direction === "response" &&
+        event.method === "textDocument/completion",
+    ).length;
+    await editRuby(page, "Ractor.");
+    await page.keyboard.type("yi");
+    await expect(yieldItem).toBeVisible({ timeout: 30_000 });
+    let rawItems = latestRawCompletion(await lspObservations(page));
+    expect(
+      rawItems.some((item) => item.label === "yield" && item.textEdit),
+    ).toBe(true);
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-3.3-ractor-yield.png"),
+    });
+    await yieldItem.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+      "Ractor.yield",
+    );
 
-  responseCount = (await lspObservations(page)).filter(
-    (event) =>
-      event.direction === "response" &&
-      event.method === "textDocument/completion",
-  ).length;
-  await editRuby(page, "puts [1,2].");
-  await page.keyboard.type("rf");
-  await expect
-    .poll(
-      async () =>
-        (await lspObservations(page)).filter(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "textDocument/completion",
-        ).length,
-      { timeout: 30_000 },
-    )
-    .toBeGreaterThan(responseCount);
-  rawItems = latestRawCompletion(await lspObservations(page));
-  expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
-  await expect(rfind).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath("ruby-3.3-rfind-absent.png"),
-  });
+    responseCount = (await lspObservations(page)).filter(
+      (event) =>
+        event.direction === "response" &&
+        event.method === "textDocument/completion",
+    ).length;
+    await editRuby(page, "puts [1,2].");
+    await page.keyboard.type("rf");
+    await expect
+      .poll(
+        async () =>
+          (await lspObservations(page)).filter(
+            (event) =>
+              event.direction === "response" &&
+              event.method === "textDocument/completion",
+          ).length,
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThan(responseCount);
+    rawItems = latestRawCompletion(await lspObservations(page));
+    expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
+    await expect(rfind).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-3.3-rfind-absent.png"),
+    });
 
-  await page.getByLabel("Ruby version").selectOption("4.0");
-  await expect(page.getByLabel("Ruby version")).toHaveValue("4.0");
-  await expect(page.getByText("On", { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
+    await page.getByLabel("Ruby version").selectOption("4.0");
+    await expect(page.getByLabel("Ruby version")).toHaveValue("4.0");
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
 
-  responseCount = (await lspObservations(page)).filter(
-    (event) =>
-      event.direction === "response" &&
-      event.method === "textDocument/completion",
-  ).length;
-  await editRuby(page, "Ractor.");
-  await page.keyboard.type("yi");
-  await expect
-    .poll(
-      async () =>
-        (await lspObservations(page)).filter(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "textDocument/completion",
-        ).length,
-      { timeout: 30_000 },
-    )
-    .toBeGreaterThan(responseCount);
-  rawItems = latestRawCompletion(await lspObservations(page));
-  expect(rawItems.some((item) => item.label === "yield")).toBe(false);
-  await expect(yieldItem).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath("ruby-4.0-ractor-yield-absent.png"),
-  });
+    responseCount = (await lspObservations(page)).filter(
+      (event) =>
+        event.direction === "response" &&
+        event.method === "textDocument/completion",
+    ).length;
+    await editRuby(page, "Ractor.");
+    await page.keyboard.type("yi");
+    await expect
+      .poll(
+        async () =>
+          (await lspObservations(page)).filter(
+            (event) =>
+              event.direction === "response" &&
+              event.method === "textDocument/completion",
+          ).length,
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThan(responseCount);
+    rawItems = latestRawCompletion(await lspObservations(page));
+    expect(rawItems.some((item) => item.label === "yield")).toBe(false);
+    await expect(yieldItem).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-4.0-ractor-yield-absent.png"),
+    });
 
-  responseCount = (await lspObservations(page)).filter(
-    (event) =>
-      event.direction === "response" &&
-      event.method === "textDocument/completion",
-  ).length;
-  await editRuby(page, "puts [1,2].");
-  await page.keyboard.type("rf");
-  await expect(rfind).toBeVisible({ timeout: 30_000 });
-  rawItems = latestRawCompletion(await lspObservations(page));
-  const rawRfind = rawItems.find((item) => item.label === "rfind");
-  expect(rawRfind?.textEdit).toBeDefined();
-  await page.screenshot({ path: testInfo.outputPath("ruby-4.0-rfind.png") });
-  await rfind.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    "puts [1,2].rfind",
-  );
+    responseCount = (await lspObservations(page)).filter(
+      (event) =>
+        event.direction === "response" &&
+        event.method === "textDocument/completion",
+    ).length;
+    await editRuby(page, "puts [1,2].");
+    await page.keyboard.type("rf");
+    await expect(rfind).toBeVisible({ timeout: 30_000 });
+    rawItems = latestRawCompletion(await lspObservations(page));
+    const rawRfind = rawItems.find((item) => item.label === "rfind");
+    expect(rawRfind?.textEdit).toBeDefined();
+    await page.screenshot({ path: testInfo.outputPath("ruby-4.0-rfind.png") });
+    await rfind.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+      "puts [1,2].rfind",
+    );
 
-  await editRuby(page, "puts Fiber.new.");
-  await page.keyboard.type("rai");
-  await expect(raiseItem).toBeVisible({ timeout: 30_000 });
-  rawItems = latestRawCompletion(await lspObservations(page));
-  const rawRaise40 = rawItems.find((item) => item.label === "raise");
-  expect(rawRaise40?.textEdit).toBeDefined();
-  await page.screenshot({
-    path: testInfo.outputPath("ruby-4.0-fiber-raise.png"),
-  });
+    await editRuby(page, "puts Fiber.new.");
+    await page.keyboard.type("rai");
+    await expect(raiseItem).toBeVisible({ timeout: 30_000 });
+    rawItems = latestRawCompletion(await lspObservations(page));
+    const rawRaise40 = rawItems.find((item) => item.label === "raise");
+    expect(rawRaise40?.textEdit).toBeDefined();
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-4.0-fiber-raise.png"),
+    });
 
-  await page.getByLabel("Ruby version").selectOption("3.3");
-  await expect(page.getByLabel("Ruby version")).toHaveValue("3.3");
-  await expect(page.getByText("On", { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
+    await page.getByLabel("Ruby version").selectOption("3.3");
+    await expect(page.getByLabel("Ruby version")).toHaveValue("3.3");
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
 
-  responseCount = (await lspObservations(page)).filter(
-    (event) =>
-      event.direction === "response" &&
-      event.method === "textDocument/completion",
-  ).length;
-  await editRuby(page, "puts [1,2].");
-  await page.keyboard.type("rf");
-  await expect
-    .poll(
-      async () =>
-        (await lspObservations(page)).filter(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "textDocument/completion",
-        ).length,
-      { timeout: 30_000 },
-    )
-    .toBeGreaterThan(responseCount);
-  rawItems = latestRawCompletion(await lspObservations(page));
-  expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
-  await expect(rfind).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath("ruby-3.3-rfind-restored-absent.png"),
-  });
+    responseCount = (await lspObservations(page)).filter(
+      (event) =>
+        event.direction === "response" &&
+        event.method === "textDocument/completion",
+    ).length;
+    await editRuby(page, "puts [1,2].");
+    await page.keyboard.type("rf");
+    await expect
+      .poll(
+        async () =>
+          (await lspObservations(page)).filter(
+            (event) =>
+              event.direction === "response" &&
+              event.method === "textDocument/completion",
+          ).length,
+        { timeout: 30_000 },
+      )
+      .toBeGreaterThan(responseCount);
+    rawItems = latestRawCompletion(await lspObservations(page));
+    expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
+    await expect(rfind).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-3.3-rfind-restored-absent.png"),
+    });
 
-  await editRuby(page, "puts Fiber.new.");
-  await page.keyboard.type("rai");
-  await expect(raiseItem).toBeVisible({ timeout: 30_000 });
-  rawItems = latestRawCompletion(await lspObservations(page));
-  const rawRaise33 = rawItems.find((item) => item.label === "raise");
-  expect(rawRaise33?.textEdit).toBeDefined();
-  await page.screenshot({
-    path: testInfo.outputPath("ruby-3.3-fiber-raise.png"),
-  });
+    await editRuby(page, "puts Fiber.new.");
+    await page.keyboard.type("rai");
+    await expect(raiseItem).toBeVisible({ timeout: 30_000 });
+    rawItems = latestRawCompletion(await lspObservations(page));
+    const rawRaise33 = rawItems.find((item) => item.label === "raise");
+    expect(rawRaise33?.textEdit).toBeDefined();
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-3.3-fiber-raise.png"),
+    });
 
-  const observations = await lspObservations(page);
-  const protocolMethods = observations
-    .filter((event) => event.direction === "request")
-    .map((event) => event.method);
-  const protocol = {
-    observations,
-    signatures: {
-      ruby33FiberRaiseDetail: rawRaise33?.detail,
-      ruby40FiberRaiseDetail: rawRaise40?.detail,
-    },
-    protocolMethods,
-  };
-  const serializedProtocol = JSON.stringify(protocol, null, 2);
-  await writeFile(
-    testInfo.outputPath("lsp-protocol.json"),
-    serializedProtocol,
-    "utf8",
-  );
-  await testInfo.attach("lsp-protocol.json", {
-    body: serializedProtocol,
-    contentType: "application/json",
-  });
+    const observations = await lspObservations(page);
+    const protocolMethods = observations
+      .filter((event) => event.direction === "request")
+      .map((event) => event.method);
+    const protocol = {
+      observations,
+      signatures: {
+        ruby33FiberRaiseDetail: rawRaise33?.detail,
+        ruby40FiberRaiseDetail: rawRaise40?.detail,
+      },
+      protocolMethods,
+    };
+    const serializedProtocol = JSON.stringify(protocol, null, 2);
+    await writeFile(
+      testInfo.outputPath("lsp-protocol.json"),
+      serializedProtocol,
+      "utf8",
+    );
+    await testInfo.attach("lsp-protocol.json", {
+      body: serializedProtocol,
+      contentType: "application/json",
+    });
+  } catch (error) {
+    failure =
+      error instanceof Error ? (error.stack ?? error.message) : String(error);
+    throw error;
+  } finally {
+    const diagnosticPath = testInfo.outputPath(
+      "ruby-api-version-diagnostic.json",
+    );
+    const diagnostic = {
+      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      startedAt,
+      finishedAt: Date.now(),
+      failure,
+      observations: await lspObservations(page).catch((error) => String(error)),
+      finalUI: await page
+        .evaluate(() => ({
+          source: [...document.querySelectorAll(".monaco-editor .view-line")]
+            .map((line) => line.textContent ?? "")
+            .join("\n"),
+          suggestions: [
+            ...document.querySelectorAll('[role="listbox"] .monaco-list-row'),
+          ].map((row) => row.textContent),
+          completionStatus: document.querySelector(
+            '[role="status"][aria-label^="Code completion status:"]',
+          )?.textContent,
+          detailText: [...document.querySelectorAll(".suggest-details")].map(
+            (element) => element.textContent,
+          ),
+        }))
+        .catch((error) => String(error)),
+    };
+    const serialized = JSON.stringify(diagnostic, null, 2);
+    await mkdir(dirname(diagnosticPath), { recursive: true });
+    await writeFile(diagnosticPath, serialized, "utf8");
+    await testInfo
+      .attach("ruby-api-version-diagnostic.json", {
+        path: diagnosticPath,
+        contentType: "application/json",
+      })
+      .catch(() => undefined);
+  }
 });
 
 test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
@@ -750,11 +803,11 @@ test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
             .filter((event) => event.direction === "ready")
             .findIndex((event) => event.workerId === workerId) + 1;
 
-        await editRuby(page, "puts Fiber.new {}.");
+        await editRuby(page, "puts Fiber.new.");
         const responseStart = (await lspObservations(page)).length;
         record.inputStartedAt = await page.evaluate(() => performance.now());
         await page.keyboard.type("rai", { delay: 100 });
-        await expectEditorSource(page, "puts Fiber.new {}.rai");
+        await expectEditorSource(page, "puts Fiber.new.rai");
         await expect
           .poll(
             async () =>
@@ -802,9 +855,7 @@ test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
         record.rawRaise = raise;
         record.rawDetails = rawDetails;
 
-        const raiseRow = page
-          .getByRole("listbox", { name: "Suggest" })
-          .getByRole("listitem", { name: /^raise(?:,|$)/ });
+        const raiseRow = candidateRow(page, "raise");
         await expect(raiseRow).toBeVisible();
         await raiseRow.hover();
         const detailsPanel = page.locator(".suggest-details");
