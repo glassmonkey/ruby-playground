@@ -198,6 +198,26 @@ export async function watchAnalysisWorkers(
               workerUrl: resolvedUrl.pathname,
               at: performance.now(),
             });
+          } else if (request.type === "notification") {
+            const method = request.message?.method ?? "unknown";
+            const params = request.message?.params as
+              | {
+                  textDocument?: { uri?: string; version?: number };
+                  contentChanges?: unknown;
+                }
+              | undefined;
+            const documentVersion = params?.textDocument?.version;
+            if (typeof documentVersion === "number")
+              observedDocumentVersion = documentVersion;
+            observations.push({
+              direction: "notification",
+              workerId,
+              method,
+              documentVersion: documentVersion ?? observedDocumentVersion,
+              textDocument: params?.textDocument,
+              contentChanges: params?.contentChanges,
+              at: performance.now(),
+            });
           } else if (
             request.type === "request" &&
             typeof request.token === "number"
@@ -206,14 +226,20 @@ export async function watchAnalysisWorkers(
             const startedAt = performance.now();
             const params = request.message?.params as
               | {
-                  textDocument?: { version?: number };
+                  textDocument?: { uri?: string; version?: number };
                   position?: unknown;
+                  contentChanges?: unknown;
                   data?: unknown;
                 }
               | undefined;
             const messageVersion = params?.textDocument?.version;
             if (typeof messageVersion === "number")
               observedDocumentVersion = messageVersion;
+            const isNotification =
+              method === "textDocument/didOpen" ||
+              method === "textDocument/didChange" ||
+              method === "textDocument/didClose" ||
+              method === "initialized";
             pending.set(request.token, {
               method,
               startedAt,
@@ -226,12 +252,14 @@ export async function watchAnalysisWorkers(
                   : undefined,
             });
             observations.push({
-              direction: "request",
+              direction: isNotification ? "notification" : "request",
               workerId,
               token: request.token,
               method,
               documentVersion: messageVersion ?? observedDocumentVersion,
               position: params?.position,
+              textDocument: params?.textDocument,
+              contentChanges: params?.contentChanges,
               data: params?.data,
               item:
                 method === "completionItem/resolve"

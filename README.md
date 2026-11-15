@@ -341,9 +341,30 @@ rerun after these test-only corrections. Run 1 artifacts are at
 `test-results/archive/cb46b932ff63697a139d1565af63933df97ccbab/typeprof-suite-run1/`;
 targeted results are at
 `test-results/archive/cb46b932ff63697a139d1565af63933df97ccbab/typeprof-suite-targeted-fixes-run1/`.
-Current test sources are uncommitted on top of product head `cb46b932`; SHA-256:
+Historical snapshot: these test sources were uncommitted on product head `cb46b932`; SHA-256:
 `e2e/typeprof.spec.ts` `904dd348490a597de2f6aca5aeb9c35ce5a7fa0a7e1ef2125a554dd744e532d4`,
 `e2e/completion.spec.ts` `a6b0aacdbeff6cd29a502403b6c5e00d1e06e517a673aeeb591f30f8801256f5`.
+
+## TypeProf verification after main/runtime merge
+
+The UI branch normally merged runtime head `d981802738e07b83becea424bebd258443df3eed`, which contains main `4c6094a6451a1d18397edf490e3f00b68df3ef4f`, into UI `4b231bb438825b6775a2af0109a4f49a5ca716f1`. The merge commit is `ac6ed604014ae797f603528f964fd2d084065bce`. It resolved only app/share and their E2E/test helpers; the RubyEditor path/version/completionEnabled/status callback props remain connected, while Gemfile, lock/install and URL state are retained.
+
+On that production source head, `npm run lsp:verify` and `npm run build` passed. The adapter source `scripts/lsp/build-assets.rb` SHA-256 is `5787424623fb2177be207e938f08c3abe1fa46931d583ec6bceeb81a4c71ee42`; manifest SHA-256 is `caa1fe473f19de74d9bd8adcb9d4333ecb3bbd9f59fb0644e3dc3c148d715853`; uncompressed TypeProf WASM SHA-256 is `c090a01f1afdbaa83815e72e3c8bcf20640c6b9693543bbdf67a00ae59969c07`. This artifact was reused and verified; it was not rebuilt.
+
+The isolated Chromium runs use `e2e/completion.config.ts` on `PORT=6645` and do not start the gem proxy/workerd. Each result, trace, JSON diagnostic and screenshot is archived under `/private/tmp/gla187-merge-d981-archive/ac6ed604014ae797f603528f964fd2d084065bce/` and the matching ignored `test-results/archives/ac6ed604014ae797f603528f964fd2d084065bce/` path. The main branch adds a default Gemfile on a bare URL, so TypeProf tests now open code-only URLs containing an explicit Ruby version.
+
+- Natural method-return `.upc` completion passed on Ruby 3.3 and 4.0. Exact `upcase` selection preserved the full two-line source and produced `HELLO\n`.
+- Midline suffix completion passed on Ruby 3.3 and 4.0. For Ruby 3.3, the latest full `didChange` was version 23 with `puts "hello".upc + "!"`; the same version's cursor-16 completion request token 6 returned `upcase` with textEdit 13..16. Selection produced `puts "hello".upcase + "!"` and `HELLO!\n`. Ruby 4.0 showed the same version/cursor/textEdit behavior.
+- Japanese identifier and emoji UTF-16 completion passed on Ruby 3.3 and 4.0. In both versions, the final version-28 request at UTF-16 position 22 returned an `upcase` textEdit over 19..22; selection preserved the suffix and produced `😀!\n`.
+- Natural top-level `put` → `puts` is still failing on Ruby 3.3 and 4.0. Each run had a ready Worker using the expected WASM, then completion token 4 at document version 12 and position 4. The matching raw response arrived in 7.8–8.6ms with zero candidates. The editor's Ruby execution remained available and printed `Ruby\n`; the completion was not selected. These raw records are at `puts-r1/` and `puts-4-0-r1/` in the archive and need manager/runtime follow-up.
+
+Earlier return and midline attempts are preserved separately. Return run 1 used a URL with only `v=3.3`; after main integration that loaded the initial Gemfile path, and output stayed blank. Switching to a code-only URL made return run 2 pass. Midline runs 1 and 2 exposed, respectively, an observer protocol-shape mistake and a test read that raced LSP initialization. Run 3 waited for the latest full document event and matching request before checking the result. These earlier failures do not establish a suffix-loss product bug; the successful runs confirm the suffix remained.
+
+The TypeProf suite ran on this integrated source head and finished 16/18; its only failures are the two Ruby-version cases where top-level `put` → `puts` has a matching completion response with zero raw candidates. The existing 14-case completion suite finished 13/14 with the same `puts` case as its only failure. Results are retained in the archive above and in `typeprof-suite-r1/result-summary.md`. The Fiber 3.3→4.0→3.3 UI matrix passed with distinct ready workers; displayed documentation omitted `cause` in 3.3, included it in 4.0, then omitted it after returning to 3.3. The completion regression suite also passed OFF asset avoidance, history behavior, unsupported-version execution, late-response disposal, and cold/warm/HTTP measurements. `npm run test:ci` passed 352 tests across 25 files on this product head. The general E2E suite and browser Gemfile installation were not exercised.
+
+An earlier attempt misread the dot-stage `textEdit` range 13..13 as the final midline result. On the integrated head that range belonged to the preceding dot request (document version 20, token 4). After the full `.upc` document was sent at version 23, token 6 at cursor 16 returned `upcase` with range 13..16; selection preserved the suffix and produced `HELLO!` on both Ruby 3.3 and 4.0. The correction and event correlation are recorded in `midline-put-evidence-correlation.md` within the archive.
+
+The production preview at `http://127.0.0.1:6645/` responds with HTTP 200 and serves the verified manifest. A trial URL generated with the actual `src/share.ts` `buildShareUrl()` is saved at `/private/tmp/gla187-typeprof-trial-url.txt`. It opens Ruby 3.3 with completion enabled and `def greeting; "hello"; end\nputs greeting`; type `.upc`, select `upcase`, and confirm the inserted source and `HELLO` output. This local preview corresponds to product source head `ac6ed604014ae797f603528f964fd2d084065bce` and the WASM SHA above. The formal TypeProf requirement/plan save remains pending manager recovery of owner operation `543d09b0...`.
 
 ## Security and privacy
 

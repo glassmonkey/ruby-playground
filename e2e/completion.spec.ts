@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 import { gunzipSync } from "node:zlib";
 import { expect, test, type Page } from "@playwright/test";
 import {
+  codeOnlyUrl,
   editRuby,
   expectEditorSource,
   expectRubyExecutionStatus,
@@ -81,7 +82,7 @@ test("language server completions insert and execute in the browser", async ({
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -124,7 +125,7 @@ test("analysis failure leaves editing and Ruby execution available", async ({
 }) => {
   test.setTimeout(90_000);
   await page.route("**/lsp/manifest.json**", (route) => route.abort());
-  await page.goto("./");
+  await page.goto(codeOnlyUrl());
   await expect(page.getByText("Unavailable", { exact: true })).toBeVisible({
     timeout: 30_000,
   });
@@ -159,7 +160,7 @@ test("code-only history navigation preserves ready completion and natural sugges
 }) => {
   test.setTimeout(90_000);
   await watchAnalysisWorkers(page);
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -230,7 +231,7 @@ test("natural input completes put as puts and preserves text after the edit", as
   });
 
   try {
-    await page.goto("./?v=4.0");
+    await page.goto(codeOnlyUrl("", "4.0"));
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
@@ -387,7 +388,7 @@ test("natural input completion handles Japanese identifiers and emoji UTF-16 pos
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -428,7 +429,7 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -475,7 +476,7 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   let failure: string | undefined;
   try {
     await watchAnalysisWorkers(page);
-    await page.goto("./?v=3.3");
+    await page.goto(codeOnlyUrl("", "3.3"));
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
@@ -721,7 +722,7 @@ test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
   ).toThrow(/analysis WASM SHA-256 mismatch/);
 
   await watchAnalysisWorkers(page);
-  await page.goto("./?v=3.3");
+  await page.goto(codeOnlyUrl("", "3.3"));
   const matrix: Array<Record<string, unknown>> = [];
   let previousWorkerId: number | undefined;
 
@@ -975,7 +976,7 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
     );
   });
   const navigationStartedAt = Date.now();
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -1068,7 +1069,7 @@ test("OFF and Ruby version changes dispose and recreate analysis workers", async
 }, testInfo) => {
   test.setTimeout(120_000);
   await watchAnalysisWorkers(page);
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -1167,7 +1168,7 @@ test("ignores a forced late completion response after OFF disposes its worker", 
   };
 
   try {
-    await page.goto("./?v=4.0");
+    await page.goto(codeOnlyUrl("", "4.0"));
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
@@ -1280,7 +1281,7 @@ test("natural input with no matching completion leaves text and execution intact
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
-  await page.goto("./?v=4.0");
+  await page.goto(codeOnlyUrl("", "4.0"));
   await expect(page.getByText("On", { exact: true })).toBeVisible({
     timeout: 60_000,
   });
@@ -1388,7 +1389,7 @@ test("all unsupported Ruby versions keep execution available without analysis as
     ["3.4", "3.4.1"],
     ["4.1", "4.1.0"],
   ]) {
-    await page.goto(`./?v=${version}`);
+    await page.goto(codeOnlyUrl("", version));
     await expect(page.getByLabel("Ruby version")).toHaveValue(version);
     await expect(
       page.getByText(`Unavailable for Ruby ${version}`, { exact: true }),

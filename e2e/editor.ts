@@ -13,10 +13,11 @@ export const INITIAL_OUTPUT = [
 ].join("\n");
 
 /** Load deterministic Ruby without using the Gemfile-backed initial Poster. */
-export function codeOnlyUrl(code = SHARE_FALLBACK_CODE) {
+export function codeOnlyUrl(code = SHARE_FALLBACK_CODE, version?: string) {
   const query = new URLSearchParams({
     c: LZString.compressToEncodedURIComponent(code),
   });
+  if (version) query.set("v", version);
   return `./?${query}`;
 }
 

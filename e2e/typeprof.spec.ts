@@ -1,7 +1,12 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
-import { editRuby, expectEditorSource, expectRubyOutput } from "./editor";
+import {
+  codeOnlyUrl,
+  editRuby,
+  expectEditorSource,
+  expectRubyOutput,
+} from "./editor";
 import {
   analysisWorkerTerminations,
   analysisWorkerUrls,
@@ -208,11 +213,187 @@ async function typeAndSelectTypeProfCandidate(
   return { event: event as CompletionResponse, item: item as RawCandidate };
 }
 
+async function waitForSnapshotCandidate(
+  page: Page,
+  {
+    responseStart,
+    workerId,
+    source,
+    position,
+    label,
+  }: {
+    responseStart: number;
+    workerId: number;
+    source: string;
+    position: Position;
+    label: string;
+  },
+): Promise<{
+  documentEvent: Record<string, unknown>;
+  request: Record<string, unknown>;
+  response: CompletionResponse;
+  item: RawCandidate;
+}> {
+  let documentEvent: Record<string, unknown> | undefined;
+  let request: Record<string, unknown> | undefined;
+  let response: CompletionResponse | undefined;
+  await expect
+    .poll(async () => {
+      const events = await lspObservations(page);
+      documentEvent = events
+        .slice(responseStart)
+        .filter((event) => {
+          if (
+            event.direction !== "notification" ||
+            event.workerId !== workerId ||
+            (event.method !== "textDocument/didOpen" &&
+              event.method !== "textDocument/didChange")
+          )
+            return false;
+          const changes = event.contentChanges as
+            Array<{ text?: string }> | undefined;
+          const openedText = (
+            event.textDocument as { text?: string } | undefined
+          )?.text;
+          return (changes?.at(-1)?.text ?? openedText) === source;
+        })
+        .at(-1);
+      if (!documentEvent) return false;
+      request = events
+        .slice(responseStart)
+        .filter(
+          (event) =>
+            event.direction === "request" &&
+            event.workerId === workerId &&
+            event.method === "textDocument/completion" &&
+            event.documentVersion === documentEvent?.documentVersion &&
+            JSON.stringify(event.position) === JSON.stringify(position),
+        )
+        .at(-1);
+      if (!request) return false;
+      response = events.find(
+        (event) =>
+          event.direction === "response" &&
+          event.workerId === request?.workerId &&
+          event.token === request?.token &&
+          event.method === "textDocument/completion",
+      ) as CompletionResponse | undefined;
+      return !!response?.candidates?.some(
+        (candidate) => candidateLabel(candidate) === label,
+      );
+    })
+    .toBe(true);
+  const item = response?.candidates?.find(
+    (candidate) => candidateLabel(candidate) === label,
+  );
+  expect(documentEvent).toBeDefined();
+  expect(request).toBeDefined();
+  expect(response).toBeDefined();
+  expect(item).toBeDefined();
+  return {
+    documentEvent: documentEvent as Record<string, unknown>,
+    request: request as Record<string, unknown>,
+    response: response as CompletionResponse,
+    item: item as RawCandidate,
+  };
+}
+
+for (const version of versions) {
+  test(`TypeProf naturally completes put as puts and executes on Ruby ${version}`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(45_000);
+    const diagnostic: Record<string, unknown> = {
+      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      version,
+      startedAt: Date.now(),
+      pageErrors: [] as string[],
+      consoleErrors: [] as string[],
+    };
+    page.on("pageerror", (error) =>
+      (diagnostic.pageErrors as string[]).push(error.stack ?? error.message),
+    );
+    page.on("console", (message) => {
+      if (message.type() === "error")
+        (diagnostic.consoleErrors as string[]).push(message.text());
+    });
+    await watchAnalysisWorkers(page);
+    try {
+      await page.goto(codeOnlyUrl("", version));
+      diagnostic.ready = await waitForReadyVersion(page, version);
+      await editRuby(page, 'put "Ruby"');
+      for (let index = 0; index < 7; index += 1)
+        await page.keyboard.press("ArrowLeft");
+      const responseStart = (await lspObservations(page)).length;
+      diagnostic.prefixBeforeNaturalInput = await page
+        .locator(".monaco-editor .view-lines")
+        .innerText();
+      await page.keyboard.type("s");
+      const { event, item } = await typeAndSelectTypeProfCandidate(page, {
+        prefix: "",
+        label: "puts",
+        responseStart,
+        expectedPosition: { line: 0, character: 4 },
+      });
+      diagnostic.finalCompletionResponse = event;
+      diagnostic.putsCandidate = item;
+      await expectEditorSource(page, 'puts "Ruby"');
+      diagnostic.selectedSource = 'puts "Ruby"';
+      await expectRubyOutput(page, "Ruby\n");
+      diagnostic.output = await page
+        .getByTestId("preview-console")
+        .textContent();
+      diagnostic.result = "passed";
+      await page.screenshot({ path: testInfo.outputPath("puts-inserted.png") });
+    } catch (error) {
+      diagnostic.failure =
+        error instanceof Error ? error.message : String(error);
+      diagnostic.failureStack =
+        error instanceof Error ? error.stack : undefined;
+      throw error;
+    } finally {
+      diagnostic.finishedAt = Date.now();
+      diagnostic.observations = await lspObservations(page).catch((error) =>
+        String(error),
+      );
+      diagnostic.finalEditor = await page
+        .evaluate(() => ({
+          source: [...document.querySelectorAll(".monaco-editor .view-line")]
+            .map((line) => (line.textContent ?? "").replace(/\u00a0/g, " "))
+            .join("\n"),
+          completionStatus: document.querySelector(
+            '[role="status"][aria-label^="Code completion status:"]',
+          )?.textContent,
+          output: document.querySelector('[data-testid="preview-console"]')
+            ?.textContent,
+        }))
+        .catch((error) => String(error));
+      await page
+        .screenshot({ path: testInfo.outputPath("puts-final.png") })
+        .catch((error) => {
+          diagnostic.screenshotFailure = String(error);
+        });
+      const diagnosticPath = testInfo.outputPath("puts-diagnostic.json");
+      const serialized = JSON.stringify(diagnostic, null, 2);
+      await mkdir(dirname(diagnosticPath), { recursive: true });
+      await writeFile(diagnosticPath, serialized, "utf8");
+      await testInfo
+        .attach("puts-diagnostic.json", {
+          path: diagnosticPath,
+          contentType: "application/json",
+        })
+        .catch(() => undefined);
+    }
+  });
+}
+
 for (const version of versions) {
   for (const inferenceCase of typeInferenceCases) {
     test(`TypeProf ${inferenceCase.name} completion inserts and executes on Ruby ${version}`, async ({
       page,
     }, testInfo) => {
+      test.setTimeout(45_000);
       const startedAt = Date.now();
       const pageErrors: string[] = [];
       const consoleErrors: string[] = [];
@@ -233,7 +414,7 @@ for (const version of versions) {
       });
       await watchAnalysisWorkers(page);
       try {
-        await page.goto(`./?v=${version}`);
+        await page.goto(codeOnlyUrl("", version));
         const ready = await waitForReadyVersion(page, version);
         diagnostic.ready = ready;
         await editRuby(page, inferenceCase.codeBeforePrefix);
@@ -427,7 +608,7 @@ for (const version of versions) {
     page,
   }) => {
     await watchAnalysisWorkers(page);
-    await page.goto(`./?v=${version}`);
+    await page.goto(codeOnlyUrl("", version));
     await waitForReadyVersion(page, version);
 
     await editRuby(page, 'greeting = "hi"\nputs ');
@@ -507,7 +688,7 @@ for (const version of versions) {
     });
     await watchAnalysisWorkers(page);
     try {
-      await page.goto(`./?v=${version}`);
+      await page.goto(codeOnlyUrl("", version));
       phase = "initial-ready";
       await waitForReadyVersion(page, version);
 
@@ -608,91 +789,298 @@ for (const version of versions) {
     }
   });
 
-  test(`TypeProf preserves a midline suffix and emoji-aware UTF-16 text edit on Ruby ${version}`, async ({
+  test(`TypeProf preserves a midline suffix through insertion on Ruby ${version}`, async ({
     page,
   }, testInfo) => {
+    test.setTimeout(90_000);
+    const expectedBeforeSelection = 'puts "hello".upc + "!"';
+    const expectedAfterSelection = 'puts "hello".upcase + "!"';
+    const diagnostic: Record<string, unknown> = {
+      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      version,
+      startedAt: Date.now(),
+      pageErrors: [] as string[],
+      consoleErrors: [] as string[],
+    };
+    page.on("pageerror", (error) =>
+      (diagnostic.pageErrors as string[]).push(error.stack ?? error.message),
+    );
+    page.on("console", (message) => {
+      if (message.type() === "error")
+        (diagnostic.consoleErrors as string[]).push(message.text());
+    });
     await watchAnalysisWorkers(page);
-    await page.goto(`./?v=${version}`);
-    await waitForReadyVersion(page, version);
+    try {
+      await page.goto(codeOnlyUrl("", version));
+      const ready = await waitForReadyVersion(page, version);
+      diagnostic.ready = ready;
 
-    await editRuby(page, 'puts "hello" + "!"');
-    for (let index = 0; index < 6; index += 1)
-      await page.keyboard.press("ArrowLeft");
-    let responseStart = (await lspObservations(page)).length;
-    await page.keyboard.type(".upc", { delay: 50 });
-    await expectEditorSource(page, 'puts "hello".upc + "!"');
-    await expect
-      .poll(async () =>
-        (await lspObservations(page))
-          .slice(responseStart)
-          .some(
+      await editRuby(page, 'puts "hello" + "!"');
+      for (let index = 0; index < 6; index += 1)
+        await page.keyboard.press("ArrowLeft");
+      const responseStart = (await lspObservations(page)).length;
+      await page.keyboard.type(".upc", { delay: 50 });
+      await expectEditorSource(page, expectedBeforeSelection);
+
+      const currentWorker = ready.workerId;
+      let observations: Array<Record<string, unknown>> = [];
+      let documentEvents: Array<Record<string, unknown>> = [];
+      let finalChange: Record<string, unknown> | undefined;
+      let finalRequest: Record<string, unknown> | undefined;
+      await expect
+        .poll(async () => {
+          observations = await lspObservations(page);
+          documentEvents = observations
+            .slice(responseStart)
+            .filter(
+              (event) =>
+                event.direction === "notification" &&
+                event.workerId === currentWorker &&
+                (event.method === "textDocument/didOpen" ||
+                  event.method === "textDocument/didChange"),
+            );
+          finalChange = documentEvents.at(-1);
+          const changes = finalChange?.contentChanges as
+            Array<{ text?: string }> | undefined;
+          const openedText = (
+            finalChange?.textDocument as { text?: string } | undefined
+          )?.text;
+          const finalText = changes?.at(-1)?.text ?? openedText;
+          finalRequest = observations
+            .slice(responseStart)
+            .filter(
+              (event) =>
+                event.direction === "request" &&
+                event.workerId === currentWorker &&
+                event.method === "textDocument/completion" &&
+                event.documentVersion === finalChange?.documentVersion &&
+                JSON.stringify(event.position) ===
+                  JSON.stringify({ line: 0, character: 16 }),
+            )
+            .at(-1);
+          return finalText === expectedBeforeSelection && !!finalRequest;
+        })
+        .toBe(true);
+      diagnostic.documentEvents = documentEvents;
+      diagnostic.finalChange = finalChange;
+      expect(finalChange).toBeDefined();
+      expect(finalChange?.documentVersion).toBeDefined();
+      const contentChanges = finalChange?.contentChanges as
+        Array<{ text?: string }> | undefined;
+      const openedText = (
+        finalChange?.textDocument as { text?: string } | undefined
+      )?.text;
+      expect(contentChanges?.at(-1)?.text ?? openedText).toBe(
+        expectedBeforeSelection,
+      );
+
+      const completionRequests = observations
+        .slice(responseStart)
+        .filter(
+          (event) =>
+            event.direction === "request" &&
+            event.workerId === currentWorker &&
+            event.method === "textDocument/completion",
+        );
+      diagnostic.completionRequests = completionRequests;
+      diagnostic.finalRequest = finalRequest;
+      expect(finalRequest).toBeDefined();
+      expect(finalRequest?.documentVersion).toBe(finalChange?.documentVersion);
+      expect(finalRequest?.position).toEqual({ line: 0, character: 16 });
+
+      await expect
+        .poll(async () => {
+          const current = await lspObservations(page);
+          return current.some(
             (event) =>
               event.direction === "response" &&
-              event.method === "textDocument/completion" &&
-              (event.candidates as RawCandidate[] | undefined)?.some(
-                (candidate) => candidateLabel(candidate) === "upcase",
-              ),
-          ),
-      )
-      .toBe(true);
-    const midlineResponse = (await lspObservations(page))
-      .slice(responseStart)
-      .filter(
+              event.workerId === finalRequest?.workerId &&
+              event.token === finalRequest?.token &&
+              event.method === "textDocument/completion",
+          );
+        })
+        .toBe(true);
+      const response = (await lspObservations(page)).find(
         (event) =>
           event.direction === "response" &&
-          event.method === "textDocument/completion" &&
-          (event.candidates as RawCandidate[] | undefined)?.some(
-            (candidate) => candidateLabel(candidate) === "upcase",
-          ),
-      )
-      .at(-1) as CompletionResponse | undefined;
-    // Monaco sends the completion request at the `.` trigger, before it
-    // locally filters the already returned candidates for the typed `upc`.
-    expect(midlineResponse?.position).toEqual({ line: 0, character: 13 });
-    expect(
-      midlineResponse?.candidates?.find(
+          event.workerId === finalRequest?.workerId &&
+          event.token === finalRequest?.token &&
+          event.method === "textDocument/completion",
+      ) as CompletionResponse | undefined;
+      diagnostic.finalResponse = response;
+      const upcaseItem = response?.candidates?.find(
         (candidate) => candidateLabel(candidate) === "upcase",
-      )?.textEdit,
-    ).toEqual({
-      range: {
-        start: { line: 0, character: 13 },
-        end: { line: 0, character: 16 },
-      },
-      newText: "upcase",
-    });
-    const midlineRow = visibleCandidateLabel(page, "upcase");
-    await expect(midlineRow).toBeVisible();
-    await midlineRow.click();
-    await expectEditorSource(page, 'puts "hello".upcase + "!"');
-    await expectRubyOutput(page, "HELLO!\n");
+      );
+      expect(upcaseItem).toBeDefined();
+      expect(upcaseItem?.textEdit).toEqual({
+        range: {
+          start: { line: 0, character: 13 },
+          end: { line: 0, character: 16 },
+        },
+        newText: "upcase",
+      });
 
-    await editRuby(page, '名前 = "😀"; puts 名前 + "!"');
-    for (let index = 0; index < 6; index += 1)
-      await page.keyboard.press("ArrowLeft");
-    responseStart = (await lspObservations(page)).length;
-    await page.keyboard.type(".upc", { delay: 50 });
-    await expectEditorSource(page, '名前 = "😀"; puts 名前.upc + "!"');
-    const { event, item } = await waitForRawCandidate(
-      page,
-      "upcase",
-      responseStart,
+      const upcase = visibleCandidateLabel(page, "upcase");
+      await expect(upcase).toHaveCount(1);
+      await upcase.click();
+      await expectEditorSource(page, expectedAfterSelection);
+      diagnostic.selectedSource = expectedAfterSelection;
+      await expectRubyOutput(page, "HELLO!\n");
+      diagnostic.output = await page
+        .getByTestId("preview-console")
+        .textContent();
+      diagnostic.result = "passed";
+      await page.screenshot({ path: testInfo.outputPath("midline-hello.png") });
+    } catch (error) {
+      diagnostic.failure =
+        error instanceof Error ? error.message : String(error);
+      diagnostic.failureStack =
+        error instanceof Error ? error.stack : undefined;
+      throw error;
+    } finally {
+      diagnostic.finishedAt = Date.now();
+      diagnostic.observations = await lspObservations(page).catch((error) =>
+        String(error),
+      );
+      diagnostic.finalEditor = await page
+        .evaluate(() => ({
+          source: [...document.querySelectorAll(".monaco-editor .view-line")]
+            .map((line) => (line.textContent ?? "").replace(/\u00a0/g, " "))
+            .join("\n"),
+          status: document.querySelector(
+            '[role="status"][aria-label^="Code completion status:"]',
+          )?.textContent,
+          output: document.querySelector('[data-testid="preview-console"]')
+            ?.textContent,
+          suggestionRows: [
+            ...document.querySelectorAll(".suggest-widget .monaco-list-row"),
+          ].map((row) => row.textContent),
+        }))
+        .catch((error) => String(error));
+      await page
+        .screenshot({ path: testInfo.outputPath("midline-final.png") })
+        .catch((error) => {
+          diagnostic.screenshotFailure = String(error);
+        });
+      const diagnosticPath = testInfo.outputPath("midline-diagnostic.json");
+      const serialized = JSON.stringify(diagnostic, null, 2);
+      await mkdir(dirname(diagnosticPath), { recursive: true });
+      await writeFile(diagnosticPath, serialized, "utf8");
+      await testInfo
+        .attach("midline-diagnostic.json", {
+          path: diagnosticPath,
+          contentType: "application/json",
+        })
+        .catch(() => undefined);
+    }
+  });
+
+  test(`TypeProf preserves Japanese and emoji UTF-16 positions on Ruby ${version}`, async ({
+    page,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const before = '名前 = "😀"; puts 名前.upc + "!"';
+    const after = '名前 = "😀"; puts 名前.upcase + "!"';
+    const position = { line: 0, character: 22 };
+    const diagnostic: Record<string, unknown> = {
+      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      version,
+      startedAt: Date.now(),
+      pageErrors: [] as string[],
+      consoleErrors: [] as string[],
+    };
+    page.on("pageerror", (error) =>
+      (diagnostic.pageErrors as string[]).push(error.stack ?? error.message),
     );
-    // Monaco requests at the `.` trigger (UTF-16 offset 19), then filters the
-    // typed `upc` locally; the returned textEdit must still replace 19..22.
-    expect(event.position).toEqual({ line: 0, character: 19 });
-    expect(item.textEdit).toEqual({
-      range: {
-        start: { line: 0, character: 19 },
-        end: { line: 0, character: 22 },
-      },
-      newText: "upcase",
+    page.on("console", (message) => {
+      if (message.type() === "error")
+        (diagnostic.consoleErrors as string[]).push(message.text());
     });
-    const unicodeRow = visibleCandidateLabel(page, "upcase");
-    await expect(unicodeRow).toBeVisible();
-    await unicodeRow.click();
-    await expectEditorSource(page, '名前 = "😀"; puts 名前.upcase + "!"');
-    await expectRubyOutput(page, "😀!\n");
-    await page.screenshot({ path: testInfo.outputPath("typeprof-utf16.png") });
+    await watchAnalysisWorkers(page);
+    try {
+      await page.goto(codeOnlyUrl("", version));
+      const ready = await waitForReadyVersion(page, version);
+      diagnostic.ready = ready;
+      await editRuby(page, '名前 = "😀"; puts 名前 + "!"');
+      for (let index = 0; index < 6; index += 1)
+        await page.keyboard.press("ArrowLeft");
+      const responseStart = (await lspObservations(page)).length;
+      await page.keyboard.type(".upc", { delay: 50 });
+      await expectEditorSource(page, before);
+
+      const { documentEvent, request, response, item } =
+        await waitForSnapshotCandidate(page, {
+          responseStart,
+          workerId: ready.workerId as number,
+          source: before,
+          position,
+          label: "upcase",
+        });
+      diagnostic.documentEvent = documentEvent;
+      diagnostic.request = request;
+      diagnostic.response = response;
+      diagnostic.item = item;
+      expect(response.documentVersion).toBe(documentEvent.documentVersion);
+      expect(item.textEdit).toEqual({
+        range: {
+          start: { line: 0, character: 19 },
+          end: { line: 0, character: 22 },
+        },
+        newText: "upcase",
+      });
+
+      const upcase = visibleCandidateLabel(page, "upcase");
+      await expect(upcase).toHaveCount(1);
+      await upcase.click();
+      await expectEditorSource(page, after);
+      diagnostic.selectedSource = after;
+      await expectRubyOutput(page, "😀!\n");
+      diagnostic.output = await page
+        .getByTestId("preview-console")
+        .textContent();
+      diagnostic.result = "passed";
+      await page.screenshot({ path: testInfo.outputPath("emoji-utf16.png") });
+    } catch (error) {
+      diagnostic.failure =
+        error instanceof Error ? error.message : String(error);
+      diagnostic.failureStack =
+        error instanceof Error ? error.stack : undefined;
+      throw error;
+    } finally {
+      diagnostic.finishedAt = Date.now();
+      diagnostic.observations = await lspObservations(page).catch((error) =>
+        String(error),
+      );
+      diagnostic.finalEditor = await page
+        .evaluate(() => ({
+          source: [...document.querySelectorAll(".monaco-editor .view-line")]
+            .map((line) => (line.textContent ?? "").replace(/\u00a0/g, " "))
+            .join("\n"),
+          completionStatus: document.querySelector(
+            '[role="status"][aria-label^="Code completion status:"]',
+          )?.textContent,
+          output: document.querySelector('[data-testid="preview-console"]')
+            ?.textContent,
+        }))
+        .catch((error) => String(error));
+      await page
+        .screenshot({ path: testInfo.outputPath("emoji-utf16-final.png") })
+        .catch((error) => {
+          diagnostic.screenshotFailure = String(error);
+        });
+      const diagnosticPath = testInfo.outputPath("emoji-utf16-diagnostic.json");
+      const serialized = JSON.stringify(diagnostic, null, 2);
+      await mkdir(dirname(diagnosticPath), { recursive: true });
+      await writeFile(diagnosticPath, serialized, "utf8");
+      await testInfo
+        .attach("emoji-utf16-diagnostic.json", {
+          path: diagnosticPath,
+          contentType: "application/json",
+        })
+        .catch(() => undefined);
+    }
   });
 }
 
@@ -747,7 +1135,7 @@ test("TypeProf Fiber#raise detail follows the selected Ruby core in the UI", asy
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
-  await page.goto("./?v=3.3");
+  await page.goto(codeOnlyUrl("", "3.3"));
   const startedAt = Date.now();
   let previousWorkerId: number | undefined;
   let readyCount = 0;
@@ -946,7 +1334,7 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
   await watchAnalysisWorkers(page, { holdCompletionResponses: true });
   try {
     diagnostic.phase = "ready-3.3-and-hold-old";
-    await page.goto("./?v=3.3");
+    await page.goto(codeOnlyUrl("", "3.3"));
     const ready33 = await waitForReadyVersion(page, "3.3");
 
     await editRuby(page, 'puts "old"');
