@@ -10,6 +10,61 @@ require "typeprof/lsp/messages"
 require "typeprof/lsp/server"
 require "typeprof/lsp/util"
 
+module PlaygroundTypeProfMethodVisibility
+  def self.from(declarations)
+    restrictions = Hash.new do |by_method, key|
+      by_method[key] = { instance: [], singleton: [] }
+    end
+
+    declarations.each do |declaration|
+      next unless declaration.respond_to?(:members) && declaration.respond_to?(:name)
+
+      owner = (declaration.name.namespace.path + [declaration.name.name])
+        .map(&:to_s)
+        .join("::")
+      visibility = :public
+      declaration.members.each do |member|
+        case member
+        when RBS::AST::Members::Private
+          visibility = :private
+        when RBS::AST::Members::Public
+          visibility = :public
+        when RBS::AST::Members::MethodDefinition
+          method_visibility = member.visibility || visibility
+          method = restrictions[[owner, member.name.to_s]]
+          case member.kind
+          when :instance
+            method[:instance] << (method_visibility == :private)
+          when :singleton_instance
+            # RBS self? methods allow an implicit call or explicit self, but
+            # do not make the instance method public on arbitrary receivers.
+            method[:instance] << true
+            method[:singleton] << (method_visibility == :private)
+          when :singleton
+            method[:singleton] << (method_visibility == :private)
+          end
+        end
+      end
+    end
+
+    restrictions.transform_values do |receivers|
+      receivers.transform_values do |declarations_for_receiver|
+        !declarations_for_receiver.empty? && declarations_for_receiver.all?
+      end
+    end
+  end
+
+  def self.restricted?(index, detail)
+    return false unless index
+
+    match = detail.match(/\A(.+?)([#.])([^ ]+)\s*:/)
+    return false unless match
+
+    receiver = match[2] == "#" ? :instance : :singleton
+    index.fetch([match[1], match[3]], {}).fetch(receiver, false)
+  end
+end
+
 # TypeProf's core signatures must come from the selected analysis target, not
 # from the Ruby version used to host the browser VM.
 TypeProf::Core::Service.prepend(Module.new do
@@ -18,7 +73,9 @@ TypeProf::Core::Service.prepend(Module.new do
   def load_rbs_declarations(_collection)
     loader = RBS::EnvironmentLoader.new(core_root: nil)
     loader.add(path: Pathname(PlaygroundRubyVersion.core_root))
-    RBS::Environment.from_loader(loader)
+    environment = RBS::Environment.from_loader(loader)
+    @playground_method_visibility = PlaygroundTypeProfMethodVisibility.from(environment.declarations)
+    environment
   end
 end)
 
@@ -56,11 +113,16 @@ TypeProf::LSP::Text.prepend(Module.new do
     elsif (implicit_prefix = before_cursor[/[[:alnum:]_!?=]+\z/])
       prefix_start = cursor - implicit_prefix.length
       before_prefix = original_line[0...prefix_start]
-      @lines[row] = before_prefix + "self." + original_line[cursor..]
+      # The suffix belongs to the user's document edit, not the synthetic
+      # receiver query. Keeping arguments after `self.` makes TypeProf parse
+      # `self. "Ruby"` as a call-shaped expression and loses implicit methods.
+      @lines[row] = before_prefix + "self."
       query_position = position.merge(
         character: utf16_length(before_prefix) + utf16_length("self."),
       )
-      modify_at_dot(query_position) { |string, trigger, pos| yield string, trigger, pos }
+      modify_at_dot(query_position) do |string, _trigger, pos|
+        yield(string, :playground_implicit_self, pos)
+      end
     else
       modify_at_dot(position) { |string, trigger, pos| yield string, trigger, pos }
     end
@@ -78,7 +140,9 @@ TypeProf::LSP::Text.prepend(Module.new do
       original = line[column - 1]
       line[column - 1] = " "
       begin
-        yield string, ".", position.merge(character: position.fetch(:character) - 2)
+        receiver = line[0...column - 1].rstrip
+        trigger = receiver.match?(/\bself\z/) ? :playground_explicit_self : "."
+        yield string, trigger, position.merge(character: position.fetch(:character) - 2)
       ensure
         line[column - 1] = original
       end
@@ -138,6 +202,26 @@ class PlaygroundTypeProfServer < TypeProf::LSP::Server
     @cores[@workspace_path] = TypeProf::Core::Service.new(
       @core_options.merge(position_encoding: @position_encoding),
     )
+  end
+
+  def completion(path, trigger, position)
+    implicit_receiver = trigger == :playground_implicit_self
+    explicit_self = trigger == :playground_explicit_self
+    explicit_receiver = trigger == "."
+    typeprof_trigger = implicit_receiver || explicit_self ? "." : trigger
+    each_core(path) do |core|
+      core.completion(path, typeprof_trigger, position) do |method_name, detail|
+        if explicit_receiver &&
+            PlaygroundTypeProfMethodVisibility.restricted?(
+              core.instance_variable_get(:@playground_method_visibility),
+              detail,
+            )
+          next
+        end
+
+        yield(method_name, detail)
+      end
+    end
   end
 
   def target_path?(path)
