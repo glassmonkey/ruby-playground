@@ -864,28 +864,26 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     const raiseItem = visibleCandidateLabel(page, "raise");
 
     await editRuby(page, "Ractor.");
-    await page.keyboard.type("yi");
     let snapshot = await waitForCompletionSnapshot(page, {
       workerId,
-      source: "Ractor.yi",
-      position: { line: 0, character: 9 },
+      source: "Ractor.",
+      position: { line: 0, character: 7 },
     });
-    await expect(yieldItem).toBeVisible({ timeout: 30_000 });
     let rawItems = snapshot.response.candidates as Array<{
       label?: string;
       textEdit?: unknown;
       detail?: string;
     }>;
-    expect(
-      rawItems.some((item) => item.label === "yield" && item.textEdit),
-    ).toBe(true);
+    const rawYield33 = rawItems.find((item) => item.label === "yield");
+    expect(rawYield33?.textEdit).toBeDefined();
+    await page.keyboard.type("yi");
+    await expectEditorSource(page, "Ractor.yi");
+    await expect(yieldItem).toBeVisible();
     await page.screenshot({
       path: testInfo.outputPath("ruby-3.3-ractor-yield.png"),
     });
     await yieldItem.click();
-    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-      "Ractor.yield",
-    );
+    await expectEditorSource(page, "Ractor.yield");
 
     await editRuby(page, "puts [1,2].");
     snapshot = await waitForCompletionSnapshot(page, {
@@ -910,14 +908,15 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     workerId = await readyWorkerId(page, "4.0", workerId);
 
     await editRuby(page, "Ractor.");
-    await page.keyboard.type("yi");
     snapshot = await waitForCompletionSnapshot(page, {
       workerId,
-      source: "Ractor.yi",
-      position: { line: 0, character: 9 },
+      source: "Ractor.",
+      position: { line: 0, character: 7 },
     });
     rawItems = snapshot.response.candidates as Array<{ label?: string }>;
     expect(rawItems.some((item) => item.label === "yield")).toBe(false);
+    await page.keyboard.type("yi");
+    await expectEditorSource(page, "Ractor.yi");
     await expect(yieldItem).toHaveCount(0);
     await page.screenshot({
       path: testInfo.outputPath("ruby-4.0-ractor-yield-absent.png"),
@@ -967,6 +966,27 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
       timeout: 60_000,
     });
     workerId = await readyWorkerId(page, "3.3", workerId);
+
+    await editRuby(page, "Ractor.");
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "Ractor.",
+      position: { line: 0, character: 7 },
+    });
+    rawItems = snapshot.response.candidates as Array<{
+      label?: string;
+      textEdit?: unknown;
+    }>;
+    const rawYield33Restored = rawItems.find((item) => item.label === "yield");
+    expect(rawYield33Restored?.textEdit).toBeDefined();
+    await page.keyboard.type("yi");
+    await expectEditorSource(page, "Ractor.yi");
+    await expect(yieldItem).toBeVisible();
+    await page.screenshot({
+      path: testInfo.outputPath("ruby-3.3-restored-ractor-yield.png"),
+    });
+    await yieldItem.click();
+    await expectEditorSource(page, "Ractor.yield");
 
     await editRuby(page, "puts [1,2].");
     snapshot = await waitForCompletionSnapshot(page, {

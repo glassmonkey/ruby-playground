@@ -472,6 +472,26 @@ then passed 1/1 at the source hashes recorded in
 keyboard-order and status cases passed in the first selection. No general
 E2E suite or CI run is claimed.
 
+CI run `44579573717` on UI head `da3e1f4` completed the build and LSP
+verification checks, then reported 204/205 E2E cases passing. The two
+30-second failures were the Ractor API matrix waiting for a fresh
+`Ractor.yi` completion snapshot on the initial 3.3 phase and its 3.3 restore
+phase. The workflow did not upload artifacts and its artifact API returned
+none, so the CI run's raw response and rendered candidate state are unknown;
+this is not evidence that the provider returned no candidate. The matrix now
+requires a successful response for the exact `Ractor.` dot-stage source,
+worker and cursor, then separately types `yi` naturally and checks the visible
+candidate, selection and complete editor source on 3.3, 4.0 and restored 3.3.
+On 4.0 it checks a successful dot-stage response without `yield`, followed by
+the naturally typed prefix having no `yield` row. This corrects the test's
+protocol expectation without claiming a product diagnosis or reclassifying
+the unavailable CI evidence. The focused matrix passed 1/1 on the final test
+source (`e2e/completion.spec.ts` SHA-256
+`0d799d737d38c370ff75066c209d3c3f70784e846e4fea9f06ce548dad46d384`); its
+trace, protocol JSON, screenshots, provenance and source copy are archived at
+`/private/tmp/gla187-ui-da3-ractor-dot-matrix/final-run/`. This is a focused
+browser result, not a rerun of the E2E suite.
+
 ## Security and privacy
 
 - Code runs in your browser in a Web Worker. Each run uses a new Worker and
