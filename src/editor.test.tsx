@@ -201,10 +201,15 @@ function createTestContext() {
     lineNumber: 1,
     column: 3,
   };
+  let onModelChange: () => void = () => {};
   harness.provider = undefined;
   harness.editorInstance = {
     getModel: () => model as unknown as editor.ITextModel,
     getPosition: () => position,
+    onDidChangeModel: (listener: () => void) => {
+      onModelChange = listener;
+      return { dispose: vi.fn() };
+    },
   };
   harness.registerCompletionItemProvider.mockImplementation(
     (_language: string, provider: languages.CompletionItemProvider) => {
@@ -238,6 +243,7 @@ function createTestContext() {
     },
     replaceModel: (nextModel: ReturnType<typeof makeModel>) => {
       model = nextModel;
+      onModelChange();
       return model;
     },
   };
@@ -723,42 +729,82 @@ describe("RubyEditor path/model transitions", () => {
     vi.unstubAllGlobals();
   });
 
-  it("does not apply a held main.rb response after Gemfile and back model switches", async () => {
+  it("rejects a held result after same-model path reuse and syncs main/Gemfile/main", async () => {
     const sut = createTestContext();
-    const mainProvider = harness.provider!;
-    await waitFor(() => expect(mainProvider).toBeDefined());
+    await waitFor(() => expect(harness.provider).toBeDefined());
     act(() => sut.worker.announceReady());
+    const mainModel = sut.model;
+    const callProvider = async (
+      model: ReturnType<typeof makeModel>,
+      column: number,
+    ) =>
+      harness.provider!.provideCompletionItems!(
+        model as unknown as editor.ITextModel,
+        { lineNumber: 1, column } as Position,
+        { triggerKind: 1 },
+        { isCancellationRequested: false } as CancellationToken,
+      );
 
-    FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
-    const pending = mainProvider.provideCompletionItems!(
-      sut.model as unknown as editor.ITextModel,
-      { lineNumber: 1, column: 3 } as Position,
-      { triggerKind: 1 },
-      { isCancellationRequested: false } as CancellationToken,
-    );
-    await waitFor(() =>
-      expect(
-        sut.worker.messages.some(
-          ({ message }) => message.method === "textDocument/completion",
-        ),
-      ).toBe(true),
-    );
-    const held = sut.worker.messages.find(
-      ({ message }) => message.method === "textDocument/completion",
-    )!;
+    await expect(callProvider(mainModel, 3)).resolves.toMatchObject({
+      suggestions: [expect.objectContaining({ label: "raise" })],
+    });
     const gemfile = makeModel();
     gemfile.uri = { toString: () => "inmemory://model/Gemfile" };
+    const gemfileText = "source 'https://rubygems.org'\ngem";
+    gemfile.setSnapshot(gemfileText, 2);
+    FakeAnalysisWorker.completionItems = [];
     sut.replaceModel(gemfile);
+    sut.setPosition({ lineNumber: 1, column: 3 });
     sut.view.rerender(
       <RubyEditor
-        code="source 'https://rubygems.org'"
+        code={gemfileText}
         path="Gemfile"
         version="4.0"
         completionEnabled={true}
         onChange={vi.fn()}
       />,
     );
-    const mainAgain = sut.replaceModel(makeModel());
+    await expect(callProvider(gemfile, 3)).resolves.toEqual({ suggestions: [] });
+
+    FakeAnalysisWorker.completionItems = [rawCompletion];
+    sut.replaceModel(mainModel);
+    sut.setPosition({ lineNumber: 1, column: 3 });
+    sut.view.rerender(
+      <RubyEditor
+        code="x."
+        path="main.rb"
+        version="4.0"
+        completionEnabled={true}
+        onChange={vi.fn()}
+      />,
+    );
+    await expect(callProvider(mainModel, 3)).resolves.toMatchObject({
+      suggestions: [expect.objectContaining({ label: "raise" })],
+    });
+
+    FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
+    const heldOnMain = callProvider(mainModel, 3);
+    await waitFor(() =>
+      expect(
+        sut.worker.messages.filter(
+          ({ message }) => message.method === "textDocument/completion",
+        ),
+      ).toHaveLength(4),
+    );
+    const held = sut.worker.messages.filter(
+      ({ message }) => message.method === "textDocument/completion",
+    )[3];
+    sut.replaceModel(gemfile);
+    sut.view.rerender(
+      <RubyEditor
+        code={gemfileText}
+        path="Gemfile"
+        version="4.0"
+        completionEnabled={true}
+        onChange={vi.fn()}
+      />,
+    );
+    sut.replaceModel(mainModel);
     sut.view.rerender(
       <RubyEditor
         code="x."
@@ -769,40 +815,82 @@ describe("RubyEditor path/model transitions", () => {
       />,
     );
     sut.worker.reply(held, [{ ...rawCompletion, label: "stale-main" }]);
+    await expect(heldOnMain).resolves.toEqual({ suggestions: [] });
 
-    await expect(pending).resolves.toEqual({ suggestions: [] });
-    FakeAnalysisWorker.holdMethods = new Set();
-    const recovered = await harness.provider!.provideCompletionItems!(
-      mainAgain as unknown as editor.ITextModel,
-      { lineNumber: 1, column: 3 } as Position,
-      { triggerKind: 1 },
-      { isCancellationRequested: false } as CancellationToken,
-    );
-    expect({
-      heldUri: held.message.params,
-      recovered,
-      completionUris: sut.worker.messages
-        .filter(({ message }) => message.method === "textDocument/completion")
-        .map(({ message }) => message.params),
-    }).toEqual({
-      heldUri: {
-        textDocument: { uri: "inmemory://model/unmount" },
-        position: { line: 0, character: 2 },
+    const documentMessages = sut.worker.messages
+      .map(({ message }) => ({ method: message.method, params: message.params }))
+      .filter(({ method }) => method.startsWith("textDocument/"));
+    expect(documentMessages).toEqual([
+      {
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: "inmemory://model/unmount",
+            languageId: "ruby",
+            version: 1,
+            text: "x.",
+          },
+        },
       },
-      recovered: {
-        suggestions: [expect.objectContaining({ label: "raise" })],
-      },
-      completionUris: [
-        {
+      {
+        method: "textDocument/completion",
+        params: {
           textDocument: { uri: "inmemory://model/unmount" },
           position: { line: 0, character: 2 },
         },
-        {
+      },
+      {
+        method: "textDocument/didClose",
+        params: { textDocument: { uri: "inmemory://model/unmount" } },
+      },
+      {
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: "inmemory://model/Gemfile",
+            languageId: "ruby",
+            version: 2,
+            text: gemfileText,
+          },
+        },
+      },
+      {
+        method: "textDocument/completion",
+        params: {
+          textDocument: { uri: "inmemory://model/Gemfile" },
+          position: { line: 0, character: 2 },
+        },
+      },
+      {
+        method: "textDocument/didClose",
+        params: { textDocument: { uri: "inmemory://model/Gemfile" } },
+      },
+      {
+        method: "textDocument/didOpen",
+        params: {
+          textDocument: {
+            uri: "inmemory://model/unmount",
+            languageId: "ruby",
+            version: 1,
+            text: "x.",
+          },
+        },
+      },
+      {
+        method: "textDocument/completion",
+        params: {
           textDocument: { uri: "inmemory://model/unmount" },
           position: { line: 0, character: 2 },
         },
-      ],
-    });
+      },
+      {
+        method: "textDocument/completion",
+        params: {
+          textDocument: { uri: "inmemory://model/unmount" },
+          position: { line: 0, character: 2 },
+        },
+      },
+    ]);
   });
 
   it("returns to candidates after a nonempty to empty to retyped document", async () => {
@@ -819,10 +907,23 @@ describe("RubyEditor path/model transitions", () => {
     const initial = await request();
 
     sut.model.setSnapshot("", 2);
+    sut.setPosition({ lineNumber: 1, column: 1 });
     FakeAnalysisWorker.completionItems = [];
     const empty = await request();
     sut.model.setSnapshot("x.up", 3);
-    FakeAnalysisWorker.completionItems = [rawCompletion];
+    sut.setPosition({ lineNumber: 1, column: 5 });
+    FakeAnalysisWorker.completionItems = [
+      {
+        ...rawCompletion,
+        textEdit: {
+          range: {
+            start: { line: 0, character: 2 },
+            end: { line: 0, character: 4 },
+          },
+          newText: "raise",
+        },
+      },
+    ];
     const retyped = await request();
 
     expect({
@@ -863,11 +964,39 @@ describe("RubyEditor analysis failure recovery", () => {
     vi.unstubAllGlobals();
   });
 
-  it("keeps provider registration while a failed worker is unavailable and recovers on OFF/ON", async () => {
+  it("keeps completion recovery after a working session fails during a later request", async () => {
     const sut = createTestContext();
     await waitFor(() => expect(harness.provider).toBeDefined());
     act(() => sut.worker.announceReady());
+    const initial = await harness.provider!.provideCompletionItems!(
+      sut.model as unknown as editor.ITextModel,
+      { lineNumber: 1, column: 3 } as Position,
+      { triggerKind: 1 },
+      { isCancellationRequested: false } as CancellationToken,
+    );
+    sut.model.setSnapshot("x.up", 2);
+    sut.setPosition({ lineNumber: 1, column: 5 });
+    FakeAnalysisWorker.holdMethods = new Set(["textDocument/completion"]);
+    const pending = harness.provider!.provideCompletionItems!(
+      sut.model as unknown as editor.ITextModel,
+      { lineNumber: 1, column: 5 } as Position,
+      { triggerKind: 1 },
+      { isCancellationRequested: false } as CancellationToken,
+    );
+    await waitFor(() =>
+      expect(
+        sut.worker.messages.filter(
+          ({ message }) => message.method === "textDocument/completion",
+        ),
+      ).toHaveLength(2),
+    );
+    const held = sut.worker.messages.filter(
+      ({ message }) => message.method === "textDocument/completion",
+    )[1];
     act(() => sut.worker.dispatchEvent(new Event("error")));
+    await expect(pending).resolves.toEqual({ suggestions: [] });
+    act(() => sut.worker.announceReady());
+    sut.worker.reply(held, [rawCompletion]);
 
     sut.view.rerender(
       <RubyEditor
@@ -889,6 +1018,19 @@ describe("RubyEditor analysis failure recovery", () => {
     );
     await waitFor(() => expect(harness.workerInstances).toHaveLength(2));
     const nextWorker = harness.workerInstances[1] as FakeAnalysisWorker;
+    FakeAnalysisWorker.holdMethods = new Set();
+    FakeAnalysisWorker.completionItems = [
+      {
+        ...rawCompletion,
+        textEdit: {
+          range: {
+            start: { line: 0, character: 2 },
+            end: { line: 0, character: 4 },
+          },
+          newText: "raise",
+        },
+      },
+    ];
     act(() => nextWorker.announceReady());
     const recovered = await harness.provider!.provideCompletionItems!(
       sut.model as unknown as editor.ITextModel,
@@ -898,11 +1040,13 @@ describe("RubyEditor analysis failure recovery", () => {
     );
 
     expect({
+      initial: initial?.suggestions.map(({ label }) => label) ?? [],
       recovered: recovered?.suggestions.map(({ label }) => label) ?? [],
       oldTerminated: sut.worker.terminate.mock.calls.length,
       newTerminated: nextWorker.terminate.mock.calls.length,
       statuses: sut.statuses,
     }).toEqual({
+      initial: ["raise"],
       recovered: ["raise"],
       oldTerminated: 1,
       newTerminated: 0,

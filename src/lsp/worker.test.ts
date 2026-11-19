@@ -110,11 +110,27 @@ describe("LSP worker startup failure", () => {
   });
 
   it.each([
-    ["corrupt gzip", "download", "gzip"],
-    ["matching-length hash mismatch", "download", "hash"],
-    ["WASM compile rejection", "compile", "compile"],
-    ["Ruby VM initialization rejection", "TypeProf initialization", "initialize"],
-  ])("reports %s once at the expected stage without an unhandled rejection", async (_name, expectedStage, failure) => {
+    ["corrupt gzip", "download", "gzip", "gzip decompression rejected"],
+    [
+      "matching-length hash mismatch",
+      "download",
+      "hash",
+      "Ruby completion asset hash did not match its manifest.",
+    ],
+    [
+      "asset size mismatch",
+      "download",
+      "size",
+      "Ruby completion asset size did not match its manifest.",
+    ],
+    ["WASM compile rejection", "compile", "compile", "compile rejected"],
+    [
+      "Ruby VM initialization rejection",
+      "TypeProf initialization",
+      "initialize",
+      "VM rejected",
+    ],
+  ])("reports %s once at the expected stage without an unhandled rejection", async (_name, expectedStage, failure, expectedError) => {
     const workerMessages: unknown[] = [];
     const workerScope = {
       location: { origin: "http://127.0.0.1" },
@@ -144,12 +160,22 @@ describe("LSP worker startup failure", () => {
         : new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]),
     );
     const manifestFiles: Record<string, Record<string, unknown>> = {};
+    const compile = vi.fn(async () => ({} as WebAssembly.Module));
+    const instantiateModule = vi.fn(async () => {
+      if (failure === "initialize") throw new Error("VM rejected");
+      return {
+        vm: {
+          eval: vi.fn(() => ({ call: () => ({ toString: () => "[]" }) })),
+        },
+      };
+    });
+    let decompressionCalls = 0;
     for (const [path, bytes] of bytesByPath) {
       const digest = [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))]
         .map((byte) => byte.toString(16).padStart(2, "0"))
         .join("");
       manifestFiles[path] = {
-        bytes: failure === "hash" && path === wasmPath ? bytes.byteLength + 1 : bytes.byteLength,
+        bytes: failure === "size" && path === wasmPath ? bytes.byteLength + 1 : bytes.byteLength,
         sha256: failure === "hash" && path === wasmPath ? "0".repeat(64) : digest,
       };
     }
@@ -170,23 +196,36 @@ describe("LSP worker startup failure", () => {
     const onUnhandled = (reason: unknown) => unhandled.push(reason);
     vi.stubGlobal("self", workerScope);
     vi.stubGlobal("fetch", fetchAssets);
-    if (failure === "compile" || failure === "initialize")
-      vi.stubGlobal("WebAssembly", {
-        ...WebAssembly,
-        compile:
-          failure === "compile"
-            ? vi.fn(async () => {
-                throw new Error("compile rejected");
-              })
-            : vi.fn(async () => ({} as WebAssembly.Module)),
-      });
+    if (failure === "compile")
+      compile.mockRejectedValue(new Error("compile rejected"));
+    vi.stubGlobal("WebAssembly", { ...WebAssembly, compile });
+    if (failure === "gzip") {
+      vi.stubGlobal(
+        "DecompressionStream",
+        class {
+          constructor(readonly format: string) {}
+        },
+      );
+      vi.stubGlobal(
+        "Blob",
+        class {
+          constructor(parts: unknown[]) {
+            expect(parts).toHaveLength(1);
+          }
+          stream() {
+            return {
+              pipeThrough: (transform: { format: string }) => {
+                expect(transform.format).toBe("gzip");
+                decompressionCalls += 1;
+                throw new Error("gzip decompression rejected");
+              },
+            };
+          }
+        },
+      );
+    }
     vi.doMock("@ruby/wasm-wasi", () => ({
-      RubyVM: {
-        instantiateModule: vi.fn(async () => {
-          if (failure === "initialize") throw new Error("VM rejected");
-          return { vm: { eval: vi.fn(() => ({ call: () => ({ toString: () => "[]" }) })) } };
-        }),
-      },
+      RubyVM: { instantiateModule },
     }));
     vi.doMock("@bjorn3/browser_wasi_shim", () => ({
       ConsoleStdout: class {}, Directory: class {}, File: class {}, Inode: class {},
@@ -199,10 +238,22 @@ describe("LSP worker startup failure", () => {
       for (let turn = 0; turn < 20 && workerMessages.length === 0; turn++)
         await new Promise<void>((resolve) => setImmediate(resolve));
       expect(workerMessages).toEqual([
-        { type: "fatal", stage: expectedStage, error: expect.any(String) },
+        { type: "fatal", stage: expectedStage, error: expectedError },
       ]);
       await new Promise<void>((resolve) => setImmediate(resolve));
-      expect(unhandled).toEqual([]);
+      expect({
+        unhandled,
+        fatalCount: workerMessages.length,
+        compileCalls: compile.mock.calls.length,
+        instantiateCalls: instantiateModule.mock.calls.length,
+        decompressionCalls,
+      }).toEqual({
+        unhandled: [],
+        fatalCount: 1,
+        compileCalls: failure === "compile" || failure === "initialize" ? 1 : 0,
+        instantiateCalls: failure === "initialize" ? 1 : 0,
+        decompressionCalls: failure === "gzip" ? 1 : 0,
+      });
     } finally {
       process.off("unhandledRejection", onUnhandled);
     }
