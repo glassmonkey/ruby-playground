@@ -395,7 +395,8 @@ describe("CompletionClient", () => {
     vi.useFakeTimers();
     const worker = new FakeWorker();
     worker.respond = false;
-    const sut = start(worker, 5);
+    const statuses: Array<"ready" | "error"> = [];
+    const sut = start(worker, 5, statuses);
     const result = sut.complete("file:///main.rb", "1", 1, {
       line: 0,
       character: 1,
@@ -403,7 +404,51 @@ describe("CompletionClient", () => {
     await vi.advanceTimersByTimeAsync(6);
     try {
       await expect(result).rejects.toThrow("timed out");
-      expect(worker.terminated).toBe(true);
+      expect({ terminated: worker.terminated, statuses }).toEqual({
+        terminated: true,
+        statuses: ["ready", "error"],
+      });
+    } finally {
+      sut.dispose();
+    }
+  });
+
+  it.each([
+    ["error", new Event("error")],
+    ["messageerror", new MessageEvent("messageerror")],
+  ])("marks a ready client unavailable after Worker %s", async (_name, event) => {
+    const worker = new FakeWorker();
+    worker.respond = false;
+    const statuses: Array<"ready" | "error"> = [];
+    const sut = start(worker, 100, statuses);
+    const pending = sut.complete("file:///main.rb", "x.", 1, {
+      line: 0,
+      character: 2,
+    });
+    await vi.waitFor(() =>
+      expect(
+        worker.messages.some(
+          (entry) =>
+            (entry as { message: { method: string } }).message.method ===
+            "initialize",
+        ),
+      ).toBe(true),
+    );
+
+    worker.dispatchEvent(event);
+
+    try {
+      await expect(pending).rejects.toThrow();
+      await expect(
+        sut.complete("file:///main.rb", "x.y", 2, {
+          line: 0,
+          character: 3,
+        }),
+      ).rejects.toThrow();
+      expect({ statuses, terminated: worker.terminated }).toEqual({
+        statuses: ["ready", "error"],
+        terminated: true,
+      });
     } finally {
       sut.dispose();
     }

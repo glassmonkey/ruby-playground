@@ -191,9 +191,57 @@ for (const version of ["3.3", "4.0", "3.3"]) {
       present: false,
     },
     {
+      name: "method-named-self-is-not-the-self-expression",
+      text: 'class Box; def self; "Ruby"; end; end\nobj = Box.new\nobj.self.pu',
+      position: { line: 2, character: 11 },
+      label: "puts",
+      present: false,
+      detailExcludes: "Kernel#puts",
+    },
+    {
+      name: "ordinary-returning-method-does-not-suggest-private-kernel-method",
+      text: 'class Box; def value; "Ruby"; end; end\nobj = Box.new\nobj.value.pu',
+      position: { line: 2, character: 12 },
+      label: "puts",
+      present: false,
+      detailExcludes: "Kernel#puts",
+    },
+    {
+      name: "public-user-puts-is-not-hidden-by-kernel-visibility-filter",
+      text: 'class Box; def puts; "Ruby"; end; end\nobj = Box.new\nobj.pu',
+      position: { line: 2, character: 6 },
+      label: "puts",
+      present: true,
+      detailIncludes: "Box#puts",
+    },
+    {
       name: "explicit-self-allows-self-callable-kernel-method",
       text: "self.pu",
       position: { line: 0, character: 7 },
+      label: "puts",
+      present: true,
+      detailIncludes: "Kernel#puts",
+    },
+    {
+      name: "indented-explicit-self-allows-self-callable-kernel-method",
+      text: "  self.pu",
+      position: { line: 0, character: 9 },
+      label: "puts",
+      present: true,
+      detailIncludes: "Kernel#puts",
+    },
+    {
+      name: "self-expression-after-call-prefix-allows-kernel-method",
+      text: "puts self.pu",
+      position: { line: 0, character: 12 },
+      label: "puts",
+      present: true,
+      detailIncludes: "Kernel#puts",
+    },
+    {
+      name: "self-expression-in-method-allows-kernel-method",
+      text: "def foo; self.pu; end",
+      position: { line: 0, character: 16 },
       label: "puts",
       present: true,
       detailIncludes: "Kernel#puts",
@@ -263,10 +311,15 @@ for (const version of ["3.3", "4.0", "3.3"]) {
 
   for (const testCase of cases) {
     await changeDocument(rpc, uri, ++documentVersion, testCase.text);
-    const list = await rpc("textDocument/completion", {
-      textDocument: { uri },
-      position: testCase.position,
-    });
+    let list;
+    try {
+      list = await rpc("textDocument/completion", {
+        textDocument: { uri },
+        position: testCase.position,
+      });
+    } catch (error) {
+      throw new Error(`${version}: ${testCase.name}: ${error.message}`);
+    }
     const items = list?.items ?? [];
     const item = items.find(({ label }) => label === testCase.label);
     assert.equal(
