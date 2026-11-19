@@ -160,6 +160,54 @@ for (const version of ["3.3", "4.0", "3.3"]) {
       present: true,
     },
     {
+      name: "implicit-put-prefix-before-argument",
+      text: 'put "Ruby"',
+      position: { line: 0, character: 3 },
+      label: "puts",
+      present: true,
+      insertedText: 'puts "Ruby"',
+    },
+    {
+      name: "completed-puts-cursor-with-argument",
+      text: 'puts "Ruby"',
+      position: { line: 0, character: 4 },
+      label: "puts",
+      present: true,
+      insertedText: 'puts "Ruby"',
+    },
+    {
+      name: "implicit-print-prefix-with-argument",
+      text: 'pri "Ruby"',
+      position: { line: 0, character: 3 },
+      label: "print",
+      present: true,
+      insertedText: 'print "Ruby"',
+    },
+    {
+      name: "explicit-receiver-does-not-suggest-private-kernel-method",
+      text: '"Ruby".pu',
+      position: { line: 0, character: 9 },
+      label: "puts",
+      present: false,
+    },
+    {
+      name: "explicit-self-allows-self-callable-kernel-method",
+      text: "self.pu",
+      position: { line: 0, character: 7 },
+      label: "puts",
+      present: true,
+      detailIncludes: "Kernel#puts",
+    },
+    {
+      name: "kernel-singleton-put-is-public-but-instance-put-is-private",
+      text: "Kernel.pu",
+      position: { line: 0, character: 9 },
+      label: "puts",
+      present: true,
+      detailIncludes: "Kernel.puts",
+      detailExcludes: "Kernel#puts",
+    },
+    {
       name: "manager-inmemory-return-prefix",
       text: 'def greeting; "hello"; end\nputs greeting.upc',
       position: { line: 1, character: 17 },
@@ -242,6 +290,15 @@ for (const version of ["3.3", "4.0", "3.3"]) {
           item.detail.includes(testCase.detailIncludes),
           `${version}: ${item.detail}`,
         );
+      if (testCase.detailExcludes)
+        assert.ok(
+          !items.some(
+            ({ detail, label }) =>
+              label === testCase.label &&
+              detail.includes(testCase.detailExcludes),
+          ),
+          `${version}: unexpectedly included ${testCase.detailExcludes}`,
+        );
       if (testCase.detailHasCause !== undefined)
         assert.equal(
           item.detail.includes("cause:"),
@@ -249,6 +306,7 @@ for (const version of ["3.3", "4.0", "3.3"]) {
           `${version}: ${item.detail}`,
         );
       const inserted = applyTextEdit(testCase.text, item.textEdit);
+      if (testCase.insertedText) assert.equal(inserted, testCase.insertedText);
       if (testCase.name === "emoji-suffix-utf16")
         assert.equal(inserted, 'marker = "😀"; puts "hi".upcase + "!"');
     }
