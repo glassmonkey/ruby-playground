@@ -475,8 +475,10 @@ E2E suite or CI run is claimed.
 CI run `44579573717` on UI head `da3e1f4` completed the build and LSP
 verification checks, then reported 204/205 E2E cases passing. The two
 30-second failures were the Ractor API matrix waiting for a fresh
-`Ractor.yi` completion snapshot on the initial 3.3 phase and its 3.3 restore
-phase. The workflow did not upload artifacts and its artifact API returned
+`Ractor.yi` completion snapshot: the initial 4.0 phase at
+`completion.spec.ts:914` and the retry's initial 3.3 phase at
+`completion.spec.ts:868`. The restored 3.3 phase was not one of these
+failures. The workflow did not upload artifacts and its artifact API returned
 none, so the CI run's raw response and rendered candidate state are unknown;
 this is not evidence that the provider returned no candidate. The matrix now
 requires a successful response for the exact `Ractor.` dot-stage source,
@@ -491,6 +493,16 @@ source (`e2e/completion.spec.ts` SHA-256
 trace, protocol JSON, screenshots, provenance and source copy are archived at
 `/private/tmp/gla187-ui-da3-ractor-dot-matrix/final-run/`. This is a focused
 browser result, not a rerun of the E2E suite.
+
+Runtime CI diagnostics commit `d25c0b26522d78fddf08e7e0634318ac1825800b`
+was normally merged into this UI branch at `1c60f533af0c8bdada5f1dab610144349567b3e8`.
+The merge changes only `.github/workflows/ci.yml`: on production or development
+E2E failure it uploads JSON, `error-context.md` and `trace.zip` from both
+`test-results/preview/` and `test-results/dev-seo/`. The existing read-only
+workflow permissions and 45-minute job limit remain. Comparison with fee6457
+confirmed the product source, E2E helper/API case and analysis assets are
+unchanged; this workflow/documentation update does not require asset rebuild
+or repeated browser/unit suites.
 
 ## Security and privacy
 
