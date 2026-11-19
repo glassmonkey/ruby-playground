@@ -39,6 +39,7 @@ export default function RubyEditor({
 }) {
   const { colorMode } = useColorMode();
   const editor = useRef<MonacoEditor.IStandaloneCodeEditor>();
+  const editorModelGeneration = useRef(0);
   const [editorReady, setEditorReady] = useState(false);
   const selectedVersion = version ?? DEFAULT_RUBY_VERSION;
   const client = useRef<CompletionClient>();
@@ -47,6 +48,15 @@ export default function RubyEditor({
   useEffect(() => {
     onStatus.current = onCompletionStatusChange;
   }, [onCompletionStatusChange]);
+
+  useEffect(() => {
+    const activeEditor = editor.current;
+    if (!editorReady || !activeEditor) return;
+    const subscription = activeEditor.onDidChangeModel(() => {
+      editorModelGeneration.current += 1;
+    });
+    return () => subscription.dispose();
+  }, [editorReady]);
 
   useEffect(() => {
     if (!completionEnabled) {
@@ -89,6 +99,7 @@ export default function RubyEditor({
       provideCompletionItems: async (model, position, _context, token) => {
         const current = client.current;
         if (!current || model.isDisposed()) return { suggestions: [] };
+        const requestedModelGeneration = editorModelGeneration.current;
         try {
           // A dot can trigger the provider before the user finishes typing a method.
           // Coalesce newer snapshots during the quiet window and stop at the overall
@@ -96,7 +107,11 @@ export default function RubyEditor({
           const result = await requestForStableSnapshot(
             () => {
               const activeEditor = editor.current;
-              if (activeEditor?.getModel() !== model) return undefined;
+              if (
+                activeEditor?.getModel() !== model ||
+                editorModelGeneration.current !== requestedModelGeneration
+              )
+                return undefined;
               return {
                 text: model.getValue(),
                 version: model.getVersionId(),
@@ -116,11 +131,13 @@ export default function RubyEditor({
             () =>
               !token.isCancellationRequested &&
               !model.isDisposed() &&
-              client.current === current,
+              client.current === current &&
+              editorModelGeneration.current === requestedModelGeneration,
           );
           if (
             !result ||
             model.isDisposed() ||
+            editorModelGeneration.current !== requestedModelGeneration ||
             result.snapshot.position.lineNumber !== position.lineNumber
           )
             return { suggestions: [] };
@@ -165,6 +182,7 @@ export default function RubyEditor({
       onChange={(value) => onChange(value ?? "")}
       onMount={(instance) => {
         editor.current = instance;
+        editorModelGeneration.current += 1;
         setEditorReady(true);
       }}
       options={{

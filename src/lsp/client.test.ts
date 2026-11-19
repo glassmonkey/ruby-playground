@@ -4,15 +4,21 @@ import { CompletionClient } from "./client";
 class FakeWorker extends EventTarget {
   messages: unknown[] = [];
   terminated = false;
+  terminateCalls = 0;
   respond = true;
+  heldMethods = new Set<string>();
   responseError?: string;
   resolveSupported = true;
 
   postMessage(value: unknown): void {
-    const workerMessage = value as { type?: string };
+    const workerMessage = value as {
+      type?: string;
+      message?: { method: string };
+    };
     if (workerMessage.type === "initialize") return;
     this.messages.push(value);
-    if (!this.respond) return;
+    if (!this.respond || this.heldMethods.has(workerMessage.message!.method))
+      return;
     queueMicrotask(() => {
       const request = value as {
         token: number;
@@ -63,6 +69,7 @@ class FakeWorker extends EventTarget {
 
   terminate(): void {
     this.terminated = true;
+    this.terminateCalls += 1;
   }
 }
 
@@ -414,41 +421,95 @@ describe("CompletionClient", () => {
   });
 
   it.each([
-    ["error", new Event("error")],
-    ["messageerror", new MessageEvent("messageerror")],
-  ])("marks a ready client unavailable after Worker %s", async (_name, event) => {
+    ["request timeout", "timeout"],
+    ["error", "error"],
+    ["messageerror", "messageerror"],
+  ])("keeps a previously working client unavailable after %s", async (_name, failure) => {
     const worker = new FakeWorker();
-    worker.respond = false;
     const statuses: Array<"ready" | "error"> = [];
     const sut = start(worker, 100, statuses);
-    const pending = sut.complete("file:///main.rb", "x.", 1, {
-      line: 0,
-      character: 2,
-    });
-    await vi.waitFor(() =>
-      expect(
-        worker.messages.some(
-          (entry) =>
-            (entry as { message: { method: string } }).message.method ===
-            "initialize",
-        ),
-      ).toBe(true),
-    );
-
-    worker.dispatchEvent(event);
-
     try {
-      await expect(pending).rejects.toThrow();
       await expect(
-        sut.complete("file:///main.rb", "x.y", 2, {
+        sut.complete("file:///main.rb", "x.", 1, {
           line: 0,
-          character: 3,
+          character: 2,
+        }),
+      ).resolves.toEqual([{ label: "upcase" }]);
+
+      worker.heldMethods.add("textDocument/completion");
+      const pending = sut.complete("file:///main.rb", "x.up", 2, {
+        line: 0,
+        character: 4,
+      });
+      await vi.waitFor(() =>
+        expect(
+          worker.messages.filter(
+            (entry) =>
+              (entry as { message: { method: string } }).message.method ===
+              "textDocument/completion",
+          ),
+        ).toHaveLength(2),
+      );
+      const completionRequests = worker.messages
+        .map((entry) => entry as {
+          token: number;
+          message: { id?: number; method: string };
+        })
+        .filter(({ message }) => message.method === "textDocument/completion");
+      const held = completionRequests[completionRequests.length - 1]!;
+
+      if (failure === "error") worker.dispatchEvent(new Event("error"));
+      if (failure === "messageerror")
+        worker.dispatchEvent(new MessageEvent("messageerror"));
+      if (failure === "timeout") await expect(pending).rejects.toThrow("timed out");
+      else await expect(pending).rejects.toThrow();
+
+      worker.dispatchEvent(new MessageEvent("message", { data: { type: "ready" } }));
+      worker.dispatchEvent(
+        new MessageEvent("message", {
+          data: {
+            type: "response",
+            token: held.token,
+            responses: [
+              {
+                jsonrpc: "2.0",
+                id: held.message.id,
+                result: [{ label: "late-stale" }],
+              },
+            ],
+          },
+        }),
+      );
+      await new Promise<void>((resolve) => setImmediate(resolve));
+      await expect(
+        sut.complete("file:///main.rb", "x.upc", 3, {
+          line: 0,
+          character: 5,
         }),
       ).rejects.toThrow();
-      expect({ statuses, terminated: worker.terminated }).toEqual({
+      expect({ statuses, terminated: worker.terminated, terminateCalls: worker.terminateCalls }).toEqual({
         statuses: ["ready", "error"],
         terminated: true,
+        terminateCalls: 1,
       });
+
+      const nextStatuses: Array<"ready" | "error"> = [];
+      const nextWorker = new FakeWorker();
+      const next = start(nextWorker, 100, nextStatuses);
+      try {
+        await expect(
+          next.complete("file:///main.rb", "x.upc", 1, {
+            line: 0,
+            character: 5,
+          }),
+        ).resolves.toEqual([{ label: "upcase" }]);
+        expect({ nextStatuses, nextTerminations: nextWorker.terminateCalls }).toEqual({
+          nextStatuses: ["ready"],
+          nextTerminations: 0,
+        });
+      } finally {
+        next.dispose();
+      }
     } finally {
       sut.dispose();
     }
