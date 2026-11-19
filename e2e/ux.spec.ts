@@ -1,5 +1,6 @@
 import LZString from "lz-string";
 import { expect, test } from "@playwright/test";
+import "./provenance";
 import { expectDocumentToFitViewport } from "./layout";
 import {
   codeOnlyUrl,
@@ -7,6 +8,7 @@ import {
   expectRubyOutput,
   expectLettersSample,
   INITIAL_OUTPUT,
+  rubyExecutionStatus,
 } from "./editor";
 
 test("runtime information stays separate from initial and edited console output", async ({
@@ -106,7 +108,7 @@ test("environment info arrives even when a shared script never finishes", async 
     "Ruby 3.4.1",
     { timeout: 10_000 },
   );
-  await expect(page.getByRole("status")).toContainText("Running");
+  await expect(rubyExecutionStatus(page)).toContainText("Running");
   await expect(page.getByTestId("preview-console")).toHaveText("");
   await page.getByRole("button", { name: "Stop", exact: true }).click();
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
@@ -384,7 +386,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   expect(entryChunkHeld).toBe(true);
   await navigation;
   // Observe completion concurrently: editor loading must not inflate run duration.
-  const coldRunFinishedAt = expect(page.getByRole("status"))
+  const coldRunFinishedAt = expect(rubyExecutionStatus(page))
     .toHaveText(/^(Complete|Error)$/, { timeout: 90_000 })
     .then(() => Date.now());
   await entryChunkContinued;
@@ -399,7 +401,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   await expect.poll(() => firstRubyWorkerStartedAt).toBeDefined();
   const coldRunStartedAt = firstRubyWorkerStartedAt!;
   const coldRunElapsedMs = (await coldRunFinishedAt) - coldRunStartedAt;
-  const coldRunStatus = (await page.getByRole("status").innerText()).trim();
+  const coldRunStatus = (await rubyExecutionStatus(page).innerText()).trim();
   const coldRunError = (
     await page.getByRole("main").getByRole("alert").allTextContents()
   ).join("\n");
@@ -428,7 +430,7 @@ test("records fresh low-speed first-run outcome, stop and recovery timings", asy
   });
   await cdp.send("Network.setCacheDisabled", { cacheDisabled: false });
   await edit(page, "loop {}");
-  await expect(page.getByRole("status")).toContainText("Running", {
+  await expect(rubyExecutionStatus(page)).toContainText("Running", {
     timeout: 10_000,
   });
   await page.waitForTimeout(5000);

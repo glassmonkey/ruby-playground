@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import "./provenance";
 import { RUBY_VERSIONS } from "../src/versions";
 import { runtimeCases } from "../src/__test__/fixtures/runtime-cases";
 import {
@@ -7,6 +8,7 @@ import {
   expectRubyOutput,
   expectLettersSample,
   expectRubyExecutionStatus,
+  rubyExecutionStatus,
 } from "./editor";
 import { expectDocumentToFitViewport } from "./layout";
 test.beforeEach(async ({ page }) => {
@@ -199,7 +201,7 @@ test("rapid edits and version changes cancel stale runs and keep only the latest
   oldWorker.on("close", () => {
     oldWorkerClosed = true;
   });
-  await expect(page.getByRole("status")).toContainText("Running");
+  await expect(rubyExecutionStatus(page)).toContainText("Running");
 
   await edit(page, 'raise "stale error"');
   await page.getByLabel("Ruby version").selectOption("3.4");
@@ -242,7 +244,7 @@ test("an infinite automatic run times out and the next edit recovers", async ({
   await page.goto(codeOnlyUrl());
   await expectLettersSample(page);
   await edit(page, "loop {}");
-  await expect(page.getByRole("status")).toContainText("Running");
+  await expect(rubyExecutionStatus(page)).toContainText("Running");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "timed out",
     { timeout: 25_000 },

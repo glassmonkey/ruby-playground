@@ -70,11 +70,14 @@ export async function expectRubyExecutionStatus(
   page: Page,
   status: "Complete" | "Error",
 ) {
-  const outputRegion = page.getByRole("region", { name: "Output" });
-  await expect(outputRegion.getByRole("status")).toHaveText(status);
+  await expect(rubyExecutionStatus(page)).toHaveText(status);
   await expect(
     page.getByRole("status", { name: /^Code completion status:/ }),
   ).toBeVisible();
+}
+
+export function rubyExecutionStatus(page: Page) {
+  return page.getByRole("region", { name: "Output" }).getByRole("status");
 }
 
 /** Check the explicit code-only letters fixture, independent of app defaults. */

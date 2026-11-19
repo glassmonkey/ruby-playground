@@ -1,6 +1,7 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { expect, test, type Page } from "@playwright/test";
+import { captureE2eSourceProvenance } from "./provenance";
 import {
   codeOnlyUrl,
   editRuby,
@@ -10,9 +11,12 @@ import {
 import {
   analysisWorkerTerminations,
   analysisWorkerUrls,
-  hasRawCompletionCandidate,
+  completionResponseForSnapshot,
+  expectHeldClientDeliveryProof,
   heldCompletionResponses,
+  isSuccessfulCompletionResponse,
   lspObservations,
+  normalizeCompletionSource,
   releaseHeldCompletionResponse,
   watchAnalysisWorkers,
 } from "./completion-lsp-observer";
@@ -36,11 +40,19 @@ type CompletionResponse = Record<string, unknown> & {
   candidates?: RawCandidate[];
 };
 
+type CompletionSnapshot = {
+  documentEvent: Record<string, unknown>;
+  request: Record<string, unknown>;
+  response: CompletionResponse;
+};
+
 type TypeInferenceCase = {
   name: string;
   codeBeforePrefix: string;
   prefix: string;
   cursorLeft?: number;
+  sourceAfterPrefix: string;
+  expectedPosition: Position;
   label: string;
   detailPattern?: RegExp;
   codeAfterSelection: string;
@@ -49,11 +61,99 @@ type TypeInferenceCase = {
 
 const versions = ["3.3", "4.0"] as const;
 
+async function waitForHeldCompletionForSource(
+  page: Page,
+  {
+    responseStart,
+    workerId,
+    source,
+    position,
+  }: {
+    responseStart: number;
+    workerId: number;
+    source: string;
+    position: Position;
+  },
+) {
+  let heldResponse:
+    Awaited<ReturnType<typeof heldCompletionResponses>>[number] | undefined;
+  await expect
+    .poll(async () => {
+      const events = await lspObservations(page);
+      const documentEvent = events
+        .slice(responseStart)
+        .filter(
+          (event) =>
+            event.direction === "notification" &&
+            event.workerId === workerId &&
+            (event.method === "textDocument/didOpen" ||
+              event.method === "textDocument/didChange") &&
+            ((event.contentChanges as Array<{ text?: string }> | undefined)?.at(
+              -1,
+            )?.text ??
+              (event.textDocument as { text?: string } | undefined)?.text) ===
+              source,
+        )
+        .at(-1);
+      if (!documentEvent) return false;
+      const request = events.find(
+        (event) =>
+          event.direction === "request" &&
+          event.workerId === workerId &&
+          event.method === "textDocument/completion" &&
+          event.documentVersion === documentEvent.documentVersion &&
+          JSON.stringify(event.position) === JSON.stringify(position),
+      );
+      if (!request) return false;
+      const response = events.find(
+        (event) =>
+          event.direction === "response" &&
+          event.workerId === workerId &&
+          event.token === request.token &&
+          event.method === "textDocument/completion",
+      );
+      if (
+        !(response?.candidates as RawCandidate[] | undefined)?.some(
+          (candidate) => candidateLabel(candidate) === "upcase",
+        )
+      )
+        return false;
+      heldResponse = (await heldCompletionResponses(page)).find(
+        (held) =>
+          held.workerId === workerId &&
+          held.token === request.token &&
+          held.documentVersion === documentEvent.documentVersion &&
+          JSON.stringify(held.position) === JSON.stringify(position),
+      );
+      return Boolean(heldResponse);
+    })
+    .toBe(true);
+
+  expect(heldResponse).toBeDefined();
+  expect(heldResponse?.documentText).toBe(source);
+  expect(heldResponse?.documentVersion).toBeDefined();
+  expect(heldResponse?.observerMessageListenerCount).toBe(1);
+  expect(heldResponse?.clientMessageListenerCount).toBe(1);
+  expect(heldResponse?.clientDeliveriesBeforeRelease).toBe(0);
+  expect(heldResponse?.candidateLabels).toContain("upcase");
+  await expectHeldClientDeliveryProof(
+    page,
+    workerId,
+    heldResponse?.token as number,
+    false,
+  );
+  return heldResponse as Awaited<
+    ReturnType<typeof heldCompletionResponses>
+  >[number];
+}
+
 const typeInferenceCases: TypeInferenceCase[] = [
   {
     name: "method return type",
     codeBeforePrefix: 'def greeting; "hello"; end\nputs greeting',
     prefix: ".upc",
+    sourceAfterPrefix: 'def greeting; "hello"; end\nputs greeting.upc',
+    expectedPosition: { line: 1, character: 17 },
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection: 'def greeting; "hello"; end\nputs greeting.upcase',
@@ -63,6 +163,8 @@ const typeInferenceCases: TypeInferenceCase[] = [
     name: "Array#first element type",
     codeBeforePrefix: 'words = ["hello", "world"]\nputs words.first',
     prefix: ".upc",
+    sourceAfterPrefix: 'words = ["hello", "world"]\nputs words.first.upc',
+    expectedPosition: { line: 1, character: 20 },
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection: 'words = ["hello", "world"]\nputs words.first.upcase',
@@ -73,6 +175,8 @@ const typeInferenceCases: TypeInferenceCase[] = [
     codeBeforePrefix: 'words = ["hello"]\nputs words.map { |word| word }',
     prefix: ".upc",
     cursorLeft: 2,
+    sourceAfterPrefix: 'words = ["hello"]\nputs words.map { |word| word.upc }',
+    expectedPosition: { line: 1, character: 32 },
     label: "upcase",
     detailPattern: /String#upcase/,
     codeAfterSelection:
@@ -161,6 +265,8 @@ async function typeAndSelectTypeProfCandidate(
     label,
     detailPattern,
     responseStart,
+    workerId,
+    source,
     expectedPosition,
     onTyped,
     selection = "click",
@@ -169,38 +275,29 @@ async function typeAndSelectTypeProfCandidate(
     label: string;
     detailPattern?: RegExp;
     responseStart: number;
-    expectedPosition?: Position;
+    workerId: number;
+    source: string;
+    expectedPosition: Position;
     onTyped?: () => Promise<void>;
     selection?: "click" | "keyboard";
   },
 ): Promise<{ event: CompletionResponse; item: RawCandidate }> {
   await page.keyboard.type(prefix, { delay: 50 });
   await onTyped?.();
-  await expect
-    .poll(() => hasRawCompletionCandidate(page, responseStart, label))
-    .toBe(true);
-
-  const events = await lspObservations(page);
-  const event = events
-    .slice(responseStart)
-    .filter(
-      (entry) =>
-        entry.direction === "response" &&
-        entry.method === "textDocument/completion" &&
-        (entry.candidates as RawCandidate[] | undefined)?.some(
-          (candidate) => candidateLabel(candidate) === label,
-        ),
-    )
-    .at(-1) as CompletionResponse | undefined;
-  expect(event).toBeDefined();
-  const item = event?.candidates?.find(
-    (candidate) => candidateLabel(candidate) === label,
-  );
+  const snapshot = await waitForSnapshotCandidate(page, {
+    responseStart,
+    workerId,
+    source,
+    position: expectedPosition,
+    label,
+  });
+  const event = snapshot.response;
+  const item = snapshot.item;
   expect(item).toBeDefined();
   if (detailPattern) expect(item?.detail).toMatch(detailPattern);
   expect(event?.workerId).toBeDefined();
   expect(event?.documentVersion).toBeDefined();
-  if (expectedPosition) expect(event?.position).toEqual(expectedPosition);
+  expect(event.position).toEqual(expectedPosition);
 
   // The accessible row name can include TypeProf documentation details. Match
   // the exact visible label node so `upcase` cannot select `upcase!`.
@@ -234,68 +331,148 @@ async function waitForSnapshotCandidate(
   response: CompletionResponse;
   item: RawCandidate;
 }> {
-  let documentEvent: Record<string, unknown> | undefined;
-  let request: Record<string, unknown> | undefined;
-  let response: CompletionResponse | undefined;
+  let snapshot: ReturnType<typeof completionResponseForSnapshot>;
   await expect
     .poll(async () => {
-      const events = await lspObservations(page);
-      documentEvent = events
-        .slice(responseStart)
-        .filter((event) => {
-          if (
-            event.direction !== "notification" ||
-            event.workerId !== workerId ||
-            (event.method !== "textDocument/didOpen" &&
-              event.method !== "textDocument/didChange")
-          )
-            return false;
-          const changes = event.contentChanges as
-            Array<{ text?: string }> | undefined;
-          const openedText = (
-            event.textDocument as { text?: string } | undefined
-          )?.text;
-          return (changes?.at(-1)?.text ?? openedText) === source;
-        })
-        .at(-1);
-      if (!documentEvent) return false;
-      request = events
-        .slice(responseStart)
-        .filter(
-          (event) =>
-            event.direction === "request" &&
-            event.workerId === workerId &&
-            event.method === "textDocument/completion" &&
-            event.documentVersion === documentEvent?.documentVersion &&
-            JSON.stringify(event.position) === JSON.stringify(position),
-        )
-        .at(-1);
-      if (!request) return false;
-      response = events.find(
-        (event) =>
-          event.direction === "response" &&
-          event.workerId === request?.workerId &&
-          event.token === request?.token &&
-          event.method === "textDocument/completion",
-      ) as CompletionResponse | undefined;
-      return !!response?.candidates?.some(
-        (candidate) => candidateLabel(candidate) === label,
+      snapshot = completionResponseForSnapshot(
+        (await lspObservations(page)).slice(responseStart),
+        { workerId, source, position },
+      );
+      return Boolean(
+        snapshot &&
+        isSuccessfulCompletionResponse(snapshot.response) &&
+        (snapshot.response.candidates as RawCandidate[] | undefined)?.some(
+          (candidate) => candidateLabel(candidate) === label,
+        ),
       );
     })
     .toBe(true);
-  const item = response?.candidates?.find(
-    (candidate) => candidateLabel(candidate) === label,
-  );
-  expect(documentEvent).toBeDefined();
-  expect(request).toBeDefined();
-  expect(response).toBeDefined();
+  expect(snapshot).toBeDefined();
+  expect(isSuccessfulCompletionResponse(snapshot!.response)).toBe(true);
+  const item = (
+    snapshot!.response.candidates as RawCandidate[] | undefined
+  )?.find((candidate) => candidateLabel(candidate) === label);
   expect(item).toBeDefined();
   return {
-    documentEvent: documentEvent as Record<string, unknown>,
-    request: request as Record<string, unknown>,
-    response: response as CompletionResponse,
+    documentEvent: snapshot!.documentEvent,
+    request: snapshot!.request,
+    response: snapshot!.response as CompletionResponse,
     item: item as RawCandidate,
   };
+}
+
+async function waitForSnapshotResponse(
+  page: Page,
+  {
+    responseStart,
+    workerId,
+    source,
+    position,
+  }: {
+    responseStart: number;
+    workerId: number;
+    source: string;
+    position: Position;
+  },
+): Promise<CompletionSnapshot> {
+  let snapshot: ReturnType<typeof completionResponseForSnapshot>;
+  await expect
+    .poll(
+      async () => {
+        const events = (await lspObservations(page)).slice(responseStart);
+        snapshot = completionResponseForSnapshot(events, {
+          workerId,
+          source,
+          position,
+        });
+        if (!snapshot) {
+          const held = (await heldCompletionResponses(page)).find(
+            (entry) =>
+              entry.workerId === workerId &&
+              entry.method === "textDocument/completion" &&
+              normalizeCompletionSource(entry.documentText ?? "") ===
+                normalizeCompletionSource(source) &&
+              entry.position !== undefined &&
+              JSON.stringify(entry.position) === JSON.stringify(position),
+          );
+          if (!held) return false;
+          const documentEvent = events
+            .filter(
+              (event) =>
+                event.direction === "notification" &&
+                event.workerId === workerId &&
+                event.documentVersion === held.documentVersion &&
+                normalizeCompletionSource(
+                  (
+                    event.contentChanges as Array<{ text?: string }> | undefined
+                  )?.at(-1)?.text ?? "",
+                ) === normalizeCompletionSource(source),
+            )
+            .at(-1);
+          const request = events.find(
+            (event) =>
+              event.direction === "request" &&
+              event.workerId === workerId &&
+              event.token === held.token &&
+              event.method === "textDocument/completion" &&
+              event.documentVersion === held.documentVersion &&
+              JSON.stringify(event.position) === JSON.stringify(position),
+          );
+          if (!documentEvent || !request) return false;
+          const envelope = held.response as {
+            error?: unknown;
+            responses?: Array<{
+              id?: number;
+              result?: unknown;
+              error?: unknown;
+            }>;
+          };
+          const rpc = envelope.responses?.find(
+            (entry) => typeof entry.id === "number",
+          );
+          const result = rpc?.result;
+          const items = Array.isArray(result)
+            ? result
+            : result &&
+                typeof result === "object" &&
+                Array.isArray((result as { items?: unknown }).items)
+              ? (result as { items: unknown[] }).items
+              : result && typeof result === "object" && "label" in result
+                ? [result]
+                : undefined;
+          if (!items) return false;
+          const candidates = items.filter(
+            (item): item is Record<string, unknown> =>
+              Boolean(item) && typeof item === "object" && "label" in item,
+          );
+          const successfulResult =
+            envelope.error === undefined &&
+            rpc?.error === undefined &&
+            candidates.length === items.length;
+          snapshot = {
+            documentEvent,
+            request,
+            response: {
+              direction: "response",
+              workerId,
+              token: held.token,
+              method: "textDocument/completion",
+              documentVersion: held.documentVersion,
+              position: held.position,
+              candidates,
+              successfulResult,
+              deliveryState: "held-before-client",
+            } as CompletionResponse,
+          };
+        }
+        return Boolean(snapshot);
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+  expect(snapshot).toBeDefined();
+  expect(isSuccessfulCompletionResponse(snapshot!.response)).toBe(true);
+  return snapshot as CompletionSnapshot;
 }
 
 for (const version of versions) {
@@ -303,9 +480,12 @@ for (const version of versions) {
     page,
   }, testInfo) => {
     test.setTimeout(45_000);
+    const provenance = await captureE2eSourceProvenance(testInfo);
     const diagnostic: Record<string, unknown> = {
-      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
-      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      actualGitHead: provenance.actualGitHead,
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? null,
+      testSourceSha256: provenance.testSourceSha256,
+      observerSourceSha256: provenance.observerSourceSha256,
       version,
       startedAt: Date.now(),
       pageErrors: [] as string[],
@@ -321,20 +501,31 @@ for (const version of versions) {
     await watchAnalysisWorkers(page);
     try {
       await page.goto(codeOnlyUrl("", version));
-      diagnostic.ready = await waitForReadyVersion(page, version);
-      await editRuby(page, 'put "Ruby"');
+      const ready = await waitForReadyVersion(page, version);
+      diagnostic.ready = ready;
+      await editRuby(page, 'pu "Ruby"');
       for (let index = 0; index < 7; index += 1)
         await page.keyboard.press("ArrowLeft");
       const responseStart = (await lspObservations(page)).length;
       diagnostic.prefixBeforeNaturalInput = await page
         .locator(".monaco-editor .view-lines")
         .innerText();
-      await page.keyboard.type("s");
+      await page.keyboard.type("t");
+      await expectEditorSource(page, 'put "Ruby"');
       const { event, item } = await typeAndSelectTypeProfCandidate(page, {
         prefix: "",
         label: "puts",
         responseStart,
-        expectedPosition: { line: 0, character: 4 },
+        workerId: ready.workerId as number,
+        source: 'put "Ruby"',
+        expectedPosition: { line: 0, character: 3 },
+      });
+      expect(item.textEdit).toEqual({
+        range: {
+          start: { line: 0, character: 0 },
+          end: { line: 0, character: 3 },
+        },
+        newText: "puts",
       });
       diagnostic.finalCompletionResponse = event;
       diagnostic.putsCandidate = item;
@@ -389,6 +580,202 @@ for (const version of versions) {
 }
 
 for (const version of versions) {
+  test(`TypeProf removes a deleted Mine method without hiding version-specific Array rfind on Ruby ${version}`, async ({
+    page,
+  }) => {
+    await watchAnalysisWorkers(page);
+    await page.goto(codeOnlyUrl("", version));
+    const ready = await waitForReadyVersion(page, version);
+    const workerId = ready.workerId as number;
+
+    const initialSource =
+      'class Mine; def rfind; "mine"; end; end\nputs Mine.new.';
+    await editRuby(page, initialSource);
+    const initialResponseStart = (await lspObservations(page)).length;
+    const initial = await typeAndSelectTypeProfCandidate(page, {
+      prefix: "rf",
+      label: "rfind",
+      detailPattern: /Mine#rfind/,
+      responseStart: initialResponseStart,
+      workerId,
+      source: `${initialSource}rf`,
+      expectedPosition: { line: 1, character: 16 },
+    });
+    expect(initial.item.textEdit?.newText).toBe("rfind");
+    const declaredSource =
+      'class Mine; def rfind; "mine"; end; end\nputs Mine.new.rfind';
+    await expectEditorSource(page, declaredSource);
+    await expectRubyOutput(page, "mine\n");
+
+    const removedSource = "class Mine; end\nputs Mine.new.";
+    await editRuby(page, removedSource);
+    const removedResponseStart = (await lspObservations(page)).length;
+    await page.keyboard.type("rf", { delay: 50 });
+    const removed = await waitForSnapshotResponse(page, {
+      responseStart: removedResponseStart,
+      workerId,
+      source: `${removedSource}rf`,
+      position: { line: 1, character: 16 },
+    });
+    expect(removed.response.candidates?.map(candidateLabel)).not.toContain(
+      "rfind",
+    );
+    await expectEditorSource(page, `${removedSource}rf`);
+    await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+
+    const arraySource = "puts [1,2].";
+    await editRuby(page, arraySource);
+    const arrayResponseStart = (await lspObservations(page)).length;
+    await page.keyboard.type("rf", { delay: 50 });
+    const arrayResponse = await waitForSnapshotResponse(page, {
+      responseStart: arrayResponseStart,
+      workerId,
+      source: `${arraySource}rf`,
+      position: { line: 0, character: 13 },
+    });
+    const arrayHasRfind = Boolean(
+      arrayResponse.response.candidates?.some(
+        (candidate) => candidateLabel(candidate) === "rfind",
+      ),
+    );
+    expect(arrayHasRfind).toBe(version === "4.0");
+    if (version === "4.0")
+      await expect(visibleCandidateLabel(page, "rfind")).toBeVisible();
+    else await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+  });
+}
+
+test("TypeProf correlates an API-negative response after releasing an older positive response", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(60_000);
+  const provenance = await captureE2eSourceProvenance(testInfo);
+  const diagnostic: Record<string, unknown> = {
+    actualGitHead: provenance.actualGitHead,
+    runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? null,
+    testSourceSha256: provenance.testSourceSha256,
+    observerSourceSha256: provenance.observerSourceSha256,
+    version: "3.3",
+    startedAt: Date.now(),
+  };
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) =>
+    pageErrors.push(error.stack ?? error.message),
+  );
+  await watchAnalysisWorkers(page, {
+    holdCompletionResponses: { documentSuffix: ".upc" },
+  });
+
+  try {
+    await page.goto(codeOnlyUrl("", "3.3"));
+    const ready = await waitForReadyVersion(page, "3.3");
+    const workerId = ready.workerId as number;
+
+    const oldSource = 'puts "old"';
+    await editRuby(page, oldSource);
+    const oldResponseStart = (await lspObservations(page)).length;
+    await page.keyboard.type(".upc", { delay: 50 });
+    const oldSnapshot = await waitForSnapshotResponse(page, {
+      responseStart: oldResponseStart,
+      workerId,
+      source: `${oldSource}.upc`,
+      position: { line: 0, character: 14 },
+    });
+    expect(oldSnapshot.response.candidates?.map(candidateLabel)).toContain(
+      "upcase",
+    );
+    const oldHeld = (await heldCompletionResponses(page)).find(
+      (held) =>
+        held.workerId === workerId && held.token === oldSnapshot.request.token,
+    );
+    expect(oldHeld?.documentText).toBe(`${oldSource}.upc`);
+    expect(oldHeld?.documentVersion).toBe(
+      oldSnapshot.documentEvent.documentVersion,
+    );
+    expect(oldHeld?.clientDeliveriesBeforeRelease).toBe(0);
+    await expectHeldClientDeliveryProof(
+      page,
+      workerId,
+      oldSnapshot.request.token as number,
+      false,
+    );
+
+    const negativeBase = "box = Object.new\nputs box";
+    await editRuby(page, negativeBase);
+    expect(
+      await releaseHeldCompletionResponse(page, workerId, oldHeld!.token),
+    ).toBe(true);
+    await expectHeldClientDeliveryProof(page, workerId, oldHeld!.token, true);
+    await expectEditorSource(page, negativeBase);
+    await expect(page.getByRole("listbox", { name: "Suggest" })).toHaveCount(0);
+
+    const negativeResponseStart = (await lspObservations(page)).length;
+    await page.keyboard.type(".upc", { delay: 50 });
+    const negativeSource = `${negativeBase}.upc`;
+    const negativeSnapshot = await waitForSnapshotResponse(page, {
+      responseStart: negativeResponseStart,
+      workerId,
+      source: negativeSource,
+      position: { line: 1, character: 12 },
+    });
+    expect(
+      negativeSnapshot.response.candidates?.map(candidateLabel),
+    ).not.toContain("upcase");
+    const negativeHeld = (await heldCompletionResponses(page)).find(
+      (held) =>
+        held.workerId === workerId &&
+        held.token === negativeSnapshot.request.token,
+    );
+    expect(normalizeCompletionSource(negativeHeld?.documentText ?? "")).toBe(
+      normalizeCompletionSource(negativeSource),
+    );
+    expect(
+      await releaseHeldCompletionResponse(
+        page,
+        workerId,
+        negativeSnapshot.request.token as number,
+      ),
+    ).toBe(true);
+    await expectHeldClientDeliveryProof(
+      page,
+      workerId,
+      negativeSnapshot.request.token as number,
+      true,
+    );
+    await expectEditorSource(page, negativeSource);
+    await expect(visibleCandidateLabel(page, "upcase")).toHaveCount(0);
+    await editRuby(page, "box = Object.new\nputs box.class");
+    await expectRubyOutput(page, "Object\n");
+    diagnostic.result = "passed";
+    diagnostic.oldPositiveSnapshot = oldSnapshot;
+    diagnostic.negativeSnapshot = negativeSnapshot;
+    diagnostic.heldResponses = await heldCompletionResponses(page);
+  } catch (error) {
+    diagnostic.failure = error instanceof Error ? error.message : String(error);
+    throw error;
+  } finally {
+    diagnostic.finishedAt = Date.now();
+    diagnostic.pageErrors = pageErrors;
+    diagnostic.observations = await lspObservations(page).catch((error) =>
+      String(error),
+    );
+    const diagnosticPath = testInfo.outputPath(
+      "api-negative-stale-response.json",
+    );
+    await mkdir(dirname(diagnosticPath), { recursive: true });
+    await writeFile(
+      diagnosticPath,
+      JSON.stringify(diagnostic, null, 2),
+      "utf8",
+    );
+    await testInfo.attach("api-negative-stale-response.json", {
+      path: diagnosticPath,
+      contentType: "application/json",
+    });
+  }
+});
+
+for (const version of versions) {
   for (const inferenceCase of typeInferenceCases) {
     test(`TypeProf ${inferenceCase.name} completion inserts and executes on Ruby ${version}`, async ({
       page,
@@ -430,6 +817,9 @@ for (const version of versions) {
           label: inferenceCase.label,
           detailPattern: inferenceCase.detailPattern,
           responseStart,
+          workerId: ready.workerId as number,
+          source: inferenceCase.sourceAfterPrefix,
+          expectedPosition: inferenceCase.expectedPosition,
           onTyped: async () => {
             diagnostic.typedAt = Date.now();
             diagnostic.monotonicTypedAt = await page.evaluate(() =>
@@ -609,7 +999,7 @@ for (const version of versions) {
   }) => {
     await watchAnalysisWorkers(page);
     await page.goto(codeOnlyUrl("", version));
-    await waitForReadyVersion(page, version);
+    const ready = await waitForReadyVersion(page, version);
 
     await editRuby(page, 'greeting = "hi"\nputs ');
     let responseStart = (await lspObservations(page)).length;
@@ -617,6 +1007,9 @@ for (const version of versions) {
       prefix: "gree",
       label: "greeting",
       responseStart,
+      workerId: ready.workerId as number,
+      source: 'greeting = "hi"\nputs gree',
+      expectedPosition: { line: 1, character: 9 },
     });
     await expectEditorSource(page, 'greeting = "hi"\nputs greeting');
     await expectRubyOutput(page, "hi\n");
@@ -631,6 +1024,10 @@ for (const version of versions) {
       label: "salutation",
       detailPattern: /Greeter#salutation/,
       responseStart,
+      workerId: ready.workerId as number,
+      source:
+        'class Greeter; def salutation; "hi"; end; end\nputs Greeter.new.sal',
+      expectedPosition: { line: 1, character: 20 },
     });
     await expectEditorSource(
       page,
@@ -641,30 +1038,14 @@ for (const version of versions) {
     await editRuby(page, "box = Object.new\nputs box");
     responseStart = (await lspObservations(page)).length;
     await page.keyboard.type(".upc", { delay: 50 });
-    await expect
-      .poll(async () => {
-        const responses = (await lspObservations(page))
-          .slice(responseStart)
-          .filter(
-            (event) =>
-              event.direction === "response" &&
-              event.method === "textDocument/completion",
-          );
-        return responses.at(-1)?.position;
-      })
-      .toEqual({ line: 1, character: 12 });
-    const lastResponse = (await lspObservations(page))
-      .slice(responseStart)
-      .filter(
-        (event) =>
-          event.direction === "response" &&
-          event.method === "textDocument/completion",
-      )
-      .at(-1);
+    const unsupportedResponse = await waitForSnapshotResponse(page, {
+      responseStart,
+      workerId: ready.workerId as number,
+      source: "box = Object.new\nputs box.upc",
+      position: { line: 1, character: 12 },
+    });
     const rawLabels =
-      (lastResponse?.candidates as RawCandidate[] | undefined)?.map(
-        candidateLabel,
-      ) ?? [];
+      unsupportedResponse.response.candidates?.map(candidateLabel) ?? [];
     expect(rawLabels).not.toContain("upcase");
     await expect(visibleCandidateLabel(page, "upcase")).toHaveCount(0);
     await expectEditorSource(page, "box = Object.new\nputs box.upc");
@@ -690,7 +1071,7 @@ for (const version of versions) {
     try {
       await page.goto(codeOnlyUrl("", version));
       phase = "initial-ready";
-      await waitForReadyVersion(page, version);
+      const ready = await waitForReadyVersion(page, version);
 
       phase = "first-completion";
       await editRuby(page, 'value = "hello"\nputs value');
@@ -700,6 +1081,9 @@ for (const version of versions) {
         label: "upcase",
         detailPattern: /String#upcase/,
         responseStart,
+        workerId: ready.workerId as number,
+        source: 'value = "hello"\nputs value.upc',
+        expectedPosition: { line: 1, character: 14 },
       });
       await expectEditorSource(page, 'value = "hello"\nputs value.upcase');
       await expectRubyOutput(page, "HELLO\n");
@@ -712,6 +1096,9 @@ for (const version of versions) {
         label: "digits",
         detailPattern: /Integer#digits/,
         responseStart,
+        workerId: ready.workerId as number,
+        source: "value = 42\np value.di",
+        expectedPosition: { line: 1, character: 10 },
         selection: "keyboard",
       });
       expect(integerCompletion.event.documentVersion).toBeGreaterThan(
@@ -1280,7 +1667,7 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
   page,
 }, testInfo) => {
   const startedAt = Date.now();
-  const diagnostic = {
+  const diagnostic: Record<string, unknown> = {
     head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
     runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
     startedAt,
@@ -1297,6 +1684,13 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
       heldResponses: await heldCompletionResponses(page).catch((error) =>
         String(error),
       ),
+      clientMessageDeliveries: await page
+        .evaluate(
+          () =>
+            (window as unknown as { __clientMessageDeliveries?: unknown[] })
+              .__clientMessageDeliveries ?? [],
+        )
+        .catch((error) => String(error)),
       observations: await lspObservations(page).catch((error) => String(error)),
       workerUrls: await analysisWorkerUrls(page).catch((error) =>
         String(error),
@@ -1331,25 +1725,24 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
       .catch(() => undefined);
   };
 
-  await watchAnalysisWorkers(page, { holdCompletionResponses: true });
+  await watchAnalysisWorkers(page, {
+    holdCompletionResponses: { documentSuffix: ".upc" },
+  });
   try {
     diagnostic.phase = "ready-3.3-and-hold-old";
     await page.goto(codeOnlyUrl("", "3.3"));
     const ready33 = await waitForReadyVersion(page, "3.3");
 
+    const oldResponseStart = (await lspObservations(page)).length;
     await editRuby(page, 'puts "old"');
     await page.keyboard.type(".upc", { delay: 40 });
-    await expect
-      .poll(async () =>
-        (await heldCompletionResponses(page)).some(
-          (response) => response.workerId === ready33.workerId,
-        ),
-      )
-      .toBe(true);
-    const held33 = (await heldCompletionResponses(page)).find(
-      (response) => response.workerId === ready33.workerId,
-    );
-    expect(held33).toBeDefined();
+    const held33 = await waitForHeldCompletionForSource(page, {
+      responseStart: oldResponseStart,
+      workerId: ready33.workerId as number,
+      source: 'puts "old".upc',
+      position: { line: 0, character: 'puts "old".upc'.length },
+    });
+    diagnostic.heldOldCompletion = held33;
 
     diagnostic.phase = "ready-4.0-and-hold-middle";
     const readyBefore40 = (await lspObservations(page)).filter(
@@ -1362,19 +1755,16 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
       readyBefore40,
       ready33.workerId as number,
     );
+    const middleResponseStart = (await lspObservations(page)).length;
     await editRuby(page, 'puts "middle"');
     await page.keyboard.type(".upc", { delay: 40 });
-    await expect
-      .poll(async () =>
-        (await heldCompletionResponses(page)).some(
-          (response) => response.workerId === ready40.workerId,
-        ),
-      )
-      .toBe(true);
-    const held40 = (await heldCompletionResponses(page)).find(
-      (response) => response.workerId === ready40.workerId,
-    );
-    expect(held40).toBeDefined();
+    const held40 = await waitForHeldCompletionForSource(page, {
+      responseStart: middleResponseStart,
+      workerId: ready40.workerId as number,
+      source: 'puts "middle".upc',
+      position: { line: 0, character: 'puts "middle".upc'.length },
+    });
+    diagnostic.heldMiddleCompletion = held40;
 
     diagnostic.phase = "ready-restored-3.3-and-current-response";
     const readyBeforeBack = (await lspObservations(page)).filter(
@@ -1387,20 +1777,16 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
       readyBeforeBack,
       ready40.workerId as number,
     );
+    const finalResponseStart = (await lspObservations(page)).length;
     await editRuby(page, 'puts "final"');
     const responseStart = (await lspObservations(page)).length;
     await page.keyboard.type(".upc", { delay: 40 });
-    await expect
-      .poll(async () =>
-        (await heldCompletionResponses(page)).some(
-          (response) => response.workerId === readyBack33.workerId,
-        ),
-      )
-      .toBe(true);
-    const heldFinal = (await heldCompletionResponses(page)).find(
-      (response) => response.workerId === readyBack33.workerId,
-    );
-    expect(heldFinal).toBeDefined();
+    const heldFinal = await waitForHeldCompletionForSource(page, {
+      responseStart: finalResponseStart,
+      workerId: readyBack33.workerId as number,
+      source: 'puts "final".upc',
+      position: { line: 0, character: 'puts "final".upc'.length },
+    });
     expect(
       await releaseHeldCompletionResponse(
         page,
@@ -1408,6 +1794,12 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
         heldFinal?.token as number,
       ),
     ).toBe(true);
+    await expectHeldClientDeliveryProof(
+      page,
+      heldFinal.workerId,
+      heldFinal.token,
+      true,
+    );
     const { event } = await waitForRawCandidate(page, "upcase", responseStart);
     expect(event.workerId).toBe(readyBack33.workerId);
     const currentRow = visibleCandidateLabel(page, "upcase");
@@ -1417,8 +1809,14 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
     await expectRubyOutput(page, "FINAL\n");
 
     diagnostic.phase = "release-stale-responses-after-version-switch";
-    for (const stale of [held33, held40]) {
-      expect(stale).toBeDefined();
+    const staleResponses = (await heldCompletionResponses(page)).filter(
+      (held) =>
+        !(
+          held.workerId === heldFinal.workerId && held.token === heldFinal.token
+        ),
+    );
+    for (const stale of staleResponses) {
+      expect(stale.documentText).toMatch(/\.upc$/);
       expect(
         await releaseHeldCompletionResponse(
           page,
@@ -1426,6 +1824,12 @@ test("TypeProf ignores an old response after a rapid version switch and OFF", as
           stale?.token as number,
         ),
       ).toBe(true);
+      await expectHeldClientDeliveryProof(
+        page,
+        stale.workerId,
+        stale.token,
+        true,
+      );
     }
     await page.evaluate(
       () =>

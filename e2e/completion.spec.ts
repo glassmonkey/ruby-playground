@@ -11,11 +11,14 @@ import {
   expectRubyOutput,
 } from "./editor";
 import { buildShareUrl } from "../src/share";
+import { captureE2eSourceProvenance } from "./provenance";
 import {
   analysisWorkerTerminations,
   analysisWorkerUrls,
+  completionResponseForSnapshot,
+  expectHeldClientDeliveryProof,
   heldCompletionResponses,
-  latestRawCompletion,
+  isSuccessfulCompletionResponse,
   lspObservations,
   releaseHeldCompletionResponse,
   watchAnalysisWorkers,
@@ -32,6 +35,55 @@ function candidateRow(page: Page, label: string) {
   return visibleCandidateLabel(page, label).locator(
     "xpath=ancestor::*[contains(concat(' ', normalize-space(@class), ' '), ' monaco-list-row ')][1]",
   );
+}
+
+async function readyWorkerId(
+  page: Page,
+  version: string,
+  previousWorkerId?: number,
+) {
+  let workerId: number | undefined;
+  await expect
+    .poll(async () => {
+      const ready = (await lspObservations(page))
+        .filter(
+          (event) => event.direction === "ready" && event.version === version,
+        )
+        .at(-1);
+      workerId = ready?.workerId as number | undefined;
+      return (
+        workerId !== undefined &&
+        (previousWorkerId === undefined || workerId > previousWorkerId)
+      );
+    })
+    .toBe(true);
+  return workerId as number;
+}
+
+async function waitForCompletionSnapshot(
+  page: Page,
+  options: {
+    workerId: number;
+    source: string;
+    position: { line: number; character: number };
+  },
+) {
+  let snapshot: ReturnType<typeof completionResponseForSnapshot>;
+  await expect
+    .poll(
+      async () => {
+        snapshot = completionResponseForSnapshot(
+          await lspObservations(page),
+          options,
+        );
+        return Boolean(snapshot);
+      },
+      { timeout: 30_000 },
+    )
+    .toBe(true);
+  expect(snapshot).toBeDefined();
+  expect(isSuccessfulCompletionResponse(snapshot!.response)).toBe(true);
+  return snapshot!;
 }
 
 function verifyGeneratedWasm(
@@ -155,6 +207,104 @@ test("analysis failure leaves editing and Ruby execution available", async ({
   await expectRubyOutput(page, "code-only navigation after completion error\n");
 });
 
+test("core asset failure preserves execution and recovers after OFF then ON", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  const corePattern = /\/lsp\/versioned\/core-4\.0\.json\.gz(?:\?.*)?$/;
+  let coreFailureUrl: string | undefined;
+  let manifestStatus: number | undefined;
+  let coreAbortCount = 0;
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) =>
+    pageErrors.push(error.stack ?? error.message),
+  );
+  page.on("response", (response) => {
+    if (new URL(response.url()).pathname.endsWith("/lsp/manifest.json"))
+      manifestStatus = response.status();
+  });
+  await watchAnalysisWorkers(page);
+  await page.route(corePattern, async (route) => {
+    coreAbortCount += 1;
+    coreFailureUrl = route.request().url();
+    await route.abort("failed");
+  });
+
+  const diagnostic: Record<string, unknown> = {
+    uiHead: process.env.COMPLETION_UI_HEAD ?? "not-provided",
+    runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-provided",
+    startedAt: Date.now(),
+    pageErrors,
+  };
+  try {
+    await page.goto(codeOnlyUrl("", "4.0"));
+    const completionStatus = page.getByRole("status", {
+      name: /^Code completion status:/,
+    });
+    await expect(completionStatus).toHaveText("Unavailable", {
+      timeout: 60_000,
+    });
+    expect(manifestStatus).toBe(200);
+    expect(coreAbortCount).toBe(1);
+    expect(coreFailureUrl).toContain("sha256=");
+    diagnostic.manifestStatus = manifestStatus;
+    diagnostic.coreFailureUrl = coreFailureUrl;
+
+    await editRuby(page, 'puts "execution survives core download failure"');
+    await expectRubyOutput(page, "execution survives core download failure\n");
+
+    await page.unroute(corePattern);
+    const completionToggle = page.getByRole("checkbox", {
+      name: "Code completion",
+    });
+    await completionToggle.uncheck();
+    await expect(completionStatus).toHaveText("Off");
+    await completionToggle.check();
+    await expect(completionStatus).toHaveText("On", { timeout: 60_000 });
+
+    await editRuby(page, 'puts "hello"');
+    await page.keyboard.type(".upc", { delay: 50 });
+    const upcase = page
+      .getByRole("listbox", { name: "Suggest" })
+      .locator(".monaco-list-row .label-name")
+      .getByText("upcase", { exact: true });
+    await expect(upcase).toBeVisible({ timeout: 30_000 });
+    await upcase.click();
+    await expectEditorSource(page, 'puts "hello".upcase');
+    await expectRubyOutput(page, "HELLO\n");
+    diagnostic.result = "passed";
+  } catch (error) {
+    diagnostic.failure = error instanceof Error ? error.message : String(error);
+    throw error;
+  } finally {
+    diagnostic.finishedAt = Date.now();
+    diagnostic.pageErrors = pageErrors;
+    diagnostic.observations = await lspObservations(page).catch((error) =>
+      String(error),
+    );
+    diagnostic.finalSource = await page
+      .locator(".monaco-editor .view-lines")
+      .innerText()
+      .catch((error) => String(error));
+    diagnostic.finalOutput = await page
+      .getByTestId("preview-console")
+      .innerText()
+      .catch((error) => String(error));
+    const path = testInfo.outputPath("core-download-recovery.json");
+    await mkdir(dirname(path), { recursive: true });
+    await writeFile(path, JSON.stringify(diagnostic, null, 2), "utf8");
+    await testInfo.attach("core-download-recovery.json", {
+      path,
+      contentType: "application/json",
+    });
+    await page
+      .screenshot({
+        path: testInfo.outputPath("core-download-recovery-final.png"),
+      })
+      .catch(() => undefined);
+  }
+});
+
 test("code-only history navigation preserves ready completion and natural suggestions", async ({
   page,
 }) => {
@@ -204,18 +354,14 @@ test("natural input completes put as puts and preserves text after the edit", as
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
+  const provenance = await captureE2eSourceProvenance(testInfo);
   await mkdir(testInfo.outputPath(), { recursive: true });
   await watchAnalysisWorkers(page);
   const diagnostic: Record<string, unknown> = {
-    uiHead:
-      process.env.COMPLETION_UI_HEAD ??
-      process.env.GITHUB_SHA ??
-      "not-recorded",
-    runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
-    testSourceSha256:
-      process.env.COMPLETION_TEST_SOURCE_SHA256 ?? "not-provided",
-    observerSourceSha256:
-      process.env.COMPLETION_OBSERVER_SOURCE_SHA256 ?? "not-provided",
+    actualGitHead: provenance.actualGitHead,
+    runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? null,
+    testSourceSha256: provenance.testSourceSha256,
+    observerSourceSha256: provenance.observerSourceSha256,
     startedAt: Date.now(),
     startedMonotonicMs: await page.evaluate(() => performance.now()),
     pageErrors: [] as string[],
@@ -236,10 +382,52 @@ test("natural input completes put as puts and preserves text after the edit", as
       timeout: 60_000,
     });
 
-    await editRuby(page, 'put "Ruby"');
+    await editRuby(page, 'pu "Ruby"');
     for (let index = 0; index < 7; index += 1)
       await page.keyboard.press("ArrowLeft");
-    await page.keyboard.type("s");
+    const completionStart = (await lspObservations(page)).length;
+    await page.keyboard.type("t");
+    await expectEditorSource(page, 'put "Ruby"');
+    let putsResponse: Record<string, unknown> | undefined;
+    await expect
+      .poll(async () => {
+        const events = await lspObservations(page);
+        const latestChange = events
+          .slice(completionStart)
+          .filter(
+            (event) =>
+              event.direction === "notification" &&
+              event.method === "textDocument/didChange" &&
+              (
+                event.contentChanges as Array<{ text?: string }> | undefined
+              )?.at(-1)?.text === 'put "Ruby"',
+          )
+          .at(-1);
+        if (!latestChange) return false;
+        const request = events.find(
+          (event) =>
+            event.direction === "request" &&
+            event.method === "textDocument/completion" &&
+            event.documentVersion === latestChange.documentVersion &&
+            JSON.stringify(event.position) ===
+              JSON.stringify({ line: 0, character: 3 }),
+        );
+        if (!request) return false;
+        putsResponse = events.find(
+          (event) =>
+            event.direction === "response" &&
+            event.method === "textDocument/completion" &&
+            event.workerId === request.workerId &&
+            event.token === request.token,
+        );
+        return Boolean(
+          (
+            putsResponse?.candidates as Array<{ label?: string }> | undefined
+          )?.some((candidate) => candidate.label === "puts"),
+        );
+      })
+      .toBe(true);
+    expect(putsResponse?.position).toEqual({ line: 0, character: 3 });
     const puts = page
       .getByRole("listbox", { name: "Suggest" })
       .getByRole("listitem", { name: "puts, Method", exact: true });
@@ -453,8 +641,103 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
     path: testInfo.outputPath("mine-rfind-inserted.png"),
   });
 
+  const mineResponseStart = (await lspObservations(page)).length;
+  await editRuby(page, "class Mine; end\nputs Mine.new.r");
+  await page.keyboard.type("f");
+  await expectEditorSource(page, "class Mine; end\nputs Mine.new.rf");
+  let mineResponse: Record<string, unknown> | undefined;
+  await expect
+    .poll(async () => {
+      const events = await lspObservations(page);
+      const change = events
+        .slice(mineResponseStart)
+        .filter(
+          (event) =>
+            event.direction === "notification" &&
+            event.method === "textDocument/didChange" &&
+            (event.contentChanges as Array<{ text?: string }> | undefined)?.at(
+              -1,
+            )?.text === "class Mine; end\nputs Mine.new.rf",
+        )
+        .at(-1);
+      if (!change) return false;
+      const request = events.find(
+        (event) =>
+          event.direction === "request" &&
+          event.method === "textDocument/completion" &&
+          event.documentVersion === change.documentVersion &&
+          JSON.stringify(event.position) ===
+            JSON.stringify({ line: 1, character: 16 }),
+      );
+      if (!request) return false;
+      mineResponse = events.find(
+        (event) =>
+          event.direction === "response" &&
+          event.method === "textDocument/completion" &&
+          event.workerId === request.workerId &&
+          event.token === request.token,
+      );
+      return Boolean(mineResponse);
+    })
+    .toBe(true);
+  expect(mineResponse?.candidates).toBeDefined();
+  expect(
+    (mineResponse?.candidates as Array<{ label?: string }>).some(
+      (candidate) => candidate.label === "rfind",
+    ),
+  ).toBe(false);
+  await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+  await page.screenshot({
+    path: testInfo.outputPath("mine-rfind-removed-from-same-receiver.png"),
+  });
+
+  const arrayResponseStart = (await lspObservations(page)).length;
   await editRuby(page, "puts [1,2].");
   await page.keyboard.type("rf");
+  let arrayResponse: Record<string, unknown> | undefined;
+  await expect
+    .poll(async () => {
+      const events = await lspObservations(page);
+      const change = events
+        .slice(arrayResponseStart)
+        .filter(
+          (event) =>
+            event.direction === "notification" &&
+            event.method === "textDocument/didChange" &&
+            (event.contentChanges as Array<{ text?: string }> | undefined)?.at(
+              -1,
+            )?.text === "puts [1,2].rf",
+        )
+        .at(-1);
+      if (!change) return false;
+      const request = events.find(
+        (event) =>
+          event.direction === "request" &&
+          event.method === "textDocument/completion" &&
+          event.documentVersion === change.documentVersion &&
+          JSON.stringify(event.position) ===
+            JSON.stringify({ line: 0, character: 13 }),
+      );
+      if (!request) return false;
+      arrayResponse = events.find(
+        (event) =>
+          event.direction === "response" &&
+          event.method === "textDocument/completion" &&
+          event.workerId === request.workerId &&
+          event.token === request.token,
+      );
+      return Boolean(
+        (
+          arrayResponse?.candidates as Array<{ label?: string }> | undefined
+        )?.some((candidate) => candidate.label === "rfind"),
+      );
+    })
+    .toBe(true);
+  expect(
+    (arrayResponse?.candidates as Array<{ label?: string }>).some(
+      (candidate) => candidate.label === "rfind",
+    ),
+  ).toBe(true);
   const arrayMethod = page
     .getByRole("listbox", { name: "Suggest" })
     .getByRole("listitem", { name: "rfind, Method", exact: true });
@@ -472,28 +755,42 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
+  const provenance = await captureE2eSourceProvenance(testInfo);
   const startedAt = Date.now();
   let failure: string | undefined;
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  page.on("pageerror", (error) =>
+    pageErrors.push(error.stack ?? error.message),
+  );
+  page.on("console", (message) => {
+    if (message.type() === "error") consoleErrors.push(message.text());
+  });
   try {
     await watchAnalysisWorkers(page);
     await page.goto(codeOnlyUrl("", "3.3"));
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
+    let workerId = await readyWorkerId(page, "3.3");
 
     const rfind = visibleCandidateLabel(page, "rfind");
     const yieldItem = visibleCandidateLabel(page, "yield");
     const raiseItem = visibleCandidateLabel(page, "raise");
 
-    let responseCount = (await lspObservations(page)).filter(
-      (event) =>
-        event.direction === "response" &&
-        event.method === "textDocument/completion",
-    ).length;
     await editRuby(page, "Ractor.");
     await page.keyboard.type("yi");
+    let snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "Ractor.yi",
+      position: { line: 0, character: 9 },
+    });
     await expect(yieldItem).toBeVisible({ timeout: 30_000 });
-    let rawItems = latestRawCompletion(await lspObservations(page));
+    let rawItems = snapshot.response.candidates as Array<{
+      label?: string;
+      textEdit?: unknown;
+      detail?: string;
+    }>;
     expect(
       rawItems.some((item) => item.label === "yield" && item.textEdit),
     ).toBe(true);
@@ -505,25 +802,14 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
       "Ractor.yield",
     );
 
-    responseCount = (await lspObservations(page)).filter(
-      (event) =>
-        event.direction === "response" &&
-        event.method === "textDocument/completion",
-    ).length;
     await editRuby(page, "puts [1,2].");
     await page.keyboard.type("rf");
-    await expect
-      .poll(
-        async () =>
-          (await lspObservations(page)).filter(
-            (event) =>
-              event.direction === "response" &&
-              event.method === "textDocument/completion",
-          ).length,
-        { timeout: 30_000 },
-      )
-      .toBeGreaterThan(responseCount);
-    rawItems = latestRawCompletion(await lspObservations(page));
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts [1,2].rf",
+      position: { line: 0, character: 13 },
+    });
+    rawItems = snapshot.response.candidates as Array<{ label?: string }>;
     expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
     await expect(rfind).toHaveCount(0);
     await page.screenshot({
@@ -535,41 +821,35 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
+    workerId = await readyWorkerId(page, "4.0", workerId);
 
-    responseCount = (await lspObservations(page)).filter(
-      (event) =>
-        event.direction === "response" &&
-        event.method === "textDocument/completion",
-    ).length;
     await editRuby(page, "Ractor.");
     await page.keyboard.type("yi");
-    await expect
-      .poll(
-        async () =>
-          (await lspObservations(page)).filter(
-            (event) =>
-              event.direction === "response" &&
-              event.method === "textDocument/completion",
-          ).length,
-        { timeout: 30_000 },
-      )
-      .toBeGreaterThan(responseCount);
-    rawItems = latestRawCompletion(await lspObservations(page));
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "Ractor.yi",
+      position: { line: 0, character: 9 },
+    });
+    rawItems = snapshot.response.candidates as Array<{ label?: string }>;
     expect(rawItems.some((item) => item.label === "yield")).toBe(false);
     await expect(yieldItem).toHaveCount(0);
     await page.screenshot({
       path: testInfo.outputPath("ruby-4.0-ractor-yield-absent.png"),
     });
 
-    responseCount = (await lspObservations(page)).filter(
-      (event) =>
-        event.direction === "response" &&
-        event.method === "textDocument/completion",
-    ).length;
     await editRuby(page, "puts [1,2].");
     await page.keyboard.type("rf");
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts [1,2].rf",
+      position: { line: 0, character: 13 },
+    });
     await expect(rfind).toBeVisible({ timeout: 30_000 });
-    rawItems = latestRawCompletion(await lspObservations(page));
+    rawItems = snapshot.response.candidates as Array<{
+      label?: string;
+      textEdit?: unknown;
+      detail?: string;
+    }>;
     const rawRfind = rawItems.find((item) => item.label === "rfind");
     expect(rawRfind?.textEdit).toBeDefined();
     await page.screenshot({ path: testInfo.outputPath("ruby-4.0-rfind.png") });
@@ -579,9 +859,17 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     );
 
     await editRuby(page, "puts Fiber.new.");
-    await page.keyboard.type("rai");
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts Fiber.new.",
+      position: { line: 0, character: 15 },
+    });
     await expect(raiseItem).toBeVisible({ timeout: 30_000 });
-    rawItems = latestRawCompletion(await lspObservations(page));
+    rawItems = snapshot.response.candidates as Array<{
+      label?: string;
+      textEdit?: unknown;
+      detail?: string;
+    }>;
     const rawRaise40 = rawItems.find((item) => item.label === "raise");
     expect(rawRaise40?.textEdit).toBeDefined();
     await page.screenshot({
@@ -593,26 +881,16 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
+    workerId = await readyWorkerId(page, "3.3", workerId);
 
-    responseCount = (await lspObservations(page)).filter(
-      (event) =>
-        event.direction === "response" &&
-        event.method === "textDocument/completion",
-    ).length;
     await editRuby(page, "puts [1,2].");
     await page.keyboard.type("rf");
-    await expect
-      .poll(
-        async () =>
-          (await lspObservations(page)).filter(
-            (event) =>
-              event.direction === "response" &&
-              event.method === "textDocument/completion",
-          ).length,
-        { timeout: 30_000 },
-      )
-      .toBeGreaterThan(responseCount);
-    rawItems = latestRawCompletion(await lspObservations(page));
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts [1,2].rf",
+      position: { line: 0, character: 13 },
+    });
+    rawItems = snapshot.response.candidates as Array<{ label?: string }>;
     expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
     await expect(rfind).toHaveCount(0);
     await page.screenshot({
@@ -620,9 +898,17 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     });
 
     await editRuby(page, "puts Fiber.new.");
-    await page.keyboard.type("rai");
+    snapshot = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts Fiber.new.",
+      position: { line: 0, character: 15 },
+    });
     await expect(raiseItem).toBeVisible({ timeout: 30_000 });
-    rawItems = latestRawCompletion(await lspObservations(page));
+    rawItems = snapshot.response.candidates as Array<{
+      label?: string;
+      textEdit?: unknown;
+      detail?: string;
+    }>;
     const rawRaise33 = rawItems.find((item) => item.label === "raise");
     expect(rawRaise33?.textEdit).toBeDefined();
     await page.screenshot({
@@ -635,6 +921,8 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
       .map((event) => event.method);
     const protocol = {
       observations,
+      pageErrors,
+      consoleErrors,
       signatures: {
         ruby33FiberRaiseDetail: rawRaise33?.detail,
         ruby40FiberRaiseDetail: rawRaise40?.detail,
@@ -651,6 +939,8 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
       body: serializedProtocol,
       contentType: "application/json",
     });
+    expect(pageErrors).toEqual([]);
+    expect(consoleErrors).toEqual([]);
   } catch (error) {
     failure =
       error instanceof Error ? (error.stack ?? error.message) : String(error);
@@ -660,11 +950,15 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
       "ruby-api-version-diagnostic.json",
     );
     const diagnostic = {
-      head: process.env.COMPLETION_UI_HEAD ?? "not-recorded",
-      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
+      actualGitHead: provenance.actualGitHead,
+      runtime: process.env.COMPLETION_RUNTIME_COMMIT ?? null,
+      testSourceSha256: provenance.testSourceSha256,
+      observerSourceSha256: provenance.observerSourceSha256,
       startedAt,
       finishedAt: Date.now(),
       failure,
+      pageErrors,
+      consoleErrors,
       observations: await lspObservations(page).catch((error) => String(error)),
       finalUI: await page
         .evaluate(() => ({
@@ -1152,18 +1446,16 @@ test("ignores a forced late completion response after OFF disposes its worker", 
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
+  const provenance = await captureE2eSourceProvenance(testInfo);
   await mkdir(testInfo.outputPath(), { recursive: true });
-  await watchAnalysisWorkers(page, { holdCompletionResponses: true });
+  await watchAnalysisWorkers(page, {
+    holdCompletionResponses: { documentSuffix: ".upc" },
+  });
   const record: Record<string, unknown> = {
-    uiHead:
-      process.env.COMPLETION_UI_HEAD ??
-      process.env.GITHUB_SHA ??
-      "not-recorded",
-    runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
-    testSourceSha256:
-      process.env.COMPLETION_TEST_SOURCE_SHA256 ?? "not-provided",
-    observerSourceSha256:
-      process.env.COMPLETION_OBSERVER_SOURCE_SHA256 ?? "not-provided",
+    actualGitHead: provenance.actualGitHead,
+    runtimeHead: process.env.COMPLETION_RUNTIME_COMMIT ?? null,
+    testSourceSha256: provenance.testSourceSha256,
+    observerSourceSha256: provenance.observerSourceSha256,
     startedAt: Date.now(),
   };
 
@@ -1172,21 +1464,87 @@ test("ignores a forced late completion response after OFF disposes its worker", 
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
+    const workerId = await readyWorkerId(page, "4.0");
+    const responseStart = (await lspObservations(page)).length;
     await editRuby(page, 'puts "hello"');
     await page.keyboard.type(".upc");
+    const source = 'puts "hello".upc';
+    let finalHeld:
+      Awaited<ReturnType<typeof heldCompletionResponses>>[number] | undefined;
     await expect
-      .poll(async () => (await heldCompletionResponses(page)).length, {
-        timeout: 30_000,
-      })
-      .toBeGreaterThan(0);
+      .poll(
+        async () => {
+          const events = await lspObservations(page);
+          const documentEvent = events
+            .slice(responseStart)
+            .filter(
+              (event) =>
+                event.direction === "notification" &&
+                event.method === "textDocument/didChange" &&
+                (
+                  event.contentChanges as Array<{ text?: string }> | undefined
+                )?.at(-1)?.text === source,
+            )
+            .at(-1);
+          if (!documentEvent) return false;
+          const request = events.find(
+            (event) =>
+              event.direction === "request" &&
+              event.method === "textDocument/completion" &&
+              event.workerId === workerId &&
+              event.documentVersion === documentEvent.documentVersion &&
+              JSON.stringify(event.position) ===
+                JSON.stringify({ line: 0, character: source.length }),
+          );
+          if (!request) return false;
+          finalHeld = (await heldCompletionResponses(page)).find(
+            (held) =>
+              held.workerId === request.workerId &&
+              held.token === request.token &&
+              held.documentVersion === documentEvent.documentVersion &&
+              JSON.stringify(held.position) ===
+                JSON.stringify({ line: 0, character: source.length }),
+          );
+          if (!finalHeld) return false;
+          const envelope = finalHeld.response as {
+            error?: unknown;
+            responses?: Array<{
+              id?: number;
+              result?: { items?: Array<{ label?: string }> };
+              error?: unknown;
+            }>;
+          };
+          const rpcResponse = envelope.responses?.find(
+            (response) => typeof response.id === "number",
+          );
+          return (
+            envelope.error === undefined &&
+            rpcResponse?.error === undefined &&
+            Array.isArray(rpcResponse?.result?.items) &&
+            rpcResponse.result.items.some((item) => item.label === "upcase") &&
+            finalHeld.candidateLabels.includes("upcase")
+          );
+        },
+        { timeout: 30_000 },
+      )
+      .toBe(true);
 
     const held = await heldCompletionResponses(page);
     record.heldBeforeOff = held;
     record.requestsBeforeOff = await lspObservations(page);
-    const delayedCompletion = held.find(
-      (entry) => entry.method === "textDocument/completion",
-    );
+    const delayedCompletion = finalHeld;
     expect(delayedCompletion).toBeDefined();
+    expect(delayedCompletion?.documentText).toBe(source);
+    expect(delayedCompletion?.observerMessageListenerCount).toBe(1);
+    expect(delayedCompletion?.clientMessageListenerCount).toBe(1);
+    expect(delayedCompletion?.clientDeliveriesBeforeRelease).toBe(0);
+    expect(delayedCompletion?.candidateLabels).toContain("upcase");
+    await expectHeldClientDeliveryProof(
+      page,
+      delayedCompletion?.workerId as number,
+      delayedCompletion?.token as number,
+      false,
+    );
     record.delayedCompletion = delayedCompletion;
 
     await page.locator('label[for="completion-enabled"]').click();
@@ -1199,6 +1557,16 @@ test("ignores a forced late completion response after OFF disposes its worker", 
 
     const released: Array<Record<string, unknown>> = [];
     for (const response of held) {
+      expect(response.method).toBe("textDocument/completion");
+      expect(response.observerMessageListenerCount).toBe(1);
+      expect(response.clientMessageListenerCount).toBe(1);
+      expect(response.clientDeliveriesBeforeRelease).toBe(0);
+      await expectHeldClientDeliveryProof(
+        page,
+        response.workerId,
+        response.token,
+        false,
+      );
       const releaseSucceeded = await releaseHeldCompletionResponse(
         page,
         response.workerId,
@@ -1209,6 +1577,13 @@ test("ignores a forced late completion response after OFF disposes its worker", 
         token: response.token,
         releaseSucceeded,
       });
+      expect(releaseSucceeded).toBe(true);
+      await expectHeldClientDeliveryProof(
+        page,
+        response.workerId,
+        response.token,
+        true,
+      );
     }
     record.releasedAfterDispose = released;
     await page.evaluate(
@@ -1236,6 +1611,16 @@ test("ignores a forced late completion response after OFF disposes its worker", 
     record.finishedAt = Date.now();
     record.finalObservations = await lspObservations(page).catch((error) =>
       String(error),
+    );
+    record.finalClientMessageDeliveries = await page
+      .evaluate(
+        () =>
+          (window as unknown as { __clientMessageDeliveries?: unknown[] })
+            .__clientMessageDeliveries ?? [],
+      )
+      .catch((error) => String(error));
+    record.finalHeldResponses = await heldCompletionResponses(page).catch(
+      (error) => String(error),
     );
     record.finalWorkerUrls = await analysisWorkerUrls(page).catch((error) =>
       String(error),

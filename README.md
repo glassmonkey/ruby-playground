@@ -65,6 +65,13 @@ whose lessons run code in the page.
 - Ruby completion uses the matching RBS core for Ruby 3.3 or 4.0. Completion is
   unavailable for Ruby 3.2, 3.4 and 4.1, and the signature data can omit APIs
   that are not present in its RBS release.
+- TypeProf completion is inference-based, not a complete model of Ruby method
+  visibility or every nested implicit call. The matching RBS core filters
+  private core methods according to its signatures, but an explicit receiver
+  may still show a user-defined private method such as `Box#hidden`. Nested
+  implicit calls are also outside the verified behavior. This limitation is
+  separate from the tested Ruby 3.3/4.0 prefix insertion, suffix preservation,
+  and `self` inference cases.
 
 ## Ruby completion verification
 
@@ -360,11 +367,19 @@ The isolated Chromium runs use `e2e/completion.config.ts` on `PORT=6645` and do 
 
 Earlier return and midline attempts are preserved separately. Return run 1 used a URL with only `v=3.3`; after main integration that loaded the initial Gemfile path, and output stayed blank. Switching to a code-only URL made return run 2 pass. Midline runs 1 and 2 exposed, respectively, an observer protocol-shape mistake and a test read that raced LSP initialization. Run 3 waited for the latest full document event and matching request before checking the result. These earlier failures do not establish a suffix-loss product bug; the successful runs confirm the suffix remained.
 
-The TypeProf suite ran on this integrated source head and finished 16/18; its only failures are the two Ruby-version cases where top-level `put` → `puts` has a matching completion response with zero raw candidates. The existing 14-case completion suite finished 13/14 with the same `puts` case as its only failure. Results are retained in the archive above and in `typeprof-suite-r1/result-summary.md`. The Fiber 3.3→4.0→3.3 UI matrix passed with distinct ready workers; displayed documentation omitted `cause` in 3.3, included it in 4.0, then omitted it after returning to 3.3. The completion regression suite also passed OFF asset avoidance, history behavior, unsupported-version execution, late-response disposal, and cold/warm/HTTP measurements. `npm run test:ci` passed 352 tests across 25 files on this product head. The general E2E suite and browser Gemfile installation were not exercised.
+The earlier TypeProf suite ran on this integrated product head and finished 16/18; its only failures were the two Ruby-version cases for top-level `put` → `puts`. The existing 14-case completion suite finished 13/14 with that same case as its only failure. These are historical results from the E2E sources before the reviewer-driven updates listed below. The Fiber 3.3→4.0→3.3 UI matrix passed with distinct ready workers; displayed documentation omitted `cause` in 3.3, included it in 4.0, then omitted it after returning to 3.3. `npm run test:ci` passed 352 tests across 25 files on this product head. The general E2E suite and browser Gemfile installation were not exercised.
 
 An earlier attempt misread the dot-stage `textEdit` range 13..13 as the final midline result. On the integrated head that range belonged to the preceding dot request (document version 20, token 4). After the full `.upc` document was sent at version 23, token 6 at cursor 16 returned `upcase` with range 13..16; selection preserved the suffix and produced `HELLO!` on both Ruby 3.3 and 4.0. The correction and event correlation are recorded in `midline-put-evidence-correlation.md` within the archive.
 
 The production preview at `http://127.0.0.1:6645/` responds with HTTP 200 and serves the verified manifest. A trial URL generated with the actual `src/share.ts` `buildShareUrl()` is saved at `/private/tmp/gla187-typeprof-trial-url.txt`. It opens Ruby 3.3 with completion enabled and `def greeting; "hello"; end\nputs greeting`; type `.upc`, select `upcase`, and confirm the inserted source and `HELLO` output. This local preview corresponds to product source head `ac6ed604014ae797f603528f964fd2d084065bce` and the WASM SHA above. The formal TypeProf requirement/plan save remains pending manager recovery of owner operation `543d09b0...`.
+
+## Reviewer follow-up on completion E2E instrumentation
+
+The earlier forced-late-response E2E PASS is now **unverified as stale-response suppression**. Review found that the hold hook targeted the first registered message listener, which was the diagnostic observer; it did not prove that the product `CompletionClient` had not received the response. The current test helper distinguishes the marked observer from the client listener, records listener/token/document context, blocks only the exact final `.upc` response before the client handler, and explicitly checks zero client deliveries before release and one delivery to the original handler after release. It preserves a request-history map because the observer consumes its own pending entry before the client listener runs.
+
+The first three limited attempts at validating that helper did not pass. Run 1 used a Worker capture listener that did not hold the response. Run 2 held the preceding dot response, which prevented later completion requests from being issued. Run 3 allowed the final response through because `didChange` arrived with a token-wrapped request envelope and the helper only updated its remembered text in the notification envelope branch. All three outputs are preserved under `/private/tmp/gla187-merge-d981-archive/e94181ff9a65f080fbc05eda5ce27a2df67b446a/late-off-listener-audit-run{1,2,3}/`. The last finding has been fixed in the helper; the run limit was reached, so no post-fix browser result is claimed.
+
+The `put` → `puts` UI test now starts from incomplete `pu`, naturally types `t`, and requires the exact document-version-matched completion request at cursor 3 before selecting `puts`, preserving the argument suffix and checking Ruby output. Earlier completed `puts` at cursor 4 with zero candidates remains a separate diagnostic and is not a passing result. The Mine case now re-queries the same `Mine.new` receiver after removing its `rfind` declaration and independently checks that Array `rfind` remains available. Neither updated E2E has been rerun on a runtime fix SHA yet.
 
 ## Security and privacy
 
