@@ -1,6 +1,21 @@
 import LZString from "lz-string";
 import { expect, test, type Page } from "@playwright/test";
-import { codeOnlyUrl, editRuby } from "./editor";
+import "./provenance";
+import { buildShareUrl, parseShareUrl } from "../src/share";
+import {
+  codeOnlyUrl,
+  editRuby,
+  expectEditorSource,
+  expectRubyOutput,
+  rubyExecutionStatus,
+} from "./editor";
+import {
+  completionResponseForSnapshot,
+  isSuccessfulCompletionResponse,
+  lspObservations,
+  normalizeCompletionSource,
+  watchAnalysisWorkers,
+} from "./completion-lsp-observer";
 
 const directRubyGemsRequests = new WeakMap<Page, string[]>();
 
@@ -54,6 +69,33 @@ async function expectInstallComplete(page: import("@playwright/test").Page) {
     page.getByText("Gemfile.lock matches the Gemfile.", { exact: false }),
   ).toBeVisible({ timeout: 120_000 });
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+}
+
+async function expectSharedGemState(
+  page: import("@playwright/test").Page,
+  expected: {
+    code: string;
+    version: "3.3" | "4.0";
+    completionEnabled: boolean;
+    gemfile: string;
+  },
+) {
+  const url = new URL(page.url());
+  expect(url.searchParams.get("c")).toBeTruthy();
+  expect(url.searchParams.get("v")).toBe(expected.version);
+  expect(url.searchParams.get("g")).toBeTruthy();
+  expect(url.searchParams.get("l")).toBeTruthy();
+  expect(url.searchParams.get("ac")).toBe(
+    expected.completionEnabled ? null : "0",
+  );
+  expect(parseShareUrl(url, "")).toMatchObject(expected);
+}
+
+function completionRow(page: import("@playwright/test").Page, label: string) {
+  return page
+    .getByRole("listbox", { name: "Suggest" })
+    .locator(".monaco-list-row .label-name")
+    .getByText(label, { exact: true });
 }
 
 async function resetRubyGemsVcr() {
@@ -145,7 +187,7 @@ test("bare entry installs artii and renders the Poster with accessible tabs", as
   await expect(page.getByTestId("preview-console")).toHaveText(POSTER_OUTPUT, {
     timeout: 120_000,
   });
-  await expect(page.getByRole("status")).toHaveText("Complete");
+  await expect(rubyExecutionStatus(page)).toHaveText("Complete");
   expect(new URL(page.url()).search).toBe("?campaign=ruby");
   expect(new URL(page.url()).hash).toBe("#poster");
   await expect(page.locator('meta[name="robots"]')).toHaveCount(0);
@@ -194,6 +236,192 @@ test("bare entry installs artii and renders the Poster with accessible tabs", as
   await expectEditorTabContrast(page, "Gemfile");
   await page.keyboard.press("ArrowLeft");
   await expect(sourceTab).toHaveAttribute("aria-selected", "true");
+});
+
+test("Gemfile tab edits preserve main TypeProf completion and share history", async ({
+  page,
+}) => {
+  test.setTimeout(180_000);
+  await watchAnalysisWorkers(page);
+  await page.goto("./?ac=0");
+
+  const rainbowGemfile = 'gem "rainbow", "3.1.1"\n';
+  const rainbowLock = [
+    {
+      name: "rainbow",
+      version: "3.1.1",
+      source: "rubygems" as const,
+    },
+  ];
+  const initialCode = 'greeting = "hi"\nputs ';
+  const initialUrl = buildShareUrl(page.url(), {
+    code: initialCode,
+    version: "4.0",
+    completionEnabled: true,
+    gemfile: rainbowGemfile,
+    lock: rainbowLock,
+  });
+  await page.goto(initialUrl);
+  await expectSharedGemState(page, {
+    code: initialCode,
+    version: "4.0",
+    completionEnabled: true,
+    gemfile: rainbowGemfile,
+  });
+  await expect(
+    page.getByRole("status", { name: /^Code completion status:/ }),
+  ).toContainText("On");
+
+  await editRuby(page, initialCode);
+  await page.keyboard.type("gree", { delay: 50 });
+  const greeting = completionRow(page, "greeting");
+  await expect(greeting).toBeVisible({ timeout: 30_000 });
+  await greeting.click();
+  const greetingSource = 'greeting = "hi"\nputs greeting';
+  await expectEditorSource(page, greetingSource);
+  await expectRubyOutput(page, "hi\n");
+  const greetingCompletionSource = 'greeting = "hi"\nputs gree';
+
+  const editedGemfile = `${rainbowGemfile}gem "artii", "2.1.2"\n`;
+  await editGemfile(page, editedGemfile);
+  await page
+    .getByRole("button", { name: "bundle install", exact: true })
+    .click();
+  await expectInstallComplete(page);
+  await expectEditorSource(page, editedGemfile);
+  expect(parseShareUrl(page.url(), "").gemfile).toBe(editedGemfile);
+
+  await page.getByRole("tab", { name: "Source", exact: true }).click();
+  await editRuby(page, 'puts "hello".');
+  await page.keyboard.type("upc", { delay: 50 });
+  const upcase = completionRow(page, "upcase");
+  await expect(upcase).toBeVisible({ timeout: 30_000 });
+  await upcase.click();
+  const upcaseSource = 'puts "hello".upcase';
+  await expectEditorSource(page, upcaseSource);
+  await expectRubyOutput(page, "HELLO\n");
+
+  const responseEvents = await lspObservations(page);
+  const completionSnapshots = [
+    {
+      source: greetingCompletionSource,
+      position: { line: 1, character: 9 },
+      label: "greeting",
+    },
+    {
+      source: 'puts "hello".upc',
+      position: { line: 0, character: 16 },
+      label: "upcase",
+    },
+  ].map(({ source, position, label }) => {
+    const documentEvent = responseEvents
+      .filter((event) => {
+        if (
+          event.direction !== "notification" ||
+          (event.method !== "textDocument/didOpen" &&
+            event.method !== "textDocument/didChange")
+        )
+          return false;
+        const text =
+          (event.contentChanges as Array<{ text?: string }> | undefined)?.at(-1)
+            ?.text ??
+          (event.textDocument as { text?: string } | undefined)?.text ??
+          "";
+        return normalizeCompletionSource(text) === source;
+      })
+      .at(-1);
+    expect(documentEvent, `document update for ${source}`).toBeDefined();
+    const snapshot = completionResponseForSnapshot(responseEvents, {
+      workerId: documentEvent!.workerId as number,
+      source,
+      position,
+    });
+    expect(snapshot, `completion response for ${source}`).toBeDefined();
+    expect(isSuccessfulCompletionResponse(snapshot!.response)).toBe(true);
+    expect(
+      (snapshot!.request.textDocument as { uri?: string } | undefined)?.uri,
+    ).toBe("file:///main.rb");
+    expect(
+      (snapshot!.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === label,
+      ),
+    ).toBe(true);
+    return snapshot;
+  });
+  expect(completionSnapshots).toHaveLength(2);
+
+  const installedState = parseShareUrl(page.url(), "");
+  expect(installedState.gemfile).toBe(editedGemfile);
+  expect(installedState.lock?.map(({ name }) => name)).toEqual(
+    expect.arrayContaining(["rainbow", "artii"]),
+  );
+  const installedLock = installedState.lock;
+  expect(installedLock).toBeDefined();
+
+  const offCode = 'puts "history off"';
+  const offUrl = buildShareUrl(page.url(), {
+    code: offCode,
+    version: "3.3",
+    completionEnabled: false,
+    gemfile: editedGemfile,
+    lock: installedLock,
+  });
+  await page.goto(offUrl);
+  await expectSharedGemState(page, {
+    code: offCode,
+    version: "3.3",
+    completionEnabled: false,
+    gemfile: editedGemfile,
+  });
+  await expect(
+    page.getByRole("checkbox", { name: "Code completion" }),
+  ).not.toBeChecked();
+  await expectEditorSource(page, offCode);
+  await page.reload();
+  await expectSharedGemState(page, {
+    code: offCode,
+    version: "3.3",
+    completionEnabled: false,
+    gemfile: editedGemfile,
+  });
+  await expectRubyOutput(page, "history off\n");
+
+  const onCode = 'puts "history on"';
+  const onUrl = buildShareUrl(page.url(), {
+    code: onCode,
+    version: "4.0",
+    completionEnabled: true,
+    gemfile: editedGemfile,
+    lock: installedLock,
+  });
+  await page.goto(onUrl);
+  await expectSharedGemState(page, {
+    code: onCode,
+    version: "4.0",
+    completionEnabled: true,
+    gemfile: editedGemfile,
+  });
+  await expect(
+    page.getByRole("status", { name: /^Code completion status:/ }),
+  ).toContainText("On", { timeout: 60_000 });
+  await expectRubyOutput(page, "history on\n");
+
+  await page.goBack();
+  await expectSharedGemState(page, {
+    code: offCode,
+    version: "3.3",
+    completionEnabled: false,
+    gemfile: editedGemfile,
+  });
+  await expectRubyOutput(page, "history off\n");
+  await page.goForward();
+  await expectSharedGemState(page, {
+    code: onCode,
+    version: "4.0",
+    completionEnabled: true,
+    gemfile: editedGemfile,
+  });
+  await expectRubyOutput(page, "history on\n");
 });
 
 test("missing require guidance opens Gemfile and bundle install makes the gem available", async ({
@@ -297,11 +525,14 @@ test("reports a corrupt gem archive, avoids caching it, and recovers", async ({
     page.getByRole("heading", { name: "Gemfile.lock", exact: true }),
   ).toHaveCount(0);
   expect(proxyRequests).toContain(rainbowGemFile);
-  const corruptGemCached = await page.evaluate(async ({ gemFile, origin }) => {
-    const cache = await caches.open("ruby-playground-gems-v1");
-    const cached = await cache.match(new URL(gemFile, origin).toString());
-    return cached !== undefined;
-  }, { gemFile: rainbowGemFile, origin: proxyOrigin });
+  const corruptGemCached = await page.evaluate(
+    async ({ gemFile, origin }) => {
+      const cache = await caches.open("ruby-playground-gems-v1");
+      const cached = await cache.match(new URL(gemFile, origin).toString());
+      return cached !== undefined;
+    },
+    { gemFile: rainbowGemFile, origin: proxyOrigin },
+  );
   expect(corruptGemCached).toBe(false);
 
   await resetRubyGemsVcr();

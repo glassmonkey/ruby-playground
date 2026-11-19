@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import "./provenance";
 import { codeOnlyUrl } from "./editor";
 
 test("static safety, privacy and license pages resolve without third-party scripts", async ({

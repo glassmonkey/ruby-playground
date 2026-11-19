@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import "./provenance";
 import { RUBY_VERSIONS } from "../src/versions";
 import { runtimeCases } from "../src/__test__/fixtures/runtime-cases";
 import {
@@ -6,6 +7,8 @@ import {
   editRuby as edit,
   expectRubyOutput,
   expectLettersSample,
+  expectRubyExecutionStatus,
+  rubyExecutionStatus,
 } from "./editor";
 import { expectDocumentToFitViewport } from "./layout";
 test.beforeEach(async ({ page }) => {
@@ -58,20 +61,20 @@ test("initial and edited Ruby automatically execute with errors, empty output an
       timeout: 30_000,
     },
   );
-  await expect(page.getByRole("status")).toHaveText("Error");
+  await expectRubyExecutionStatus(page, "Error");
   await expect(page.getByTestId("preview-console")).toHaveText("nil\n");
   await edit(page, "1 + 2");
   await expect(page.getByText("No output", { exact: true })).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByRole("status")).toHaveText("Complete");
+  await expectRubyExecutionStatus(page, "Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
   await edit(page, "def broken(");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "SyntaxError",
     { timeout: 30_000 },
   );
-  await expect(page.getByRole("status")).toHaveText("Error");
+  await expectRubyExecutionStatus(page, "Error");
   await page.setViewportSize({ width: 390, height: 844 });
   await expectDocumentToFitViewport(page, 390);
   const appBase = new URL(testInfo.project.use.baseURL as string).pathname;
@@ -198,7 +201,7 @@ test("rapid edits and version changes cancel stale runs and keep only the latest
   oldWorker.on("close", () => {
     oldWorkerClosed = true;
   });
-  await expect(page.getByRole("status")).toContainText("Running");
+  await expect(rubyExecutionStatus(page)).toContainText("Running");
 
   await edit(page, 'raise "stale error"');
   await page.getByLabel("Ruby version").selectOption("3.4");
@@ -241,12 +244,12 @@ test("an infinite automatic run times out and the next edit recovers", async ({
   await page.goto(codeOnlyUrl());
   await expectLettersSample(page);
   await edit(page, "loop {}");
-  await expect(page.getByRole("status")).toContainText("Running");
+  await expect(rubyExecutionStatus(page)).toContainText("Running");
   await expect(page.getByRole("main").getByRole("alert")).toContainText(
     "timed out",
     { timeout: 25_000 },
   );
-  await expect(page.getByRole("status")).toHaveText("Error");
+  await expectRubyExecutionStatus(page, "Error");
   await expect(
     page.getByRole("button", { name: "Stop", exact: true }),
   ).toHaveCount(0);

@@ -16,12 +16,14 @@ export const MAX_LOCKED_GEMS = 200;
 export type ShareState = {
   code: string;
   version?: RubyVersion;
+  completionEnabled?: boolean;
   gemfile?: string;
   /** Resolved versions; only kept while a Gemfile is present. */
   lock?: ResolvedGem[];
 };
 export type ParsedShareState = ShareState & {
   version: RubyVersion;
+  completionEnabled: boolean;
   gemfile: string;
   warning?: string;
 };
@@ -131,6 +133,7 @@ export function parseShareUrl(
   const state: ParsedShareState = {
     code: fallbackCode,
     version: DEFAULT_RUBY_VERSION,
+    completionEnabled: true,
     gemfile: "",
   };
   let parsed: URL;
@@ -149,6 +152,7 @@ export function parseShareUrl(
     warnings.push("Unsupported Ruby version; using Ruby 4.0.");
   }
   const compressed = parsed.searchParams.get("c");
+  state.completionEnabled = parsed.searchParams.get("ac") !== "0";
   if (compressed !== null) {
     try {
       state.code = decodeCompressed(compressed);
@@ -217,6 +221,8 @@ export function buildShareUrl(url: string | URL, state: ShareState): string {
   const version = state.version ?? DEFAULT_RUBY_VERSION;
   if (!isRubyVersion(version)) throw new Error("Unsupported Ruby version.");
   result.searchParams.set("v", version);
+  if (state.completionEnabled === false) result.searchParams.set("ac", "0");
+  else result.searchParams.delete("ac");
   if ((state.gemfile ?? "").length > MAX_GEMFILE_LENGTH) {
     throw new Error("Gemfile exceeds the 5,000-character sharing limit.");
   }
