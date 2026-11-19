@@ -1,6 +1,10 @@
 node_modules/
 .wrangler/
 public/
+/assets/lsp/
+/build/
+/vendor/
+/scripts/lsp/build/
 build-types/
 *.tsbuildinfo
 playwright-report/
@@ -8,3 +12,5 @@ test-results/
 .env
 .env.*
 !.env.example
+/scripts/lsp/vendor/
+/scripts/lsp/rubies/

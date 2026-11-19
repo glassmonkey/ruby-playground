@@ -28,8 +28,14 @@ jobs:
         with:
           node-version-file: .node-version
           cache: npm
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0.7"
+          bundler-cache: false
       - run: npm install --global npm@11.17.0
       - run: npm ci
+      - run: npm run lsp:build
+      - run: npm run lsp:verify
       - run: npm run build
       - uses: actions/upload-pages-artifact@v4
         with:

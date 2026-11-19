@@ -6,7 +6,7 @@ jobs:
   check:
     runs-on: ubuntu-latest
     # Production and development each run the versioned WASM lesson matrix.
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
@@ -20,5 +20,27 @@ jobs:
       - run: npm --prefix proxy run test:fixtures
       - run: npm run check
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
-      - run: npm run test:e2e:dev
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "4.0.7"
+          bundler-cache: false
+      - run: npm run lsp:build
+      - run: npm run lsp:verify
+      - id: e2e-production
+        run: npm run test:e2e
+      - id: e2e-development
+        run: npm run test:e2e:dev
+      - name: Upload E2E failure diagnostics
+        if: ${{ failure() && (steps.e2e-production.outcome == 'failure' || steps.e2e-development.outcome == 'failure') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failure-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/preview/**/*.json
+            test-results/preview/**/error-context.md
+            test-results/preview/**/trace.zip
+            test-results/dev-seo/**/*.json
+            test-results/dev-seo/**/error-context.md
+            test-results/dev-seo/**/trace.zip
+          if-no-files-found: warn
+          retention-days: 3

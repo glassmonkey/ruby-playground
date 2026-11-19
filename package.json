@@ -10,6 +10,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "lsp:build": "ruby scripts/lsp/test-wasi-sdk-head-diagnostics.rb && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle install && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle exec ruby scripts/lsp/build-analysis.rb && BUNDLE_GEMFILE=scripts/lsp/Gemfile BUNDLE_PATH=vendor/lsp-bundle bundle exec ruby scripts/lsp/build-assets.rb",
+    "lsp:verify": "node scripts/lsp/verify-runtime.mjs",
     "preview": "vite preview --port 8888",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src e2e playwright.config.ts playwright.dev.config.ts proxy/src proxy/e2e proxy/playwright.config.ts proxy/playwright.public.config.ts --ext .ts,.tsx --max-warnings 0",
