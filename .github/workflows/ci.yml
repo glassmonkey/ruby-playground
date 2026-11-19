@@ -26,5 +26,18 @@ jobs:
           bundler-cache: false
       - run: npm run lsp:build
       - run: npm run lsp:verify
-      - run: npm run test:e2e
-      - run: npm run test:e2e:dev
+      - id: e2e-production
+        run: npm run test:e2e
+      - id: e2e-development
+        run: npm run test:e2e:dev
+      - name: Upload E2E failure diagnostics
+        if: ${{ failure() && (steps.e2e-production.outcome == 'failure' || steps.e2e-development.outcome == 'failure') }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-failure-diagnostics-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            test-results/preview/**/*.json
+            test-results/preview/**/error-context.md
+            test-results/preview/**/trace.zip
+          if-no-files-found: warn
+          retention-days: 3
