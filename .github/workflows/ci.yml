@@ -39,5 +39,8 @@ jobs:
             test-results/preview/**/*.json
             test-results/preview/**/error-context.md
             test-results/preview/**/trace.zip
+            test-results/dev-seo/**/*.json
+            test-results/dev-seo/**/error-context.md
+            test-results/dev-seo/**/trace.zip
           if-no-files-found: warn
           retention-days: 3
