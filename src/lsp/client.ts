@@ -183,7 +183,7 @@ export class CompletionClient {
     this.worker.removeEventListener("message", this.handleMessage);
     this.worker.removeEventListener("error", this.handleError);
     this.worker.removeEventListener("messageerror", this.handleMessageError);
-    this.worker.terminate();
+    if (!this.failed) this.worker.terminate();
     const error = new Error("Ruby completion worker was disposed.");
     this.readyReject(error);
     this.rejectPending(error);
@@ -264,6 +264,9 @@ export class CompletionClient {
     if (this.disposed || this.failed) return;
     this.failed = error;
     clearTimeout(this.bootTimer);
+    this.worker.removeEventListener("message", this.handleMessage);
+    this.worker.removeEventListener("error", this.handleError);
+    this.worker.removeEventListener("messageerror", this.handleMessageError);
     this.readyReject(error);
     this.rejectPending(error);
     this.onStatus("error");

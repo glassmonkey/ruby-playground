@@ -140,8 +140,11 @@ TypeProf::LSP::Text.prepend(Module.new do
       original = line[column - 1]
       line[column - 1] = " "
       begin
-        receiver = line[0...column - 1].rstrip
-        trigger = receiver.match?(/\bself\z/) ? :playground_explicit_self : "."
+        source = @lines.join("\n")
+        dot_offset = @lines.take(row).sum { |source_line| source_line.bytesize + 1 } +
+          line[0...column - 1].bytesize
+        source = source.byteslice(0...dot_offset) + original + source.byteslice(dot_offset + 1..)
+        trigger = self_receiver_at?(source, dot_offset) ? :playground_explicit_self : "."
         yield string, trigger, position.merge(character: position.fetch(:character) - 2)
       ensure
         line[column - 1] = original
@@ -170,6 +173,20 @@ TypeProf::LSP::Text.prepend(Module.new do
 
   def utf16_length(value)
     value.each_char.sum { |character| character.ord > 0xffff ? 2 : 1 }
+  end
+
+  def self_receiver_at?(source, dot_offset)
+    pending = [Prism.parse(source).value]
+    until pending.empty?
+      node = pending.pop
+      if node.is_a?(Prism::CallNode) &&
+          node.call_operator_loc&.start_offset == dot_offset
+        return node.receiver.is_a?(Prism::SelfNode)
+      end
+
+      pending.concat(node.compact_child_nodes)
+    end
+    false
   end
 end)
 
