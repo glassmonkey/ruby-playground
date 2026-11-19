@@ -288,9 +288,8 @@ test("Gemfile tab edits preserve main TypeProf completion and share history", as
     .getByRole("button", { name: "bundle install", exact: true })
     .click();
   await expectInstallComplete(page);
-  await expect(
-    page.getByRole("textbox", { name: "Gemfile source" }),
-  ).toHaveValue(editedGemfile);
+  await expectEditorSource(page, editedGemfile);
+  expect(parseShareUrl(page.url(), "").gemfile).toBe(editedGemfile);
 
   await page.getByRole("tab", { name: "Source", exact: true }).click();
   await editRuby(page, 'puts "hello".');

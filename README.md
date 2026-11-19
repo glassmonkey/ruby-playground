@@ -453,8 +453,24 @@ The Ruby API test in the first 368bfae run waited for a fresh prefix snapshot;
 its archived trace contains a successful 4.0 `rfind` response, while the
 matching prefix UI state was not established by that run. The updated test
 separates the dot response from the natural prefix UI and passed in the
-targeted follow-up run. No product code or analysis asset changed in these
-test corrections.
+targeted follow-up run, but this does not resolve the separate runtime
+diagnostic about the earlier 4.0 candidate DOM state. No product code or
+analysis asset changed in these test corrections.
+
+The fixed-head main/Gemfile regression selection initially finished 5/6: the
+Gemfile scenario had installed its cassette-backed gems, then used
+`toHaveValue` on Monaco's contenteditable editor. A first correction exposed
+the rendered NBSP spaces and trailing blank line, so its exact two-line
+comparison was also unsuitable. Both runs are preserved under
+`/private/tmp/gla187-ui-fcf14bf-main-regressions/` and
+`/private/tmp/gla187-ui-fcf14bf-gemfile-fix1/`. The final assertion reuses
+`expectEditorSource` to normalize visual NBSPs while checking every line,
+including the final empty line, and retains an exact shared-URL Gemfile
+comparison. The cassette-backed Gemfile, completion, and OFF/ON history case
+then passed 1/1 at the source hashes recorded in
+`/private/tmp/gla187-ui-fcf14bf-gemfile-fix2/`. The other five main, setup,
+keyboard-order and status cases passed in the first selection. No general
+E2E suite or CI run is claimed.
 
 ## Security and privacy
 
