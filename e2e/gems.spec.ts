@@ -10,7 +10,10 @@ import {
   rubyExecutionStatus,
 } from "./editor";
 import {
+  completionResponseForSnapshot,
+  isSuccessfulCompletionResponse,
   lspObservations,
+  normalizeCompletionSource,
   watchAnalysisWorkers,
 } from "./completion-lsp-observer";
 
@@ -277,6 +280,7 @@ test("Gemfile tab edits preserve main TypeProf completion and share history", as
   const greetingSource = 'greeting = "hi"\nputs greeting';
   await expectEditorSource(page, greetingSource);
   await expectRubyOutput(page, "hi\n");
+  const greetingCompletionSource = 'greeting = "hi"\nputs gree';
 
   const editedGemfile = `${rainbowGemfile}gem "artii", "2.1.2"\n`;
   await editGemfile(page, editedGemfile);
@@ -299,23 +303,53 @@ test("Gemfile tab edits preserve main TypeProf completion and share history", as
   await expectRubyOutput(page, "HELLO\n");
 
   const responseEvents = await lspObservations(page);
-  const upcaseResponses = responseEvents.filter(
-    (event) =>
-      event.direction === "response" &&
-      event.method === "textDocument/completion" &&
-      (event.candidates as Array<{ label?: string }> | undefined)?.some(
-        (candidate) => candidate.label === "upcase",
+  const completionSnapshots = [
+    {
+      source: greetingCompletionSource,
+      position: { line: 1, character: 9 },
+      label: "greeting",
+    },
+    {
+      source: 'puts "hello".upc',
+      position: { line: 0, character: 16 },
+      label: "upcase",
+    },
+  ].map(({ source, position, label }) => {
+    const documentEvent = responseEvents
+      .filter((event) => {
+        if (
+          event.direction !== "notification" ||
+          (event.method !== "textDocument/didOpen" &&
+            event.method !== "textDocument/didChange")
+        )
+          return false;
+        const text =
+          (event.contentChanges as Array<{ text?: string }> | undefined)?.at(-1)
+            ?.text ??
+          (event.textDocument as { text?: string } | undefined)?.text ??
+          "";
+        return normalizeCompletionSource(text) === source;
+      })
+      .at(-1);
+    expect(documentEvent, `document update for ${source}`).toBeDefined();
+    const snapshot = completionResponseForSnapshot(responseEvents, {
+      workerId: documentEvent!.workerId as number,
+      source,
+      position,
+    });
+    expect(snapshot, `completion response for ${source}`).toBeDefined();
+    expect(isSuccessfulCompletionResponse(snapshot!.response)).toBe(true);
+    expect(
+      (snapshot!.request.textDocument as { uri?: string } | undefined)?.uri,
+    ).toBe("file:///main.rb");
+    expect(
+      (snapshot!.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === label,
       ),
-  );
-  expect(upcaseResponses.length).toBeGreaterThanOrEqual(2);
-  const mainRequests = responseEvents.filter(
-    (event) =>
-      event.direction === "request" &&
-      event.method === "textDocument/completion" &&
-      (event.textDocument as { uri?: string } | undefined)?.uri ===
-        "file:///playground/main.rb",
-  );
-  expect(mainRequests.length).toBeGreaterThanOrEqual(2);
+    ).toBe(true);
+    return snapshot;
+  });
+  expect(completionSnapshots).toHaveLength(2);
 
   const installedState = parseShareUrl(page.url(), "");
   expect(installedState.gemfile).toBe(editedGemfile);

@@ -381,6 +381,47 @@ The first three limited attempts at validating that helper did not pass. Run 1 u
 
 The `put` → `puts` UI test now starts from incomplete `pu`, naturally types `t`, and requires the exact document-version-matched completion request at cursor 3 before selecting `puts`, preserving the argument suffix and checking Ruby output. Earlier completed `puts` at cursor 4 with zero candidates remains a separate diagnostic and is not a passing result. The Mine case now re-queries the same `Mine.new` receiver after removing its `rfind` declaration and independently checks that Array `rfind` remains available. Neither updated E2E has been rerun on a runtime fix SHA yet.
 
+### Local checkpoint follow-up
+
+The previous paragraph records the state before local checkpoint
+`2a7a8c8e3a85c60b229bad578f2953e25a6f1fc8`; its final sentence is superseded
+by the runs below. PR89's published head remains `e941` until a later push.
+
+- The serialized observer contract passed on the checkpoint. Its independent
+  realm verifies observer/client separation, zero client delivery before a
+  held response is released, exactly one delivery after release, valid empty
+  and non-empty completion responses, and rejection of Worker/RPC/malformed
+  results as successful empties.
+- The TypeProf API-negative response case passed on the checkpoint at
+  `/private/tmp/gla187-runtime-a778-ui-2bdc6b/f4-serialized-checkpoint-run1/`.
+  It requires a successful response correlated to the exact worker, token,
+  document version, source and cursor before asserting that the API is absent.
+- The Mine/Array E2E passed for Ruby 3.3 and 4.0 in
+  `/private/tmp/gla187-runtime-a778-ui-2bdc6b/checkpoint-2a7a8c8-f3-mine-run8/`.
+  It verifies the declared `Mine#rfind`, its removal on the same receiver, and
+  the Ruby-version difference for Array. The raw Array response is explicitly
+  the natural dot-stage request at line 0, character 11. The subsequent natural
+  `rf` input is checked through the suggestion DOM and inserted source; the dot
+  response is not represented as a response to cursor 13.
+- The startup run at
+  `/private/tmp/gla187-runtime-a778-ui-2bdc6b/checkpoint-2a7a8c8-startup-run2/`
+  measured first and OFF→ON Worker startup and candidate UI timing on Ruby 3.3
+  and 4.0. The JSON's `head` field was missing, but the adjacent provenance
+  record captures the actual Git head and source hashes. Raw HTTP body sizes
+  include negative `request.sizes()` values; those are invalid observations and
+  are excluded from byte totals. A later test-source revision adds phase and
+  partial-observation JSON in `finally`; the final fixed head must run that
+  revision before these measurements are treated as final.
+- The Gemfile completion scenario now matches the browser's exact Monaco URI
+  `file:///main.rb` and correlates successful completion responses with the
+  corresponding full source and cursor. Its browser run still uses the general
+  Playwright configuration that starts the proxy/workerd services, so this
+  scenario is not included in the isolated-preview browser results.
+
+These are local test results on the checkpoint and its contemporaneous E2E
+source hashes. They do not establish a complete suite result for a later
+source revision or the current PR head.
+
 ## Security and privacy
 
 - Code runs in your browser in a Web Worker. Each run uses a new Worker and

@@ -2,10 +2,15 @@ import { defineConfig, devices } from "@playwright/test";
 
 const port = process.env.PORT || "6645";
 const artifactKey = process.env.COMPLETION_ARTIFACT_KEY || "completion-local";
+const configuredTestMatches = process.env.COMPLETION_TEST_MATCH?.split(",")
+  .map((match) => match.trim())
+  .filter(Boolean);
 
 export default defineConfig({
   testDir: ".",
-  testMatch: process.env.COMPLETION_TEST_MATCH || "completion.spec.ts",
+  testMatch: configuredTestMatches?.length
+    ? configuredTestMatches
+    : "completion.spec.ts",
   outputDir: `../test-results/${artifactKey}`,
   workers: 1,
   use: {

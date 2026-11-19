@@ -20,6 +20,7 @@ import {
   heldCompletionResponses,
   isSuccessfulCompletionResponse,
   lspObservations,
+  normalizeCompletionSource,
   releaseHeldCompletionResponse,
   watchAnalysisWorkers,
 } from "./completion-lsp-observer";
@@ -398,9 +399,11 @@ test("natural input completes put as puts and preserves text after the edit", as
             (event) =>
               event.direction === "notification" &&
               event.method === "textDocument/didChange" &&
-              (
-                event.contentChanges as Array<{ text?: string }> | undefined
-              )?.at(-1)?.text === 'put "Ruby"',
+              normalizeCompletionSource(
+                (
+                  event.contentChanges as Array<{ text?: string }> | undefined
+                )?.at(-1)?.text ?? "",
+              ) === 'put "Ruby"',
           )
           .at(-1);
         if (!latestChange) return false;
@@ -617,138 +620,235 @@ test("Mine#rfind and Array#rfind remain distinct after declaration removal", asy
   page,
 }, testInfo) => {
   test.setTimeout(90_000);
-  await page.goto(codeOnlyUrl("", "4.0"));
-  await expect(page.getByText("On", { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
-
-  await editRuby(
-    page,
-    'class Mine; def rfind; "custom"; end; end\nputs Mine.new.r',
+  const provenance = await captureE2eSourceProvenance(testInfo);
+  const diagnostic: Record<string, unknown> = {
+    actualGitHead: provenance.actualGitHead,
+    testSourceSha256: provenance.testSourceSha256,
+    observerSourceSha256: provenance.observerSourceSha256,
+    phases: [] as string[],
+    pageErrors: [] as string[],
+    consoleErrors: [] as string[],
+  };
+  page.on("pageerror", (error) =>
+    (diagnostic.pageErrors as string[]).push(error.stack ?? error.message),
   );
-  await page.keyboard.type("f");
-  const customMethod = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "rfind, Method", exact: true });
-  await expect(customMethod).toBeVisible({ timeout: 30_000 });
-  await customMethod.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText([
-    'class Mine; def rfind; "custom"; end; end',
-    "puts Mine.new.rfind",
-  ]);
-  await expectRubyOutput(page, "custom\n");
-  await page.screenshot({
-    path: testInfo.outputPath("mine-rfind-inserted.png"),
+  page.on("console", (message) => {
+    if (message.type() === "error")
+      (diagnostic.consoleErrors as string[]).push(message.text());
   });
+  await watchAnalysisWorkers(page);
+  try {
+    (diagnostic.phases as string[]).push("load Ruby 4.0 editor");
+    await page.goto(codeOnlyUrl("", "4.0"));
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    const workerId = await readyWorkerId(page, "4.0");
 
-  const mineResponseStart = (await lspObservations(page)).length;
-  await editRuby(page, "class Mine; end\nputs Mine.new.r");
-  await page.keyboard.type("f");
-  await expectEditorSource(page, "class Mine; end\nputs Mine.new.rf");
-  let mineResponse: Record<string, unknown> | undefined;
-  await expect
-    .poll(async () => {
-      const events = await lspObservations(page);
-      const change = events
-        .slice(mineResponseStart)
-        .filter(
-          (event) =>
-            event.direction === "notification" &&
-            event.method === "textDocument/didChange" &&
-            (event.contentChanges as Array<{ text?: string }> | undefined)?.at(
-              -1,
-            )?.text === "class Mine; end\nputs Mine.new.rf",
-        )
-        .at(-1);
-      if (!change) return false;
-      const request = events.find(
-        (event) =>
-          event.direction === "request" &&
-          event.method === "textDocument/completion" &&
-          event.documentVersion === change.documentVersion &&
-          JSON.stringify(event.position) ===
-            JSON.stringify({ line: 1, character: 16 }),
-      );
-      if (!request) return false;
-      mineResponse = events.find(
-        (event) =>
-          event.direction === "response" &&
-          event.method === "textDocument/completion" &&
-          event.workerId === request.workerId &&
-          event.token === request.token,
-      );
-      return Boolean(mineResponse);
-    })
-    .toBe(true);
-  expect(mineResponse?.candidates).toBeDefined();
-  expect(
-    (mineResponse?.candidates as Array<{ label?: string }>).some(
-      (candidate) => candidate.label === "rfind",
-    ),
-  ).toBe(false);
-  await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
-  await page.screenshot({
-    path: testInfo.outputPath("mine-rfind-removed-from-same-receiver.png"),
-  });
+    const customSource =
+      'class Mine; def rfind; "custom"; end; end\nputs Mine.new.rf';
+    await editRuby(
+      page,
+      'class Mine; def rfind; "custom"; end; end\nputs Mine.new.r',
+    );
+    (diagnostic.phases as string[]).push("custom Mine method candidate");
+    await page.keyboard.type("f");
+    await expectEditorSource(page, customSource);
+    const customResponse = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: customSource,
+      position: { line: 1, character: 16 },
+    });
+    expect(
+      (customResponse.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === "rfind",
+      ),
+    ).toBe(true);
+    const customMethod = page
+      .getByRole("listbox", { name: "Suggest" })
+      .getByRole("listitem", { name: "rfind, Method", exact: true });
+    await expect(customMethod).toBeVisible({ timeout: 30_000 });
+    await customMethod.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText([
+      'class Mine; def rfind; "custom"; end; end',
+      "puts Mine.new.rfind",
+    ]);
+    await expectRubyOutput(page, "custom\n");
+    await page.screenshot({
+      path: testInfo.outputPath("mine-rfind-inserted.png"),
+    });
 
-  const arrayResponseStart = (await lspObservations(page)).length;
-  await editRuby(page, "puts [1,2].");
-  await page.keyboard.type("rf");
-  let arrayResponse: Record<string, unknown> | undefined;
-  await expect
-    .poll(async () => {
-      const events = await lspObservations(page);
-      const change = events
-        .slice(arrayResponseStart)
-        .filter(
-          (event) =>
-            event.direction === "notification" &&
-            event.method === "textDocument/didChange" &&
-            (event.contentChanges as Array<{ text?: string }> | undefined)?.at(
-              -1,
-            )?.text === "puts [1,2].rf",
-        )
-        .at(-1);
-      if (!change) return false;
-      const request = events.find(
-        (event) =>
-          event.direction === "request" &&
-          event.method === "textDocument/completion" &&
-          event.documentVersion === change.documentVersion &&
-          JSON.stringify(event.position) ===
-            JSON.stringify({ line: 0, character: 13 }),
-      );
-      if (!request) return false;
-      arrayResponse = events.find(
-        (event) =>
-          event.direction === "response" &&
-          event.method === "textDocument/completion" &&
-          event.workerId === request.workerId &&
-          event.token === request.token,
-      );
-      return Boolean(
-        (
-          arrayResponse?.candidates as Array<{ label?: string }> | undefined
-        )?.some((candidate) => candidate.label === "rfind"),
-      );
-    })
-    .toBe(true);
-  expect(
-    (arrayResponse?.candidates as Array<{ label?: string }>).some(
-      (candidate) => candidate.label === "rfind",
+    (diagnostic.phases as string[]).push(
+      "same Mine receiver after declaration removal",
+    );
+    await editRuby(page, "class Mine; end\nputs Mine.new.r");
+    await page.keyboard.type("f");
+    await expectEditorSource(page, "class Mine; end\nputs Mine.new.rf");
+    const removedResponse = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "class Mine; end\nputs Mine.new.rf",
+      position: { line: 1, character: 16 },
+    });
+    expect(
+      (removedResponse.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === "rfind",
+      ),
+    ).toBe(false);
+    await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+    await page.screenshot({
+      path: testInfo.outputPath("mine-rfind-removed-from-same-receiver.png"),
+    });
+
+    (diagnostic.phases as string[]).push("Array rfind remains available");
+    await editRuby(page, "puts [1,2]");
+    await page.keyboard.type(".");
+    await expectEditorSource(page, "puts [1,2].");
+    const arrayDotResponse = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts [1,2].",
+      position: { line: 0, character: 11 },
+    });
+    expect(
+      (arrayDotResponse.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === "rfind",
+      ),
+    ).toBe(true);
+    await page.keyboard.type("rf");
+    await expectEditorSource(page, "puts [1,2].rf");
+    const arrayMethod = page
+      .getByRole("listbox", { name: "Suggest" })
+      .getByRole("listitem", { name: "rfind, Method", exact: true });
+    await expect(arrayMethod).toBeVisible({ timeout: 30_000 });
+    await arrayMethod.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+      "puts [1,2].rfind",
+    );
+    await page.screenshot({
+      path: testInfo.outputPath("array-rfind-after-deletion.png"),
+    });
+  } finally {
+    diagnostic.lspObservations = await lspObservations(page).catch((error) => [
+      { readError: String(error) },
+    ]);
+    diagnostic.finalEditorLines = await page
+      .locator(".monaco-editor .view-line")
+      .allTextContents()
+      .catch((error) => [`read error: ${String(error)}`]);
+    const serialized = JSON.stringify(diagnostic, null, 2);
+    await writeFile(
+      testInfo.outputPath("mine-array-diagnostic.json"),
+      serialized,
+      "utf8",
+    );
+    await testInfo.attach("mine-array-diagnostic.json", {
+      body: serialized,
+      contentType: "application/json",
+    });
+  }
+});
+
+test("Ruby 3.3 keeps a custom Mine#rfind without adding Array#rfind", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  const provenance = await captureE2eSourceProvenance(testInfo);
+  const diagnostic: Record<string, unknown> = {
+    actualGitHead: provenance.actualGitHead,
+    testSourceSha256: provenance.testSourceSha256,
+    observerSourceSha256: provenance.observerSourceSha256,
+  };
+  page.on("pageerror", (error) =>
+    ((diagnostic.pageErrors ??= []) as string[]).push(
+      error.stack ?? error.message,
     ),
-  ).toBe(true);
-  const arrayMethod = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "rfind, Method", exact: true });
-  await expect(arrayMethod).toBeVisible({ timeout: 30_000 });
-  await arrayMethod.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    "puts [1,2].rfind",
   );
-  await page.screenshot({
-    path: testInfo.outputPath("array-rfind-after-deletion.png"),
-  });
+  await watchAnalysisWorkers(page);
+  try {
+    await page.goto(codeOnlyUrl("", "3.3"));
+    await expect(page.getByText("On", { exact: true })).toBeVisible({
+      timeout: 60_000,
+    });
+    const workerId = await readyWorkerId(page, "3.3");
+    const customSource =
+      'class Mine; def rfind; "custom"; end; end\nputs Mine.new.rf';
+    await editRuby(
+      page,
+      'class Mine; def rfind; "custom"; end; end\nputs Mine.new.r',
+    );
+    await page.keyboard.type("f");
+    await expectEditorSource(page, customSource);
+    const custom = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: customSource,
+      position: { line: 1, character: 16 },
+    });
+    const customCandidates = custom.response.candidates as Array<{
+      label?: string;
+    }>;
+    expect(
+      customCandidates.some((candidate) => candidate.label === "rfind"),
+    ).toBe(true);
+    const customMethod = page
+      .getByRole("listbox", { name: "Suggest" })
+      .getByRole("listitem", { name: "rfind, Method", exact: true });
+    await expect(customMethod).toBeVisible({ timeout: 30_000 });
+    await customMethod.click();
+    await expect(page.locator(".monaco-editor .view-line")).toHaveText([
+      'class Mine; def rfind; "custom"; end; end',
+      "puts Mine.new.rfind",
+    ]);
+    await expectRubyOutput(page, "custom\n");
+
+    const removedSource = "class Mine; end\nputs Mine.new.rf";
+    await editRuby(page, "class Mine; end\nputs Mine.new.r");
+    await page.keyboard.type("f");
+    await expectEditorSource(page, removedSource);
+    const removed = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: removedSource,
+      position: { line: 1, character: 16 },
+    });
+    expect(
+      (removed.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === "rfind",
+      ),
+    ).toBe(false);
+
+    await editRuby(page, "puts [1,2]");
+    await page.keyboard.type(".");
+    await expectEditorSource(page, "puts [1,2].");
+    const array = await waitForCompletionSnapshot(page, {
+      workerId,
+      source: "puts [1,2].",
+      position: { line: 0, character: 11 },
+    });
+    expect(
+      (array.response.candidates as Array<{ label?: string }>).some(
+        (candidate) => candidate.label === "rfind",
+      ),
+    ).toBe(false);
+    await page.keyboard.type("rf");
+    await expectEditorSource(page, "puts [1,2].rf");
+    await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+  } finally {
+    diagnostic.lspObservations = await lspObservations(page).catch((error) => [
+      { readError: String(error) },
+    ]);
+    diagnostic.finalEditorLines = await page
+      .locator(".monaco-editor .view-line")
+      .allTextContents()
+      .catch((error) => [`read error: ${String(error)}`]);
+    const serialized = JSON.stringify(diagnostic, null, 2);
+    await writeFile(
+      testInfo.outputPath("mine-array-3-3-diagnostic.json"),
+      serialized,
+      "utf8",
+    );
+    await testInfo.attach("mine-array-3-3-diagnostic.json", {
+      body: serialized,
+      contentType: "application/json",
+    });
+  }
 });
 
 test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata", async ({
@@ -992,7 +1092,7 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
 test("Fiber#raise details follow the selected TypeProf Ruby core", async ({
   page,
 }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(120_000);
   await mkdir(testInfo.outputPath(), { recursive: true });
   const generatedAnalysisAsset = await readGeneratedAnalysisAsset();
   const alternateWasm = Buffer.from("alternate valid WASM identity fixture");
@@ -1245,117 +1345,220 @@ test("measure cold and warm completion startup, response, and HTTP asset transfe
   page,
 }, testInfo) => {
   test.setTimeout(120_000);
+  const provenance = await captureE2eSourceProvenance(testInfo);
   await watchAnalysisWorkers(page);
+  const measurements: Record<string, unknown>[] = [];
+  let assetPhase = "before-navigation";
   const httpAssetResponses: Promise<Record<string, unknown>>[] = [];
   page.context().on("requestfinished", (request) => {
     const url = new URL(request.url());
     if (!url.pathname.startsWith("/lsp/")) return;
+    const requestPhase = assetPhase;
     httpAssetResponses.push(
       (async () => {
         const response = await request.response();
         const headers = response ? await response.allHeaders() : {};
         const sizes = await request.sizes();
         return {
+          phase: requestPhase,
           path: url.pathname,
           status: response?.status(),
+          fromServiceWorker: response?.fromServiceWorker(),
           contentLength: headers["content-length"],
           contentEncoding: headers["content-encoding"],
           responseBodyBytes: sizes.responseBodySize,
+          responseBodyBytesQuality:
+            sizes.responseBodySize < 0 ? "invalid-negative" : "observed",
           responseHeadersBytes: sizes.responseHeadersSize,
         };
       })().catch((error: unknown) => ({
+        phase: requestPhase,
         path: url.pathname,
         error: error instanceof Error ? error.message : String(error),
       })),
     );
   });
-  const navigationStartedAt = Date.now();
-  await page.goto(codeOnlyUrl("", "4.0"));
-  await expect(page.getByText("On", { exact: true })).toBeVisible({
-    timeout: 60_000,
-  });
-  const coldReadyMs = Date.now() - navigationStartedAt;
-
-  await editRuby(page, 'puts "cold"');
-  const coldQueryStartedAt = Date.now();
-  await page.keyboard.type(".upc");
-  const coldCandidate = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "upcase, Method", exact: true });
-  await expect(coldCandidate).toBeVisible({ timeout: 30_000 });
-  const coldCandidateUiMs = Date.now() - coldQueryStartedAt;
-  await coldCandidate.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    'puts "cold".upcase',
-  );
-  await expectRubyOutput(page, "COLD\n");
-  await page.screenshot({
-    path: testInfo.outputPath("cold-upcase-inserted.png"),
-  });
-
-  await editRuby(page, 'puts "warm"');
-  const warmQueryStartedAt = Date.now();
-  await page.keyboard.type(".upc");
-  const warmCandidate = page
-    .getByRole("listbox", { name: "Suggest" })
-    .getByRole("listitem", { name: "upcase, Method", exact: true });
-  await expect(warmCandidate).toBeVisible({ timeout: 30_000 });
-  const warmCandidateUiMs = Date.now() - warmQueryStartedAt;
-  await warmCandidate.click();
-  await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-    'puts "warm".upcase',
-  );
-  await expectRubyOutput(page, "WARM\n");
-  await page.screenshot({
-    path: testInfo.outputPath("warm-upcase-inserted.png"),
-  });
-
-  const observations = await lspObservations(page);
-  const httpAssets = await Promise.all(httpAssetResponses);
-  const completions = observations
-    .filter(
-      (event) =>
-        event.direction === "response" &&
-        event.method === "textDocument/completion",
-    )
-    .map((event) => ({
-      responseMs: event.responseMs,
-      workerElapsedMs: event.workerElapsedMs,
-      candidateCount: event.candidateCount,
-    }));
-  const ready = observations.filter((event) => event.direction === "ready");
   const generatedAnalysisAsset = await readGeneratedAnalysisAsset();
-  expect(
-    ready.every(
-      (event) => event.wasmSha256 === generatedAnalysisAsset.wasmSha256,
-    ),
-  ).toBe(true);
-  const metrics = {
-    head:
-      process.env.COMPLETION_UI_HEAD ??
-      process.env.GITHUB_SHA ??
-      "not-recorded",
+  const metrics: Record<string, unknown> = {
+    actualGitHead: provenance.actualGitHead,
+    testSourceSha256: provenance.testSourceSha256,
+    observerSourceSha256: provenance.observerSourceSha256,
+    provenanceSourceSha256: provenance.provenanceSourceSha256,
     runtimeCommit: process.env.COMPLETION_RUNTIME_COMMIT ?? "not-recorded",
-    version: "4.0",
     manifestSha256: generatedAnalysisAsset.manifestSha256,
     wasmSha256: generatedAnalysisAsset.wasmSha256,
-    coldReadyMs,
-    coldCandidateUiMs,
-    warmCandidateUiMs,
-    workerReady: ready,
-    completionResponses: completions,
-    httpAssets,
+    cacheStateDefinition:
+      "For 3.3, first Worker follows the Playwright test's fresh browser context. For 4.0 the page cache may be warm from 3.3. Each version's warm Worker is a distinct OFF-to-ON Worker in the same page with HTTP cache retained.",
+    responseSizeNote:
+      "Raw request.sizes() values are preserved. Negative responseBodyBytes are invalid observations and are not summed as transfer bytes.",
+    measurements,
   };
-  const serializedMetrics = JSON.stringify(metrics, null, 2);
-  await writeFile(
-    testInfo.outputPath("browser-metrics.json"),
-    serializedMetrics,
-    "utf8",
-  );
-  await testInfo.attach("browser-metrics.json", {
-    body: serializedMetrics,
-    contentType: "application/json",
-  });
+  let activeMeasurement: Record<string, unknown> | undefined;
+  try {
+    for (const version of ["3.3", "4.0"] as const) {
+      const versionAssetStartIndex = httpAssetResponses.length;
+      activeMeasurement = { version, phase: "navigation" };
+      measurements.push(activeMeasurement);
+      assetPhase = `${version}-first-worker-assets`;
+      const navigationStartedAt = performance.now();
+      await page.goto(codeOnlyUrl("", version));
+      await expect(page.getByText("On", { exact: true })).toBeVisible({
+        timeout: 60_000,
+      });
+      const firstWorkerReadyMs = performance.now() - navigationStartedAt;
+      activeMeasurement.firstWorkerReadyMs = firstWorkerReadyMs;
+      const coldWorkerId = await readyWorkerId(page, version);
+      activeMeasurement.coldWorkerId = coldWorkerId;
+      const coldReady = (await lspObservations(page))
+        .filter(
+          (event) =>
+            event.direction === "ready" && event.workerId === coldWorkerId,
+        )
+        .at(-1);
+      expect(coldReady?.wasmSha256).toBe(generatedAnalysisAsset.wasmSha256);
+      activeMeasurement.coldReady = coldReady;
+      activeMeasurement.phase = "first-worker-ready";
+
+      await editRuby(page, `puts "cold-${version}"`);
+      const coldQueryStartedAt = performance.now();
+      await page.keyboard.type(".upc");
+      const coldCandidate = page
+        .getByRole("listbox", { name: "Suggest" })
+        .getByRole("listitem", { name: "upcase, Method", exact: true });
+      await expect(coldCandidate).toBeVisible({ timeout: 30_000 });
+      const coldCandidateUiMs = performance.now() - coldQueryStartedAt;
+      activeMeasurement.coldCandidateUiMs = coldCandidateUiMs;
+      await coldCandidate.click();
+      await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+        `puts "cold-${version}".upcase`,
+      );
+      await expectRubyOutput(page, `COLD-${version}\n`);
+      await page.screenshot({
+        path: testInfo.outputPath(`cold-upcase-${version}.png`),
+      });
+
+      const completionToggle = page.getByRole("checkbox", {
+        name: "Code completion",
+      });
+      const completionSwitch = completionToggle.locator("xpath=..");
+      await completionSwitch.click();
+      await expect(page.getByText("Off", { exact: true })).toBeVisible();
+      activeMeasurement.phase = "OFF-confirmed";
+      assetPhase = `${version}-warm-worker-assets-after-cache`;
+      const warmAssetStartIndex = httpAssetResponses.length;
+      const warmStartedAt = performance.now();
+      await completionSwitch.click();
+      await expect(page.getByText("On", { exact: true })).toBeVisible();
+      activeMeasurement.phase = "ON-confirmed-waiting-for-distinct-worker";
+      const warmWorkerId = await readyWorkerId(page, version, coldWorkerId);
+      const warmReadyMs = performance.now() - warmStartedAt;
+      activeMeasurement.warmWorkerId = warmWorkerId;
+      activeMeasurement.warmReadyMs = warmReadyMs;
+      const warmReady = (await lspObservations(page))
+        .filter(
+          (event) =>
+            event.direction === "ready" && event.workerId === warmWorkerId,
+        )
+        .at(-1);
+      expect(warmReady?.wasmSha256).toBe(generatedAnalysisAsset.wasmSha256);
+      activeMeasurement.warmReady = warmReady;
+      activeMeasurement.phase = "warm-worker-ready";
+
+      assetPhase = `${version}-warm-query`;
+      await editRuby(page, `puts "warm-${version}"`);
+      const warmQueryStartedAt = performance.now();
+      await page.keyboard.type(".upc");
+      const warmCandidate = page
+        .getByRole("listbox", { name: "Suggest" })
+        .getByRole("listitem", { name: "upcase, Method", exact: true });
+      await expect(warmCandidate).toBeVisible({ timeout: 30_000 });
+      const warmCandidateUiMs = performance.now() - warmQueryStartedAt;
+      activeMeasurement.warmCandidateUiMs = warmCandidateUiMs;
+      await warmCandidate.click();
+      await expect(page.locator(".monaco-editor .view-line")).toHaveText(
+        `puts "warm-${version}".upcase`,
+      );
+      await expectRubyOutput(page, `WARM-${version}\n`);
+      await page.screenshot({
+        path: testInfo.outputPath(`warm-upcase-${version}.png`),
+      });
+
+      const observations = await lspObservations(page);
+      const versionEvents = observations.filter(
+        (event) =>
+          [coldWorkerId, warmWorkerId].includes(event.workerId as number) &&
+          (event.direction === "ready" ||
+            ((event.direction === "request" ||
+              event.direction === "response") &&
+              event.method === "textDocument/completion")),
+      );
+      const completionResponses = versionEvents
+        .filter(
+          (event) =>
+            event.direction === "response" &&
+            event.method === "textDocument/completion",
+        )
+        .map((event) => ({
+          workerId: event.workerId,
+          token: event.token,
+          documentVersion: event.documentVersion,
+          responseMs: event.responseMs,
+          workerElapsedMs: event.workerElapsedMs,
+          candidateCount: event.candidateCount,
+        }));
+      Object.assign(activeMeasurement, {
+        version,
+        coldWorkerId,
+        firstWorkerCacheState:
+          version === "3.3"
+            ? "fresh test browser context"
+            : "same browser context after 3.3 assets were fetched",
+        firstWorkerReadyMs,
+        coldInitializationMs: (
+          coldReady?.timings as { initializationMs?: number } | undefined
+        )?.initializationMs,
+        coldCandidateUiMs,
+        warmWorkerId,
+        warmReadyMs,
+        warmInitializationMs: (
+          warmReady?.timings as { initializationMs?: number } | undefined
+        )?.initializationMs,
+        warmCandidateUiMs,
+        workerReady: [coldReady, warmReady],
+        completionResponses,
+        httpAssets: await Promise.all(
+          httpAssetResponses.slice(versionAssetStartIndex),
+        ),
+        warmWorkerHttpAssets: await Promise.all(
+          httpAssetResponses.slice(warmAssetStartIndex),
+        ),
+      });
+      activeMeasurement.phase = "warm-query-complete";
+    }
+  } catch (error) {
+    metrics.failure = error instanceof Error ? error.message : String(error);
+    metrics.failureStack = error instanceof Error ? error.stack : undefined;
+    if (activeMeasurement)
+      activeMeasurement.failurePhase = activeMeasurement.phase;
+    throw error;
+  } finally {
+    metrics.finishedAt = new Date().toISOString();
+    metrics.finalPhase = activeMeasurement?.phase ?? assetPhase;
+    metrics.partialWorkerObservations = await lspObservations(page).catch(
+      (error) => ({ readError: String(error) }),
+    );
+    metrics.partialHttpAssets = await Promise.all(httpAssetResponses);
+    const serializedMetrics = JSON.stringify(metrics, null, 2);
+    await writeFile(
+      testInfo.outputPath("browser-metrics.json"),
+      serializedMetrics,
+      "utf8",
+    );
+    await testInfo.attach("browser-metrics.json", {
+      body: serializedMetrics,
+      contentType: "application/json",
+    });
+  }
 });
 
 test("OFF and Ruby version changes dispose and recreate analysis workers", async ({
@@ -1481,9 +1684,11 @@ test("ignores a forced late completion response after OFF disposes its worker", 
               (event) =>
                 event.direction === "notification" &&
                 event.method === "textDocument/didChange" &&
-                (
-                  event.contentChanges as Array<{ text?: string }> | undefined
-                )?.at(-1)?.text === source,
+                normalizeCompletionSource(
+                  (
+                    event.contentChanges as Array<{ text?: string }> | undefined
+                  )?.at(-1)?.text ?? "",
+                ) === normalizeCompletionSource(source),
             )
             .at(-1);
           if (!documentEvent) return false;

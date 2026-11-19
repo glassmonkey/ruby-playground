@@ -88,11 +88,13 @@ async function waitForHeldCompletionForSource(
             event.workerId === workerId &&
             (event.method === "textDocument/didOpen" ||
               event.method === "textDocument/didChange") &&
-            ((event.contentChanges as Array<{ text?: string }> | undefined)?.at(
-              -1,
-            )?.text ??
-              (event.textDocument as { text?: string } | undefined)?.text) ===
-              source,
+            normalizeCompletionSource(
+              (
+                event.contentChanges as Array<{ text?: string }> | undefined
+              )?.at(-1)?.text ??
+                (event.textDocument as { text?: string } | undefined)?.text ??
+                "",
+            ) === normalizeCompletionSource(source),
         )
         .at(-1);
       if (!documentEvent) return false;
