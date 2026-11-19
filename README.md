@@ -422,6 +422,40 @@ These are local test results on the checkpoint and its contemporaneous E2E
 source hashes. They do not establish a complete suite result for a later
 source revision or the current PR head.
 
+### 368bfae reviewer follow-up
+
+The first full completion + TypeProf run on product head
+`368bfae68705bf968705e0e0ca6da6bf130a1cce` used runtime `a778fef` and finished
+30/37. Its exact artifacts and source copies are under
+`/private/tmp/gla187-ui-368bfae-final-suite/run1/`. The source hashes are in
+`run-record.json`; that run used the unmodified committed E2E files and is not
+a result for the follow-up edits below.
+
+The first targeted follow-up run finished 5/9. It passed the natural `put` →
+`puts` cursor-3 response, recovery after core-asset failure, the Ruby API
+3.3→4.0→3.3 matrix, and the TypeProf Mine/Array F3 cases on both Ruby versions.
+The four failures were assertion mismatches: the Greeter and integer refresh
+checks compared dot-stage response positions 17 and 8 with final-prefix
+positions 20 and 10. The exact run and source hashes are in
+`/private/tmp/gla187-ui-368bfae-postfix-run1/`.
+
+The follow-up now keeps the successful raw response tied to its dot-stage
+source/cursor and checks natural prefix input, visible candidate, insertion,
+and full editor source separately. The TypeProf Mine/Array case uses the
+successful dot response at line 0, character 11 for raw version availability,
+then checks natural `rf` filtering and 4.0 insertion. It does not require a new
+RPC for the filtered prefix. The two browser cases for the Greeter and
+full-document refresh now pass on both Ruby 3.3 and 4.0 (4/4) at the source
+hashes recorded in `/private/tmp/gla187-ui-368bfae-postfix-run2/`.
+
+The complete 37-case suite has not yet been rerun on these follow-up sources.
+The Ruby API test in the first 368bfae run waited for a fresh prefix snapshot;
+its archived trace contains a successful 4.0 `rfind` response, while the
+matching prefix UI state was not established by that run. The updated test
+separates the dot response from the natural prefix UI and passed in the
+targeted follow-up run. No product code or analysis asset changed in these
+test corrections.
+
 ## Security and privacy
 
 - Code runs in your browser in a Web Worker. Each run uses a new Worker and

@@ -270,6 +270,8 @@ async function typeAndSelectTypeProfCandidate(
     workerId,
     source,
     expectedPosition,
+    snapshotSource,
+    snapshotPosition,
     onTyped,
     selection = "click",
   }: {
@@ -280,6 +282,8 @@ async function typeAndSelectTypeProfCandidate(
     workerId: number;
     source: string;
     expectedPosition: Position;
+    snapshotSource?: string;
+    snapshotPosition?: Position;
     onTyped?: () => Promise<void>;
     selection?: "click" | "keyboard";
   },
@@ -289,17 +293,19 @@ async function typeAndSelectTypeProfCandidate(
   const snapshot = await waitForSnapshotCandidate(page, {
     responseStart,
     workerId,
-    source,
-    position: expectedPosition,
+    source: snapshotSource ?? source,
+    position: snapshotPosition ?? expectedPosition,
     label,
   });
+  await expectEditorSource(page, source);
   const event = snapshot.response;
   const item = snapshot.item;
+  const rawPosition = snapshotPosition ?? expectedPosition;
   expect(item).toBeDefined();
   if (detailPattern) expect(item?.detail).toMatch(detailPattern);
   expect(event?.workerId).toBeDefined();
   expect(event?.documentVersion).toBeDefined();
-  expect(event.position).toEqual(expectedPosition);
+  expect(event.position).toEqual(rawPosition);
 
   // The accessible row name can include TypeProf documentation details. Match
   // the exact visible label node so `upcase` cannot select `upcase!`.
@@ -626,14 +632,13 @@ for (const version of versions) {
     await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
 
     const arraySource = "puts [1,2].";
-    await editRuby(page, arraySource);
     const arrayResponseStart = (await lspObservations(page)).length;
-    await page.keyboard.type("rf", { delay: 50 });
+    await editRuby(page, arraySource);
     const arrayResponse = await waitForSnapshotResponse(page, {
       responseStart: arrayResponseStart,
       workerId,
-      source: `${arraySource}rf`,
-      position: { line: 0, character: 13 },
+      source: arraySource,
+      position: { line: 0, character: 11 },
     });
     const arrayHasRfind = Boolean(
       arrayResponse.response.candidates?.some(
@@ -641,9 +646,17 @@ for (const version of versions) {
       ),
     );
     expect(arrayHasRfind).toBe(version === "4.0");
-    if (version === "4.0")
+    await expectEditorSource(page, arraySource);
+    await page.keyboard.type("rf", { delay: 50 });
+    const arrayPrefixSource = `${arraySource}rf`;
+    await expectEditorSource(page, arrayPrefixSource);
+    if (version === "4.0") {
       await expect(visibleCandidateLabel(page, "rfind")).toBeVisible();
-    else await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+      await visibleCandidateLabel(page, "rfind").click();
+      await expectEditorSource(page, `${arraySource}rfind`);
+    } else {
+      await expect(visibleCandidateLabel(page, "rfind")).toHaveCount(0);
+    }
   });
 }
 
@@ -1016,20 +1029,33 @@ for (const version of versions) {
     await expectEditorSource(page, 'greeting = "hi"\nputs greeting');
     await expectRubyOutput(page, "hi\n");
 
-    await editRuby(
-      page,
-      'class Greeter; def salutation; "hi"; end; end\nputs Greeter.new',
-    );
+    const greeterPrefix =
+      'class Greeter; def salutation; "hi"; end; end\nputs Greeter.new';
+    await editRuby(page, greeterPrefix);
     responseStart = (await lspObservations(page)).length;
+    await page.keyboard.type(".");
+    const greeterDotSource = `${greeterPrefix}.`;
+    const greeterDot = await waitForSnapshotCandidate(page, {
+      responseStart,
+      workerId: ready.workerId as number,
+      source: greeterDotSource,
+      position: { line: 1, character: 17 },
+      label: "salutation",
+    });
+    expect(greeterDot.response.position).toEqual({
+      line: 1,
+      character: 17,
+    });
     await typeAndSelectTypeProfCandidate(page, {
-      prefix: ".sal",
+      prefix: "sal",
       label: "salutation",
       detailPattern: /Greeter#salutation/,
       responseStart,
       workerId: ready.workerId as number,
-      source:
-        'class Greeter; def salutation; "hi"; end; end\nputs Greeter.new.sal',
+      source: `${greeterDotSource}sal`,
       expectedPosition: { line: 1, character: 20 },
+      snapshotSource: greeterDotSource,
+      snapshotPosition: { line: 1, character: 17 },
     });
     await expectEditorSource(
       page,
@@ -1093,14 +1119,29 @@ for (const version of versions) {
       phase = "full-document-update-and-second-completion";
       await editRuby(page, "value = 42\np value");
       responseStart = (await lspObservations(page)).length;
+      await page.keyboard.type(".");
+      const integerDotSource = "value = 42\np value.";
+      const integerDot = await waitForSnapshotCandidate(page, {
+        responseStart,
+        workerId: ready.workerId as number,
+        source: integerDotSource,
+        position: { line: 1, character: 8 },
+        label: "digits",
+      });
+      expect(integerDot.response.position).toEqual({
+        line: 1,
+        character: 8,
+      });
       const integerCompletion = await typeAndSelectTypeProfCandidate(page, {
-        prefix: ".di",
+        prefix: "di",
         label: "digits",
         detailPattern: /Integer#digits/,
         responseStart,
         workerId: ready.workerId as number,
-        source: "value = 42\np value.di",
+        source: `${integerDotSource}di`,
         expectedPosition: { line: 1, character: 10 },
+        snapshotSource: integerDotSource,
+        snapshotPosition: { line: 1, character: 8 },
         selection: "keyboard",
       });
       expect(integerCompletion.event.documentVersion).toBeGreaterThan(

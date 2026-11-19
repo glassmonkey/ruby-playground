@@ -258,9 +258,12 @@ test("core asset failure preserves execution and recovers after OFF then ON", as
     const completionToggle = page.getByRole("checkbox", {
       name: "Code completion",
     });
-    await completionToggle.uncheck();
+    const completionSwitch = completionToggle.locator("xpath=..");
+    await completionSwitch.click();
+    await expect(completionToggle).not.toBeChecked();
     await expect(completionStatus).toHaveText("Off");
-    await completionToggle.check();
+    await completionSwitch.click();
+    await expect(completionToggle).toBeChecked();
     await expect(completionStatus).toHaveText("On", { timeout: 60_000 });
 
     await editRuby(page, 'puts "hello"');
@@ -382,50 +385,32 @@ test("natural input completes put as puts and preserves text after the edit", as
     await expect(page.getByText("On", { exact: true })).toBeVisible({
       timeout: 60_000,
     });
+    const workerId = await readyWorkerId(page, "4.0");
 
+    const completionStart = (await lspObservations(page)).length;
     await editRuby(page, 'pu "Ruby"');
     for (let index = 0; index < 7; index += 1)
       await page.keyboard.press("ArrowLeft");
-    const completionStart = (await lspObservations(page)).length;
     await page.keyboard.type("t");
     await expectEditorSource(page, 'put "Ruby"');
     let putsResponse: Record<string, unknown> | undefined;
     await expect
       .poll(async () => {
         const events = await lspObservations(page);
-        const latestChange = events
-          .slice(completionStart)
-          .filter(
-            (event) =>
-              event.direction === "notification" &&
-              event.method === "textDocument/didChange" &&
-              normalizeCompletionSource(
-                (
-                  event.contentChanges as Array<{ text?: string }> | undefined
-                )?.at(-1)?.text ?? "",
-              ) === 'put "Ruby"',
-          )
-          .at(-1);
-        if (!latestChange) return false;
-        const request = events.find(
-          (event) =>
-            event.direction === "request" &&
-            event.method === "textDocument/completion" &&
-            event.documentVersion === latestChange.documentVersion &&
-            JSON.stringify(event.position) ===
-              JSON.stringify({ line: 0, character: 3 }),
+        const snapshot = completionResponseForSnapshot(
+          events.slice(completionStart),
+          {
+            workerId,
+            source: 'put "Ruby"',
+            position: { line: 0, character: 3 },
+          },
         );
-        if (!request) return false;
-        putsResponse = events.find(
-          (event) =>
-            event.direction === "response" &&
-            event.method === "textDocument/completion" &&
-            event.workerId === request.workerId &&
-            event.token === request.token,
-        );
+        if (!snapshot || !isSuccessfulCompletionResponse(snapshot.response))
+          return false;
+        putsResponse = snapshot.response;
         return Boolean(
           (
-            putsResponse?.candidates as Array<{ label?: string }> | undefined
+            putsResponse.candidates as Array<{ label?: string }> | undefined
           )?.some((candidate) => candidate.label === "puts"),
         );
       })
@@ -903,14 +888,15 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     );
 
     await editRuby(page, "puts [1,2].");
-    await page.keyboard.type("rf");
     snapshot = await waitForCompletionSnapshot(page, {
       workerId,
-      source: "puts [1,2].rf",
-      position: { line: 0, character: 13 },
+      source: "puts [1,2].",
+      position: { line: 0, character: 11 },
     });
     rawItems = snapshot.response.candidates as Array<{ label?: string }>;
     expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
+    await page.keyboard.type("rf");
+    await expectEditorSource(page, "puts [1,2].rf");
     await expect(rfind).toHaveCount(0);
     await page.screenshot({
       path: testInfo.outputPath("ruby-3.3-rfind-absent.png"),
@@ -938,13 +924,11 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     });
 
     await editRuby(page, "puts [1,2].");
-    await page.keyboard.type("rf");
     snapshot = await waitForCompletionSnapshot(page, {
       workerId,
-      source: "puts [1,2].rf",
-      position: { line: 0, character: 13 },
+      source: "puts [1,2].",
+      position: { line: 0, character: 11 },
     });
-    await expect(rfind).toBeVisible({ timeout: 30_000 });
     rawItems = snapshot.response.candidates as Array<{
       label?: string;
       textEdit?: unknown;
@@ -952,11 +936,12 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     }>;
     const rawRfind = rawItems.find((item) => item.label === "rfind");
     expect(rawRfind?.textEdit).toBeDefined();
+    await page.keyboard.type("rf");
+    await expectEditorSource(page, "puts [1,2].rf");
+    await expect(rfind).toBeVisible({ timeout: 30_000 });
     await page.screenshot({ path: testInfo.outputPath("ruby-4.0-rfind.png") });
     await rfind.click();
-    await expect(page.locator(".monaco-editor .view-line")).toHaveText(
-      "puts [1,2].rfind",
-    );
+    await expectEditorSource(page, "puts [1,2].rfind");
 
     await editRuby(page, "puts Fiber.new.");
     snapshot = await waitForCompletionSnapshot(page, {
@@ -984,14 +969,15 @@ test("Ruby API completions track 3.3 to 4.0 to 3.3 and expose raw item metadata"
     workerId = await readyWorkerId(page, "3.3", workerId);
 
     await editRuby(page, "puts [1,2].");
-    await page.keyboard.type("rf");
     snapshot = await waitForCompletionSnapshot(page, {
       workerId,
-      source: "puts [1,2].rf",
-      position: { line: 0, character: 13 },
+      source: "puts [1,2].",
+      position: { line: 0, character: 11 },
     });
     rawItems = snapshot.response.candidates as Array<{ label?: string }>;
     expect(rawItems.some((item) => item.label === "rfind")).toBe(false);
+    await page.keyboard.type("rf");
+    await expectEditorSource(page, "puts [1,2].rf");
     await expect(rfind).toHaveCount(0);
     await page.screenshot({
       path: testInfo.outputPath("ruby-3.3-rfind-restored-absent.png"),
