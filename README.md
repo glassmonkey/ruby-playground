@@ -504,6 +504,35 @@ confirmed the product source, E2E helper/API case and analysis assets are
 unchanged; this workflow/documentation update does not require asset rebuild
 or repeated browser/unit suites.
 
+## OFF late-response fixture follow-up
+
+Manager-reported CI run `44587677535` had one flaky production test: the first
+attempt timed out while waiting for a held completion payload, before it reached
+the OFF action; retry passed. Manager also reported a separate 205/205 run. The
+saved CI log is `/private/tmp/gla187-ci-44587677535-success.log` (SHA-256
+`e3d03d97c74219a663ea589811971405ec8f482bf73541470825e7b98bb56621`). Astra's
+fixed-source review found that the old test required a `didChange` for full
+`.upc` text and a fresh completion at that prefix. A valid dot-stage response
+can instead arrive with `didOpen` or be reused while typing the prefix. The
+artifactless CI timeout does not establish which path occurred and is not
+evidence of a product guard failure.
+
+The late-response test now naturally types only the trigger dot after
+`puts "hello"`, accepts the exact full-text document sync through either
+`didOpen` or `didChange`, then correlates the successful completion by worker,
+URI, document version, cursor and token. On UI source `67e60c0`, runtime tree
+`c3da1ca`, its isolated browser run passed 1/1: `didOpen` synchronized
+`file:///main.rb`, version 14, with `puts "hello".`; worker 1/token 4 requested
+cursor 13 and returned a normal `upcase` item with a text edit. Client delivery
+was 0 before OFF. The worker terminated, releasing the held payload succeeded
+and produced exactly one client delivery; the suggestion remained absent and
+Ruby execution still completed while OFF. The test source SHA-256 is
+`f433c5658e7391b9463a06e3f72fe7eb4c0229d2a1df729d8fcac3df284511c6`.
+The source copy, provenance, JSON, screenshot and trace are archived at
+`/private/tmp/gla187-ui-off-late-response-fix/run2-dot-payload/`. Natural
+prefix display/insertion remains covered by its separate test. This one-case
+result does not explain the prior CI flake or verify the full suite.
+
 ## Security and privacy
 
 - Code runs in your browser in a Web Worker. Each run uses a new Worker and

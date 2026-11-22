@@ -1658,7 +1658,7 @@ test("ignores a forced late completion response after OFF disposes its worker", 
   const provenance = await captureE2eSourceProvenance(testInfo);
   await mkdir(testInfo.outputPath(), { recursive: true });
   await watchAnalysisWorkers(page, {
-    holdCompletionResponses: { documentSuffix: ".upc" },
+    holdCompletionResponses: { documentSuffix: "." },
   });
   const record: Record<string, unknown> = {
     actualGitHead: provenance.actualGitHead,
@@ -1676,65 +1676,70 @@ test("ignores a forced late completion response after OFF disposes its worker", 
     const workerId = await readyWorkerId(page, "4.0");
     const responseStart = (await lspObservations(page)).length;
     await editRuby(page, 'puts "hello"');
-    await page.keyboard.type(".upc");
-    const source = 'puts "hello".upc';
+    await page.keyboard.type(".");
+    const source = 'puts "hello".';
+    await expectEditorSource(page, source);
+    let documentSync: Record<string, unknown> | undefined;
+    let completionRequest: Record<string, unknown> | undefined;
     let finalHeld:
       Awaited<ReturnType<typeof heldCompletionResponses>>[number] | undefined;
     await expect
       .poll(
         async () => {
-          const events = await lspObservations(page);
-          const documentEvent = events
-            .slice(responseStart)
+          const events = (await lspObservations(page)).slice(responseStart);
+          const synchronized = events
             .filter(
               (event) =>
                 event.direction === "notification" &&
-                event.method === "textDocument/didChange" &&
-                normalizeCompletionSource(
-                  (
-                    event.contentChanges as Array<{ text?: string }> | undefined
-                  )?.at(-1)?.text ?? "",
-                ) === normalizeCompletionSource(source),
+                (event.method === "textDocument/didOpen" ||
+                  event.method === "textDocument/didChange"),
             )
             .at(-1);
-          if (!documentEvent) return false;
-          const request = events.find(
-            (event) =>
-              event.direction === "request" &&
-              event.method === "textDocument/completion" &&
-              event.workerId === workerId &&
-              event.documentVersion === documentEvent.documentVersion &&
-              JSON.stringify(event.position) ===
-                JSON.stringify({ line: 0, character: source.length }),
-          );
+          if (!synchronized) return false;
+          const synchronizedDocument = synchronized.textDocument as
+            { uri?: string; version?: number; text?: string } | undefined;
+          const synchronizedSource =
+            synchronized.method === "textDocument/didOpen"
+              ? synchronizedDocument?.text
+              : (
+                  synchronized.contentChanges as
+                    Array<{ text?: string }> | undefined
+                )?.at(-1)?.text;
+          if (
+            typeof synchronizedDocument?.uri !== "string" ||
+            typeof synchronizedDocument.version !== "number" ||
+            normalizeCompletionSource(synchronizedSource ?? "") !==
+              normalizeCompletionSource(source)
+          )
+            return false;
+          const synchronizedIndex = events.lastIndexOf(synchronized);
+          const request = events
+            .slice(synchronizedIndex + 1)
+            .find(
+              (event) =>
+                event.direction === "request" &&
+                event.method === "textDocument/completion" &&
+                event.workerId === workerId &&
+                event.documentVersion === synchronizedDocument.version &&
+                (event.textDocument as { uri?: string } | undefined)?.uri ===
+                  synchronizedDocument.uri &&
+                JSON.stringify(event.position) ===
+                  JSON.stringify({ line: 0, character: source.length }),
+            );
           if (!request) return false;
           finalHeld = (await heldCompletionResponses(page)).find(
             (held) =>
               held.workerId === request.workerId &&
               held.token === request.token &&
-              held.documentVersion === documentEvent.documentVersion &&
+              held.documentVersion === synchronizedDocument.version &&
+              held.documentText === source &&
               JSON.stringify(held.position) ===
                 JSON.stringify({ line: 0, character: source.length }),
           );
           if (!finalHeld) return false;
-          const envelope = finalHeld.response as {
-            error?: unknown;
-            responses?: Array<{
-              id?: number;
-              result?: { items?: Array<{ label?: string }> };
-              error?: unknown;
-            }>;
-          };
-          const rpcResponse = envelope.responses?.find(
-            (response) => typeof response.id === "number",
-          );
-          return (
-            envelope.error === undefined &&
-            rpcResponse?.error === undefined &&
-            Array.isArray(rpcResponse?.result?.items) &&
-            rpcResponse.result.items.some((item) => item.label === "upcase") &&
-            finalHeld.candidateLabels.includes("upcase")
-          );
+          documentSync = synchronized;
+          completionRequest = request;
+          return true;
         },
         { timeout: 30_000 },
       )
@@ -1743,13 +1748,60 @@ test("ignores a forced late completion response after OFF disposes its worker", 
     const held = await heldCompletionResponses(page);
     record.heldBeforeOff = held;
     record.requestsBeforeOff = await lspObservations(page);
+    record.documentSyncBeforeOff = documentSync;
+    record.completionRequestBeforeOff = completionRequest;
     const delayedCompletion = finalHeld;
     expect(delayedCompletion).toBeDefined();
+    expect(documentSync?.method).toMatch(/^textDocument\/(didOpen|didChange)$/);
+    const synchronizedDocument = documentSync?.textDocument as
+      { uri?: string; version?: number } | undefined;
+    const requestDocument = completionRequest?.textDocument as
+      { uri?: string } | undefined;
+    expect(typeof synchronizedDocument?.uri).toBe("string");
+    expect(typeof requestDocument?.uri).toBe("string");
+    expect(requestDocument?.uri).toBe(synchronizedDocument?.uri);
+    expect(completionRequest?.workerId).toBe(workerId);
+    expect(completionRequest?.method).toBe("textDocument/completion");
+    expect(completionRequest?.documentVersion).toBe(
+      synchronizedDocument?.version,
+    );
+    expect(completionRequest?.position).toEqual({
+      line: 0,
+      character: source.length,
+    });
+    expect(Number.isInteger(completionRequest?.token)).toBe(true);
     expect(delayedCompletion?.documentText).toBe(source);
+    expect(delayedCompletion?.documentVersion).toBe(
+      synchronizedDocument?.version,
+    );
+    expect(delayedCompletion?.position).toEqual({
+      line: 0,
+      character: source.length,
+    });
+    expect(delayedCompletion?.workerId).toBe(workerId);
+    expect(delayedCompletion?.token).toBe(completionRequest?.token);
     expect(delayedCompletion?.observerMessageListenerCount).toBe(1);
     expect(delayedCompletion?.clientMessageListenerCount).toBe(1);
     expect(delayedCompletion?.clientDeliveriesBeforeRelease).toBe(0);
     expect(delayedCompletion?.candidateLabels).toContain("upcase");
+    const envelope = delayedCompletion?.response as {
+      error?: unknown;
+      responses?: Array<{
+        id?: number;
+        result?: { items?: Array<{ label?: string; textEdit?: unknown }> };
+        error?: unknown;
+      }>;
+    };
+    const rpcResponse = envelope.responses?.find(
+      (response) => typeof response.id === "number",
+    );
+    expect(envelope.error).toBeUndefined();
+    expect(rpcResponse?.error).toBeUndefined();
+    expect(Array.isArray(rpcResponse?.result?.items)).toBe(true);
+    const rawUpcase = rpcResponse?.result?.items?.find(
+      (item) => item.label === "upcase",
+    );
+    expect(rawUpcase?.textEdit).toBeDefined();
     await expectHeldClientDeliveryProof(
       page,
       delayedCompletion?.workerId as number,
