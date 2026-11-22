@@ -17,15 +17,35 @@ vi.mock("../editor", () => ({
   default: ({
     code,
     onChange,
+    path,
+    version,
+    completionEnabled,
+    onCompletionStatusChange,
   }: {
     code: string;
     onChange: (value: string) => void;
+    path?: string;
+    version?: string;
+    completionEnabled?: boolean;
+    onCompletionStatusChange?: (
+      status: "disabled" | "loading" | "ready" | "unsupported" | "error",
+    ) => void;
   }) => (
-    <textarea
-      aria-label="Ruby source"
-      value={code}
-      onChange={(e) => onChange(e.target.value)}
-    />
+    <>
+      <textarea
+        aria-label={path === "Gemfile" ? "Gemfile source" : "Ruby source"}
+        data-ruby-version={version}
+        data-completion-enabled={String(completionEnabled)}
+        value={code}
+        onChange={(e) => onChange(e.target.value)}
+      />
+      <button onClick={() => onCompletionStatusChange?.("ready")}>
+        Mock completion ready
+      </button>
+      <button onClick={() => onCompletionStatusChange?.("error")}>
+        Mock completion error
+      </button>
+    </>
   ),
 }));
 const start = vi.hoisted(() =>
@@ -184,6 +204,7 @@ describe("playground UI", () => {
     expect(parseShareUrl(window.location.href, SHARE_FALLBACK_CODE)).toEqual({
       code,
       version: "4.0",
+      completionEnabled: true,
       gemfile: INITIAL_GEMFILE,
       lock,
     });
@@ -310,7 +331,12 @@ describe("playground UI", () => {
         hash: url.hash,
         historyLength: window.history.length,
       }).toEqual({
-        state: { code, version: "3.4", gemfile: "" },
+        state: {
+          code,
+          version: "3.4",
+          completionEnabled: true,
+          gemfile: "",
+        },
         campaign: "ruby",
         hash: "#about",
         historyLength,
@@ -350,6 +376,79 @@ describe("playground UI", () => {
         expect.any(Function),
       ),
     );
+  });
+  it("defaults completion on and restores ac=0 through browser history", async () => {
+    window.history.replaceState(null, "", "/?ac=0");
+    setupBare(window.location.href);
+    const toggle = await screen.findByRole("checkbox", {
+      name: "Code completion",
+    });
+    const editor = (await screen.findByRole("textbox", {
+      name: "Ruby source",
+    })) as HTMLTextAreaElement;
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+    expect(editor.dataset.completionEnabled).toBe("false");
+    expect(new URL(window.location.href).searchParams.get("ac")).toBe("0");
+
+    fireEvent.click(toggle);
+    expect((toggle as HTMLInputElement).checked).toBe(true);
+    expect(editor.dataset.completionEnabled).toBe("true");
+    expect(new URL(window.location.href).searchParams.has("ac")).toBe(false);
+    expect(
+      parseShareUrl(window.location.href, SHARE_FALLBACK_CODE).gemfile,
+    ).toBe(INITIAL_GEMFILE);
+
+    window.history.pushState(null, "", "/?ac=0");
+    fireEvent(window, new PopStateEvent("popstate"));
+    expect((toggle as HTMLInputElement).checked).toBe(false);
+  });
+  it("announces completion state and gives a natural-input starting point", async () => {
+    setupShared(codeOnlyUrl('puts "hello"'));
+    const status = screen.getByRole("status", {
+      name: "Code completion status: Loading",
+    });
+    expect(status.textContent).toBe("Loading");
+    expect(screen.getByText(/puts "hello"\.upc/)).toBeTruthy();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mock completion ready" }),
+    );
+    expect(
+      screen.getByRole("status", { name: "Code completion status: On" })
+        .textContent,
+    ).toBe("On");
+
+    fireEvent.change(screen.getByLabelText("Ruby version"), {
+      target: { value: "3.4" },
+    });
+    expect(
+      screen.getByRole("status", {
+        name: "Code completion status: Unavailable for Ruby 3.4",
+      }).textContent,
+    ).toBe("Unavailable for Ruby 3.4");
+
+    fireEvent.change(screen.getByLabelText("Ruby version"), {
+      target: { value: "4.0" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Mock completion error" }),
+    );
+    expect(
+      screen.getByRole("status", {
+        name: "Code completion status: Unavailable",
+      }).textContent,
+    ).toBe("Unavailable");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Code completion" }));
+    expect(
+      screen.getByRole("status", { name: "Code completion status: Off" })
+        .textContent,
+    ).toBe("Off");
+    expect(
+      screen.getByText(
+        "Turn on Code completion to see and insert suggestions while you type.",
+      ),
+    ).toBeTruthy();
   });
   it("shows loading immediately on edits and hides it when execution finishes", async () => {
     // Arrange
@@ -480,7 +579,7 @@ it("installs from the Gemfile tab, shares the lockfile and treats Gemfile edits 
   }));
   setupShared(codeOnlyUrl());
   fireEvent.click(await screen.findByRole("tab", { name: "Gemfile" }));
-  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  const editor = await screen.findByRole("textbox", { name: "Gemfile source" });
   fireEvent.change(editor, { target: { value: 'gem "faker"\n' } });
   // Act
   fireEvent.click(screen.getByRole("button", { name: "bundle install" }));
@@ -541,7 +640,7 @@ it("can retry an install after its worker timeout and run with the recovered loc
   }));
   setupShared(codeOnlyUrl());
   fireEvent.click(await screen.findByRole("tab", { name: "Gemfile" }));
-  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  const editor = await screen.findByRole("textbox", { name: "Gemfile source" });
   fireEvent.change(editor, { target: { value: gemfile } });
 
   // Act
@@ -712,7 +811,7 @@ it("keeps a LoadError in the output while the Gemfile is edited", async () => {
   );
   setupShared(window.location.href);
   fireEvent.click(await screen.findByRole("button", { name: "Open Gemfile" }));
-  const editor = await screen.findByRole("textbox", { name: "Ruby source" });
+  const editor = await screen.findByRole("textbox", { name: "Gemfile source" });
   // Act
   fireEvent.change(editor, { target: { value: 'gem "faker"\n' } });
   fireEvent.change(editor, { target: { value: 'gem "faker"\ngem "rake"\n' } });

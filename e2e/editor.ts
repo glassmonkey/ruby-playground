@@ -13,10 +13,11 @@ export const INITIAL_OUTPUT = [
 ].join("\n");
 
 /** Load deterministic Ruby without using the Gemfile-backed initial Poster. */
-export function codeOnlyUrl(code = SHARE_FALLBACK_CODE) {
+export function codeOnlyUrl(code = SHARE_FALLBACK_CODE, version?: string) {
   const query = new URLSearchParams({
     c: LZString.compressToEncodedURIComponent(code),
   });
+  if (version) query.set("v", version);
   return `./?${query}`;
 }
 
@@ -42,13 +43,41 @@ export async function editRuby(
   }
 }
 
+/** Compare each rendered Monaco line, preserving line boundaries and spaces. */
+export async function expectEditorSource(page: Page, source: string) {
+  const expectedLines = source.split("\n");
+  const renderedLines = page.locator(".monaco-editor .view-line");
+  await expect(renderedLines).toHaveCount(expectedLines.length);
+  await expect
+    .poll(async () =>
+      renderedLines.evaluateAll((lines) =>
+        lines.map((line) => (line.textContent ?? "").replace(/\u00a0/g, " ")),
+      ),
+    )
+    .toEqual(expectedLines);
+}
+
 /** Check new output first so a prior run's completed status cannot satisfy us. */
 export async function expectRubyOutput(page: Page, output: string | RegExp) {
   await expect(page.getByTestId("preview-console")).toHaveText(output, {
     timeout: 30_000,
   });
-  await expect(page.getByRole("status")).toHaveText("Complete");
+  await expectRubyExecutionStatus(page, "Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
+}
+
+export async function expectRubyExecutionStatus(
+  page: Page,
+  status: "Complete" | "Error",
+) {
+  await expect(rubyExecutionStatus(page)).toHaveText(status);
+  await expect(
+    page.getByRole("status", { name: /^Code completion status:/ }),
+  ).toBeVisible();
+}
+
+export function rubyExecutionStatus(page: Page) {
+  return page.getByRole("region", { name: "Output" }).getByRole("status");
 }
 
 /** Check the explicit code-only letters fixture, independent of app defaults. */
@@ -69,6 +98,6 @@ export async function expectLettersSample(page: Page) {
       { timeout: 30_000 },
     )
     .toBe(INITIAL_OUTPUT);
-  await expect(page.getByRole("status")).toHaveText("Complete");
+  await expectRubyExecutionStatus(page, "Complete");
   await expect(page.getByRole("main").getByRole("alert")).toHaveCount(0);
 }

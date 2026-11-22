@@ -1,5 +1,6 @@
 import rawLessons from "../src/tutorial/data/lessons.json" with { type: "json" };
 import { expect, test } from "@playwright/test";
+import "./provenance";
 import {
   tutorialVersions,
   latestTutorialVersion,

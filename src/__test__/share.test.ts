@@ -55,6 +55,7 @@ describe("shared playground URLs", () => {
     expect(parseShareUrl(url, fallback)).toEqual({
       code,
       version: "4.0",
+      completionEnabled: true,
       gemfile: "",
     });
     expect(new URL(url).searchParams.get("theme")).toBe("dark");
@@ -75,7 +76,12 @@ describe("shared playground URLs", () => {
       parsed: parseShareUrl(withGems, fallback),
       cleared: new URL(withoutGems).searchParams.has("g"),
     }).toEqual({
-      parsed: { code: "puts 1", version: "4.0", gemfile },
+      parsed: {
+        code: "puts 1",
+        version: "4.0",
+        completionEnabled: true,
+        gemfile,
+      },
       cleared: false,
     });
   });
@@ -95,7 +101,13 @@ describe("shared playground URLs", () => {
       parsed: parseShareUrl(locked, fallback),
       dropped: new URL(withoutGemfile).searchParams.has("l"),
     }).toEqual({
-      parsed: { code: "puts 1", version: "4.0", gemfile, lock },
+      parsed: {
+        code: "puts 1",
+        version: "4.0",
+        completionEnabled: true,
+        gemfile,
+        lock,
+      },
       dropped: false,
     });
   });
@@ -112,6 +124,7 @@ describe("shared playground URLs", () => {
     expect(parsed).toEqual({
       code: "puts 1",
       version: "4.0",
+      completionEnabled: true,
       gemfile: 'gem "faker"',
       warning: "Shared gem versions are invalid. Gems will be resolved again.",
     });
@@ -132,6 +145,7 @@ describe("shared playground URLs", () => {
       expect(got).toEqual({
         code: "puts 1",
         version: "4.0",
+        completionEnabled: true,
         gemfile: 'gem "RedCloth"',
         warning:
           "Shared gem versions are invalid. Gems will be resolved again.",
@@ -154,6 +168,7 @@ describe("shared playground URLs", () => {
       expect(got).toEqual({
         code: "puts 1",
         version: "4.0",
+        completionEnabled: true,
         gemfile: 'gem "rake"',
         warning:
           "Shared gem versions are invalid. Gems will be resolved again.",
@@ -172,6 +187,7 @@ describe("shared playground URLs", () => {
       expect(got).toEqual({
         code: 'puts "legacy"',
         version: "3.4",
+        completionEnabled: true,
         gemfile: "",
       });
     },
@@ -193,6 +209,7 @@ describe("shared playground URLs", () => {
     expect(parseShareUrl(base, fallback)).toEqual({
       code: fallback,
       version: "4.0",
+      completionEnabled: true,
       gemfile: "",
     });
   });
@@ -207,6 +224,28 @@ describe("shared playground URLs", () => {
       version: "4.0",
     });
     expect(parsed.warning).toContain("Ruby 4.0");
+  });
+
+  it("round trips ac=0 and treats legacy URLs as completion enabled", () => {
+    const url = buildShareUrl(base, {
+      code: 'puts "hi"',
+      version: "3.3",
+      completionEnabled: false,
+      gemfile: "",
+    });
+    expect(new URL(url).searchParams.get("ac")).toBe("0");
+    expect(parseShareUrl(url, fallback)).toEqual({
+      code: 'puts "hi"',
+      version: "3.3",
+      completionEnabled: false,
+      gemfile: "",
+    });
+    expect(parseShareUrl(encodedUrl('puts "legacy"'), fallback)).toEqual({
+      code: 'puts "legacy"',
+      version: "4.0",
+      completionEnabled: true,
+      gemfile: "",
+    });
   });
 
   it.each(["", "%", "!!!", "A", "B", "zzzzzz", "Qgarbage", "Q$"])(
@@ -302,6 +341,7 @@ it.each(["4.0", "3.4", "3.3", "3.2", "4.1"] as const)(
     const state = {
       code: "puts RUBY_VERSION",
       version,
+      completionEnabled: true,
     };
     expect(
       parseShareUrl(

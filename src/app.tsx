@@ -25,6 +25,7 @@ import {
 } from "./workers/client";
 import { RUBY_RELEASES, type RubyVersion } from "./versions";
 import { buildShareUrl, parseShareUrl, type ShareState } from "./share";
+import { isLspRubyVersion } from "./lsp/versions";
 import type { ResolvedGem } from "./gems";
 
 import Output from "./output";
@@ -62,7 +63,7 @@ function hasSharePayload(url: string | URL): boolean {
 
 function hasShareParameters(url: string | URL): boolean {
   const params = new URL(url.toString()).searchParams;
-  return ["c", "g", "l", "v", "f"].some((key) => params.has(key));
+  return ["c", "g", "l", "v", "f", "ac"].some((key) => params.has(key));
 }
 
 function parseAppUrl(url: string | URL) {
@@ -80,6 +81,17 @@ export default function App() {
   const [initial] = useState(() => parseAppUrl(window.location.href));
   const [code, setCode] = useState(initial.code);
   const [version, setVersion] = useState(initial.version);
+  const [completionEnabled, setCompletionEnabled] = useState(
+    initial.completionEnabled,
+  );
+  const [completionStatus, setCompletionStatus] = useState<
+    "disabled" | "loading" | "ready" | "unsupported" | "error"
+  >(initial.completionEnabled ? "loading" : "disabled");
+  const completionSettings = useRef({
+    enabled: initial.completionEnabled,
+    version: initial.version,
+  });
+  completionSettings.current = { enabled: completionEnabled, version };
   const [gemfile, setGemfile] = useState(initial.gemfile);
   const [tab, setTab] = useState<EditorTab>("main.rb");
   const [lock, setLock] = useState<GemLock | undefined>(() =>
@@ -105,8 +117,8 @@ export default function App() {
   const waitingForGems = hasGems && !activeLock && !gemfileEdited;
   const autoInstalled = useRef<string>();
   // Install completes asynchronously; it must save the latest editor state.
-  const latest = useRef({ code, version, gemfile });
-  latest.current = { code, version, gemfile };
+  const latest = useRef({ code, version, gemfile, completionEnabled });
+  latest.current = { code, version, gemfile, completionEnabled };
   const [revision, setRevision] = useState(0);
   const [warning, setWarning] = useState(initial.warning ?? "");
   const [environment, setEnvironment] = useState<{
@@ -227,8 +239,22 @@ export default function App() {
       run.current?.cancel();
       run.current = undefined;
       const state = parseAppUrl(window.location.href);
+      const previousCompletionSettings = completionSettings.current;
+      completionSettings.current = {
+        enabled: state.completionEnabled,
+        version: state.version,
+      };
       setCode(state.code);
       setVersion(state.version);
+      setCompletionEnabled(state.completionEnabled);
+      if (
+        previousCompletionSettings.enabled !== state.completionEnabled ||
+        previousCompletionSettings.version !== state.version
+      ) {
+        setCompletionStatus(
+          completionStatusFor(state.completionEnabled, state.version),
+        );
+      }
       setGemfile(state.gemfile);
       setLock(
         state.lock
@@ -256,7 +282,8 @@ export default function App() {
     } catch (error) {
       // A stale URL must not silently share the previous editor contents.
       const url = new URL(window.location.href);
-      for (const key of ["c", "v", "g", "l", "f"]) url.searchParams.delete(key);
+      for (const key of ["c", "v", "g", "l", "f", "ac"])
+        url.searchParams.delete(key);
       window.history.replaceState(window.history.state, "", url);
       setWarning(error instanceof Error ? error.message : String(error));
     }
@@ -345,9 +372,13 @@ export default function App() {
                   const next = event.target.value as RubyVersion;
                   setVersion(next);
                   stopInstall();
+                  setCompletionStatus(
+                    completionStatusFor(completionEnabled, next),
+                  );
                   updateUrl({
                     code,
                     version: next,
+                    completionEnabled,
                     gemfile,
                     lock: lockFor(gemfile, next),
                   });
@@ -359,6 +390,38 @@ export default function App() {
                   </option>
                 ))}
               </Select>
+            </Flex>
+            <Flex align="center" gap={2}>
+              <Text as="label" htmlFor="completion-enabled" fontSize="xs">
+                Code completion:
+              </Text>
+              <Switch
+                id="completion-enabled"
+                aria-label="Code completion"
+                size="lg"
+                colorScheme="ruby"
+                isChecked={completionEnabled}
+                onChange={(event) => {
+                  const next = event.target.checked;
+                  setCompletionEnabled(next);
+                  setCompletionStatus(next ? "loading" : "disabled");
+                  updateUrl({
+                    code,
+                    version,
+                    completionEnabled: next,
+                    gemfile,
+                    lock: activeLock,
+                  });
+                }}
+              />
+              <Text
+                fontSize="xs"
+                role="status"
+                aria-live="polite"
+                aria-label={`Code completion status: ${completionLabel(completionEnabled, version, completionStatus)}`}
+              >
+                {completionLabel(completionEnabled, version, completionStatus)}
+              </Text>
             </Flex>
             <Flex gap={2} align="center">
               <Text as="label" htmlFor="ui-theme" fontSize="xs">
@@ -387,6 +450,11 @@ export default function App() {
             </Flex>
           </Flex>
         </Flex>
+        <Text id="completion-guidance" fontSize="sm" color="mutedText" mb={3}>
+          {completionEnabled
+            ? 'Type after a receiver or local variable, for example `puts "hello".upc`, then select a candidate to insert it. When available, candidate documentation appears beside the suggestions.'
+            : "Turn on Code completion to see and insert suggestions while you type."}
+        </Text>
         <RuntimeInfoPanel
           info={environment?.version === version ? environment.info : undefined}
           isLoading={status !== "done"}
@@ -531,6 +599,9 @@ export default function App() {
                 <RubyEditor
                   path={tab}
                   code={tab === "main.rb" ? code : gemfile}
+                  version={version}
+                  completionEnabled={completionEnabled}
+                  onCompletionStatusChange={setCompletionStatus}
                   onChange={(next) => {
                     if (tab === "Gemfile") {
                       if (next === gemfile) return;
@@ -541,6 +612,7 @@ export default function App() {
                       updateUrl({
                         code,
                         version,
+                        completionEnabled,
                         gemfile: next,
                         lock: lockFor(next, version),
                       });
@@ -552,6 +624,7 @@ export default function App() {
                     updateUrl({
                       code: next,
                       version,
+                      completionEnabled,
                       gemfile,
                       lock: activeLock,
                     });
@@ -844,4 +917,25 @@ export default function App() {
       </Box>
     </Box>
   );
+}
+
+function completionLabel(
+  enabled: boolean,
+  version: RubyVersion,
+  status: "disabled" | "loading" | "ready" | "unsupported" | "error",
+): string {
+  if (!enabled || status === "disabled") return "Off";
+  if (!isLspRubyVersion(version) || status === "unsupported")
+    return `Unavailable for Ruby ${version}`;
+  if (status === "error") return "Unavailable";
+  if (status === "ready") return "On";
+  return "Loading";
+}
+
+function completionStatusFor(
+  enabled: boolean,
+  version: RubyVersion,
+): "disabled" | "loading" | "unsupported" {
+  if (!enabled) return "disabled";
+  return isLspRubyVersion(version) ? "loading" : "unsupported";
 }
